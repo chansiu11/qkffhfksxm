@@ -1,0 +1,3498 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>VALORANT : ASCENT — TACTICAL FPS</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=Rajdhani:wght@600;700&family=Teko:wght@600;700&display=swap" rel="stylesheet">
+  <script src="config.js"></script>
+  <script src="multiplayer-client.js"></script>
+  <!-- Three.js r128 -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+  <style>
+    :root {
+      --val-red: #ff4655;
+      --val-teal: #38e2c7;
+      --val-dark: #0f1923;
+      --val-gold: #f5c542;
+      --val-offwhite: #ece8e1;
+    }
+
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      overscroll-behavior: none;
+      background-color: #0f1923;
+      font-family: 'Rajdhani', 'Noto Sans KR', sans-serif;
+      color: #ece8e1;
+    }
+
+    #game-canvas, #mobile-controls, #mobile-controls * {
+      touch-action: none;
+    }
+
+    button, input {
+      touch-action: manipulation;
+    }
+
+    .font-val {
+      font-family: 'Teko', 'Rajdhani', 'Noto Sans KR', sans-serif;
+      letter-spacing: 0.04em;
+    }
+
+    .font-num {
+      font-family: 'Rajdhani', sans-serif;
+    }
+
+    #game-canvas {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+      z-index: 1;
+    }
+
+    #scope-overlay {
+      z-index: 15;
+    }
+
+    #mobile-controls {
+      z-index: 28;
+    }
+
+    #ingame-hud {
+      z-index: 30;
+    }
+
+    .val-cut {
+      clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px));
+    }
+    .val-cut-sm {
+      clip-path: polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 6px 100%, 0 calc(100% - 6px));
+    }
+    .val-top-trapezoid {
+      clip-path: polygon(0 0, 100% 0, 88% 100%, 12% 100%);
+    }
+    .val-panel {
+      background: rgba(15, 25, 35, 0.94);
+      border: 1px solid rgba(236, 232, 225, 0.22);
+      backdrop-filter: blur(8px);
+    }
+
+    /* VALORANT Mobile Tactical Touch Button Styling (Pure Geometry, Zero Icons) */
+    .vm-btn {
+      background: rgba(15, 25, 35, 0.72);
+      border: 1.5px solid rgba(236, 232, 225, 0.42);
+      color: #ece8e1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      backdrop-filter: blur(4px);
+      transition: transform 0.06s ease, background-color 0.1s ease, border-color 0.1s ease;
+    }
+    .vm-btn:active, .vm-btn.active-hold {
+      background: rgba(56, 226, 199, 0.32);
+      border-color: #38e2c7;
+      transform: scale(0.94);
+    }
+    .vm-btn-fire {
+      background: rgba(255, 70, 85, 0.28);
+      border: 2.5px solid rgba(255, 70, 85, 0.88);
+      box-shadow: inset 0 0 18px rgba(255, 70, 85, 0.35);
+    }
+    .vm-btn-fire:active, .vm-btn-fire.active-hold {
+      background: rgba(255, 70, 85, 0.62);
+      border-color: #ffffff;
+      transform: scale(0.95);
+    }
+    .vm-btn-active-state {
+      background: rgba(56, 226, 199, 0.35) !important;
+      border-color: #38e2c7 !important;
+      color: #38e2c7 !important;
+    }
+
+    @keyframes valKillPop {
+      0% { opacity: 0; transform: translate(-50%, 20px) scale(0.4); }
+      18% { opacity: 1; transform: translate(-50%, 0px) scale(1.15); }
+      34% { transform: translate(-50%, 0px) scale(1.0); }
+      82% { opacity: 1; transform: translate(-50%, 0px) scale(1.0); }
+      100% { opacity: 0; transform: translate(-50%, -12px) scale(0.85); }
+    }
+    .val-kill-emblem {
+      animation: valKillPop 1.55s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    .modal-scroll {
+      touch-action: pan-y !important;
+    }
+    .modal-scroll * {
+      touch-action: manipulation !important;
+    }
+
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #091017; }
+    ::-webkit-scrollbar-thumb { background: #ff4655; border-radius: 3px; }
+  </style>
+</head>
+<body>
+
+  <!-- 3D WebGL Canvas -->
+  <canvas id="game-canvas"></canvas>
+
+  <!-- Damage Vignette -->
+  <div id="damage-vignette" class="fixed inset-0 pointer-events-none z-10 opacity-0 transition-opacity duration-150"
+       style="background: radial-gradient(circle, transparent 52%, rgba(255, 70, 85, 0.72) 100%);"></div>
+
+  <!-- Sniper / ADS Scope Overlay -->
+  <div id="scope-overlay" class="hidden fixed inset-0 pointer-events-none z-15 flex items-center justify-center"
+       style="background: radial-gradient(circle, transparent 29%, rgba(5, 8, 12, 0.97) 32%);">
+    <div class="w-full h-px bg-rose-500/80"></div>
+    <div class="h-full w-px bg-rose-500/80 absolute"></div>
+    <div class="w-4 h-4 rounded-full border-2 border-rose-500 absolute"></div>
+  </div>
+
+  <!-- Center Crosshair & Hitmarker -->
+  <div id="crosshair-wrap" class="hidden fixed inset-0 pointer-events-none z-20 flex items-center justify-center">
+    <div id="crosshair" class="relative w-6 h-6 flex items-center justify-center transition-transform duration-75">
+      <div class="absolute w-2.5 h-0.5 bg-[#38e2c7] -left-2"></div>
+      <div class="absolute w-2.5 h-0.5 bg-[#38e2c7] -right-2"></div>
+      <div class="absolute h-2.5 w-0.5 bg-[#38e2c7] -top-2"></div>
+      <div class="absolute h-2.5 w-0.5 bg-[#38e2c7] -bottom-2"></div>
+      <div class="w-1 h-1 bg-white"></div>
+    </div>
+    <div id="hitmarker" class="opacity-0 transition-opacity duration-75 absolute w-7 h-7 pointer-events-none">
+      <div id="hm-line-1" class="absolute inset-0 m-auto w-7 h-0.5 bg-white rotate-45"></div>
+      <div id="hm-line-2" class="absolute inset-0 m-auto w-7 h-0.5 bg-white -rotate-45"></div>
+    </div>
+  </div>
+
+  <!-- ==================== FULL VALORANT MOBILE TOUCH LAYER (ZERO ICONS / NO SKILLS) ==================== -->
+  <div id="mobile-controls" class="hidden fixed inset-0 pointer-events-none z-25">
+    
+    <!-- Full Right-Half & Center Look Drag Surface -->
+    <div id="touch-look-zone" class="pointer-events-auto fixed inset-0 z-10"></div>
+
+    <!-- LEFT SIDE: Upper-Left Index L-FIRE + WALK Lock Toggle + Virtual Movement Joystick -->
+    <!-- Upper-Left L-FIRE (Claw / Left-Hand Fire Button) -->
+    <button type="button" id="mob-lfire-btn"
+            class="vm-btn vm-btn-fire pointer-events-auto z-20 fixed top-36 sm:top-44 left-5 w-16 h-16 sm:w-20 sm:h-20 rounded-full">
+      <div class="relative w-6 h-6 flex items-center justify-center mb-0.5 pointer-events-none">
+        <div class="absolute w-full h-0.5 bg-white/90"></div>
+        <div class="absolute h-full w-0.5 bg-white/90"></div>
+        <div class="w-2.5 h-2.5 rounded-full border border-[#ff4655] bg-[#0f1923]"></div>
+      </div>
+      <span class="font-num text-[10px] font-black tracking-widest text-white pointer-events-none">L-FIRE</span>
+    </button>
+
+    <!-- WALK / RUN Lock Button (Silent Footstep Peeking in Valorant Mobile) -->
+    <button type="button" id="mob-walk-btn"
+            class="vm-btn pointer-events-auto z-20 fixed bottom-44 left-36 sm:left-40 w-14 h-10 val-cut-sm">
+      <span class="font-num text-[10px] font-black tracking-wider pointer-events-none">WALK</span>
+      <span id="mob-walk-state" class="text-[9px] text-white/60 font-bold leading-none pointer-events-none">OFF</span>
+    </button>
+
+    <!-- Bottom-Left Tactical Movement Joystick -->
+    <div id="joy-zone"
+         class="pointer-events-auto z-20 fixed bottom-8 left-6 w-32 h-32 sm:w-36 sm:h-36 rounded-full bg-[#0f1923]/65 border-2 border-[#ece8e1]/35 flex items-center justify-center shadow-2xl">
+      <!-- Inner Walk / Outer Run Ring Guide -->
+      <div class="w-16 h-16 rounded-full border border-dashed border-[#38e2c7]/45 flex items-center justify-center pointer-events-none">
+        <span class="font-num text-[8px] text-[#ece8e1]/40 tracking-widest uppercase">MOVE</span>
+      </div>
+      <!-- Joystick Thumb Knob -->
+      <div id="joy-knob"
+           class="w-12 h-12 rounded-full bg-[#38e2c7]/85 border-2 border-white shadow-lg flex items-center justify-center pointer-events-none">
+        <div class="w-2 h-2 bg-[#0f1923] rotate-45"></div>
+      </div>
+    </div>
+
+    <!-- RIGHT SIDE: Authentic VALORANT Mobile Combat Button Cluster (No Skills) -->
+    <!-- Main Right-Thumb R-FIRE Button (Supports Hold + Drag Aiming) -->
+    <button type="button" id="mob-rfire-btn"
+            class="vm-btn vm-btn-fire pointer-events-auto z-20 fixed bottom-10 right-7 sm:bottom-12 sm:right-10 w-24 h-24 sm:w-28 sm:h-28 rounded-full">
+      <div class="relative w-8 h-8 flex items-center justify-center mb-1 pointer-events-none">
+        <div class="absolute w-full h-0.5 bg-white"></div>
+        <div class="absolute h-full w-0.5 bg-white"></div>
+        <div class="w-4 h-4 rounded-full border-2 border-white"></div>
+      </div>
+      <span class="font-num text-xs sm:text-sm font-black tracking-widest text-white pointer-events-none">FIRE</span>
+    </button>
+
+    <!-- Arc Around Main Fire: ADS (Aim Down Sights / Sniper Zoom) -->
+    <button type="button" id="mob-ads-btn"
+            class="vm-btn pointer-events-auto z-20 fixed bottom-36 right-8 sm:bottom-44 sm:right-11 w-14 h-14 sm:w-16 sm:h-16 rounded-full">
+      <div class="w-3.5 h-3.5 border border-[#38e2c7] rotate-45 mb-0.5 pointer-events-none"></div>
+      <span class="font-num text-[11px] font-black tracking-wider pointer-events-none">ADS</span>
+    </button>
+
+    <!-- Arc Around Main Fire: JUMP -->
+    <button type="button" id="mob-jump-btn"
+            class="vm-btn pointer-events-auto z-20 fixed bottom-28 right-32 sm:bottom-36 sm:right-40 w-14 h-14 sm:w-16 sm:h-16 rounded-full">
+      <span class="font-num text-[11px] font-black tracking-wider pointer-events-none">JUMP</span>
+    </button>
+
+    <!-- Arc Around Main Fire: CROUCH (Toggle) -->
+    <button type="button" id="mob-crouch-btn"
+            class="vm-btn pointer-events-auto z-20 fixed bottom-10 right-36 sm:bottom-12 sm:right-44 w-14 h-14 sm:w-16 sm:h-16 rounded-full">
+      <span class="font-num text-[10px] font-black tracking-wider pointer-events-none">CROUCH</span>
+    </button>
+
+    <!-- Arc Around Main Fire: RELOAD -->
+    <button type="button" id="mob-reload-btn"
+            class="vm-btn pointer-events-auto z-20 fixed bottom-4 right-24 sm:bottom-4 sm:right-28 w-12 h-11 sm:w-14 sm:h-12 val-cut-sm">
+      <span class="font-num text-[10px] font-black tracking-wider text-[#38e2c7] pointer-events-none">RELOAD</span>
+    </button>
+
+    <!-- Contextual Center-Right Tactical Buttons: SPIKE PLANT/DEFUSE (Hold or Tap Lock) & DOOR SWITCH -->
+    <div class="pointer-events-auto z-20 fixed right-5 top-1/2 -translate-y-10 flex flex-col items-end gap-2">
+      <button type="button" id="mob-spike-btn"
+              class="vm-btn val-cut-sm px-3.5 py-2.5 border-2 border-[#f5c542] bg-[#0f1923]/90 min-w-[96px]">
+        <span class="font-num text-[11px] font-black tracking-widest text-[#f5c542] pointer-events-none">SPIKE [4]</span>
+        <span id="mob-spike-sub" class="text-[9px] text-[#ece8e1]/80 font-bold pointer-events-none">설치 / 해체 (홀드·탭)</span>
+      </button>
+
+      <button type="button" id="mob-door-btn"
+              class="vm-btn val-cut-sm px-3 py-2 border border-[#38e2c7]/70 bg-[#0f1923]/85 min-w-[96px]">
+        <span class="font-num text-[10px] font-black tracking-widest text-[#38e2c7] pointer-events-none">DOOR [G]</span>
+        <span class="text-[9px] text-[#ece8e1]/75 font-bold pointer-events-none">철문 스위치</span>
+      </button>
+    </div>
+
+  </div>
+
+  <!-- ==================== 1:1 VALORANT IN-GAME HUD (ZERO ICONS / PURE GUNPLAY) ==================== -->
+  <div id="ingame-hud" class="hidden fixed inset-0 pointer-events-none z-30 flex flex-col justify-between p-2 sm:p-3.5">
+    
+    <!-- TOP BAR: Ascent Radar (Left), Scoreboard & 5v5 Alive Bar (Center), System Controls & Killfeed (Right) -->
+    <div class="flex items-start justify-between gap-2 w-full">
+      
+      <!-- Top-Left: Circular Ascent Radar Minimap + Callout & Elevation -->
+      <div class="flex flex-col items-start gap-1 pointer-events-auto">
+        <div class="relative w-24 h-24 sm:w-36 sm:h-36 rounded-full overflow-hidden border-2 border-[#ece8e1]/45 bg-[#0b131b]/95 shadow-2xl">
+          <canvas id="radar-canvas" width="180" height="180" class="w-full h-full block"></canvas>
+          <div class="absolute top-1 left-1/2 -translate-x-1/2 text-[8px] font-num font-bold text-[#38e2c7] bg-[#0f1923]/90 px-1.5 uppercase tracking-widest">
+            N // ASCENT
+          </div>
+        </div>
+        <div class="val-cut-sm bg-[#0f1923]/95 border-l-4 border-[#38e2c7] px-2.5 py-0.5 flex items-center gap-2 shadow-lg">
+          <span id="hud-callout-name" class="font-bold text-[#ece8e1] text-[11px] tracking-wide uppercase">A LOBBY</span>
+          <span id="hud-elevation-badge" class="font-num text-[10px] px-1.5 bg-[#38e2c7]/20 text-[#38e2c7] font-bold">+0.0m</span>
+        </div>
+      </div>
+
+      <!-- Top-Center: VALORANT Trapezoid Scoreboard + 5v5 Alive Indicators + Phase Banner -->
+      <div class="flex flex-col items-center">
+        <!-- 5v5 Alive Bar + Central Trapezoid Timer/Score -->
+        <div class="flex items-start gap-1 sm:gap-1.5">
+          <!-- 5 Ally Alive Slots -->
+          <div id="hud-allies-alive" class="hidden sm:flex items-center gap-1 bg-[#0f1923]/85 border-b-2 border-[#38e2c7] px-2 py-1"></div>
+
+          <!-- Ally Score -->
+          <div class="bg-[#0f1923]/95 border-t-2 border-[#38e2c7] px-3 py-1 text-center min-w-[40px]">
+            <div id="hud-score-ally" class="font-val text-2xl sm:text-4xl font-bold text-[#38e2c7] leading-none">0</div>
+          </div>
+
+          <!-- Center Timer Trapezoid -->
+          <div class="val-top-trapezoid bg-[#ece8e1] text-[#0f1923] px-5 sm:px-7 py-1 flex flex-col items-center min-w-[106px] sm:min-w-[136px] shadow-xl">
+            <div id="hud-round-label" class="text-[9px] font-num font-extrabold tracking-widest text-[#0f1923]/75 uppercase">ROUND 1</div>
+            <div id="hud-timer-text" class="font-num text-xl sm:text-3xl font-black text-[#0f1923] leading-none my-0.5">0:20</div>
+          </div>
+
+          <!-- Enemy Score -->
+          <div class="bg-[#0f1923]/95 border-t-2 border-[#ff4655] px-3 py-1 text-center min-w-[40px]">
+            <div id="hud-score-enemy" class="font-val text-2xl sm:text-4xl font-bold text-[#ff4655] leading-none">0</div>
+          </div>
+
+          <!-- 5 Enemy Alive Slots -->
+          <div id="hud-enemies-alive" class="hidden sm:flex items-center gap-1 bg-[#0f1923]/85 border-b-2 border-[#ff4655] px-2 py-1"></div>
+        </div>
+
+        <div id="hud-phase-badge" class="mt-1 px-3 py-0.5 bg-[#0f1923]/95 border-x-2 border-[#38e2c7] text-[#ece8e1] text-[10px] font-bold tracking-widest uppercase">
+          BUY PHASE — [SHOP] 버튼 또는 [B] 키로 무기를 구매하십시오
+        </div>
+        <div id="hud-team-role" class="text-[10px] font-bold text-[#ff4655] mt-0.5 uppercase tracking-wider">ATTACKERS (공격팀)</div>
+
+        <!-- Ghost Noclip Banner -->
+        <div id="hud-ghost-banner" class="hidden mt-1 px-4 py-0.5 bg-purple-900/95 border border-purple-300 text-white font-bold text-[11px] shadow-lg">
+          NOCLIP GHOST MODE ACTIVE — 벽 통과 비행 (Space: 상승 / Ctrl: 하강 / V: 해제)
+        </div>
+
+        <!-- Spike Plant / Defuse Progress Bar -->
+        <div id="spike-action-box" class="hidden val-cut bg-[#0f1923]/95 border-l-4 border-[#f5c542] px-5 py-2 mt-1.5 w-68 sm:w-80 text-center shadow-2xl">
+          <div class="flex justify-between items-center text-xs font-bold text-[#f5c542] mb-1">
+            <span id="spike-action-label">PLANTING SPIKE...</span>
+            <span id="spike-action-pct" class="font-num">0%</span>
+          </div>
+          <div class="w-full h-2 bg-black/80 overflow-hidden border border-white/20 relative">
+            <div class="absolute left-1/2 top-0 bottom-0 w-0.5 bg-white z-10"></div>
+            <div id="spike-action-bar" class="h-full bg-gradient-to-r from-[#f5c542] to-[#ff4655] transition-all duration-75" style="width: 0%"></div>
+          </div>
+          <div class="text-[9px] text-[#ece8e1]/75 mt-1">해체는 50%(반해체) 지점에서 체크포인트가 유지됩니다</div>
+        </div>
+
+        <!-- Context Interaction Prompt -->
+        <div id="hud-context-prompt" class="mt-1 px-3.5 py-0.5 bg-[#0f1923]/95 border-l-4 border-[#f5c542] text-[#ece8e1] text-[11px] font-bold hidden shadow-lg">
+          [SPIKE] 버튼 또는 [4/F] 키를 길게 눌러 스파이크 설치
+        </div>
+      </div>
+
+      <!-- Top-Right: Tactical Menu Buttons (SHOP / CHEATS / TOUCH UI / LOBBY) + Killfeed -->
+      <div class="flex flex-col items-end space-y-1.5">
+        <div class="flex flex-wrap justify-end items-center gap-1 pointer-events-auto">
+          <span class="px-2 py-1 bg-[#ff4655] text-[#0f1923] font-num font-black text-[10px]">
+            CODE #<span id="hud-room-code">07</span>
+          </span>
+          <button type="button" onclick="window.skipBuyPhase(event)" id="hud-skip-buy-btn"
+                  class="val-cut-sm px-2.5 py-1 bg-[#f5c542] hover:bg-amber-300 text-[#0f1923] font-num font-black text-[11px] cursor-pointer">
+            SKIP BUY
+          </button>
+          <button type="button" onclick="window.toggleShop(event)"
+                  class="val-cut-sm px-2.5 py-1 bg-[#0f1923]/95 hover:bg-[#38e2c7]/25 border border-[#38e2c7] text-[#38e2c7] font-num font-black text-[11px] cursor-pointer">
+            SHOP [B]
+          </button>
+          <button type="button" onclick="window.toggleCheatPanel(event)" id="hud-cheat-btn"
+                  class="val-cut-sm px-2.5 py-1 bg-[#0f1923]/95 hover:bg-amber-400/25 border border-amber-400 text-amber-300 font-num font-black text-[11px] cursor-pointer">
+            CHEATS [F1]
+          </button>
+          <button type="button" onclick="window.toggleMobileMode(event)" id="hud-touch-toggle-btn"
+                  class="val-cut-sm px-2.5 py-1 bg-[#38e2c7]/20 border border-[#38e2c7] text-[#38e2c7] font-num font-black text-[11px] cursor-pointer">
+            TOUCH UI: ON
+          </button>
+          <button type="button" onclick="window.openWaitingLobby(event)"
+                  class="val-cut-sm px-2.5 py-1 bg-[#0f1923]/95 hover:bg-slate-700 border border-white/30 text-[#ece8e1] font-num font-black text-[11px] cursor-pointer">
+            LOBBY
+          </button>
+        </div>
+        <div id="kill-feed" class="flex flex-col items-end space-y-1 max-w-xs"></div>
+      </div>
+    </div>
+
+    <!-- CENTER VALORANT ROUND ANNOUNCEMENT BANNER -->
+    <div id="round-banner" class="pointer-events-none flex flex-col items-center justify-center transition-all duration-300 opacity-0 transform scale-95">
+      <div class="val-cut bg-[#0f1923]/95 border-y-2 border-[#ff4655] px-10 py-3 text-center shadow-2xl">
+        <div id="round-banner-sub" class="font-num text-xs tracking-[0.35em] text-[#ff4655] font-extrabold uppercase">ASCENT // UNRATED</div>
+        <div id="round-banner-main" class="font-val text-3xl sm:text-5xl font-bold text-[#ece8e1] tracking-wider uppercase mt-0.5">
+          ROUND START
+        </div>
+      </div>
+    </div>
+
+    <!-- LIVE 1ST-PERSON TEAMMATE SPECTATOR CONTROL BAR (Shown immediately when player dies) -->
+    <div id="spectator-banner" class="hidden pointer-events-auto self-center val-cut bg-[#0f1923]/95 border-2 border-[#38e2c7] px-4 py-2.5 shadow-2xl flex flex-col items-center gap-1.5 max-w-md w-full">
+      <div class="flex items-center justify-between w-full text-[10px] font-num font-black text-[#38e2c7] border-b border-white/15 pb-1 tracking-wider uppercase">
+        <span>1ST-PERSON TEAMMATE SPECTATOR</span>
+        <span id="spec-alive-count" class="text-amber-300">ALIVE ALLIES: 4</span>
+      </div>
+      <div class="flex items-center justify-between w-full gap-2">
+        <button type="button" onclick="window.cycleSpectator(-1, event)"
+                class="val-cut-sm px-3 py-1.5 bg-[#162936] hover:bg-[#38e2c7] hover:text-[#0f1923] text-[#38e2c7] border border-[#38e2c7] font-num font-black text-xs cursor-pointer transition">
+          PREV ALLY [A]
+        </button>
+        <div class="text-center flex-1">
+          <div id="spec-target-name" class="text-sm sm:text-base font-black text-white">ALLY ALPHA #1</div>
+          <div id="spec-target-info" class="text-[11px] text-[#ece8e1]/80 font-num">HP 100 // VANDAL // A MAIN</div>
+        </div>
+        <button type="button" onclick="window.cycleSpectator(1, event)"
+                class="val-cut-sm px-3 py-1.5 bg-[#162936] hover:bg-[#38e2c7] hover:text-[#0f1923] text-[#38e2c7] border border-[#38e2c7] font-num font-black text-xs cursor-pointer transition">
+          NEXT ALLY [D]
+        </button>
+      </div>
+    </div>
+
+    <!-- BOTTOM-CENTER VALORANT ANIMATED KILL EMBLEM (Pure Geometric Star / Cross, Zero Emojis) -->
+    <div id="val-kill-banner-slot" class="fixed bottom-24 left-1/2 -translate-x-1/2 pointer-events-none z-25"></div>
+
+    <!-- BOTTOM BAR: VALORANT MOBILE CENTER WEAPON DOCK + SHIELD/HP + AMMO/CREDITS -->
+    <div class="flex flex-col items-center justify-end w-full pointer-events-none">
+      
+      <!-- Bottom-Center Dock: [SHIELD + HP] | [1 PRIMARY / 2 SIDEARM / 3 MELEE / 4 SPIKE] | [AMMO + CREDITS] -->
+      <div class="pointer-events-auto flex flex-wrap items-end justify-center gap-1.5 sm:gap-2.5">
+        
+        <!-- Shield & Health Readout -->
+        <div class="val-cut-sm bg-[#0f1923]/92 border-l-4 border-[#38e2c7] px-3 py-1.5 flex items-center gap-3 shadow-xl">
+          <div class="text-center">
+            <div class="text-[8px] font-num text-white/50 uppercase leading-none">SHIELD</div>
+            <span id="hud-armor-val" class="font-num text-xl sm:text-2xl font-extrabold text-[#38e2c7] leading-none">0</span>
+          </div>
+          <div class="h-6 w-px bg-white/20"></div>
+          <div class="min-w-[68px] sm:min-w-[84px]">
+            <div class="flex items-baseline justify-between gap-2">
+              <span id="hud-hp-owner" class="text-[9px] font-num font-bold text-[#38e2c7] uppercase">HP</span>
+              <span id="hud-hp-val" class="font-num text-2xl sm:text-3xl font-black text-[#ece8e1] leading-none">100</span>
+            </div>
+            <div class="w-full h-1 bg-black/70 mt-1 overflow-hidden">
+              <div id="hud-hp-bar" class="h-full bg-[#38e2c7] transition-all duration-150" style="width: 100%"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- VALORANT Mobile 4-Slot Horizontal Weapon Switcher Bar (No Skills) -->
+        <div class="flex items-stretch gap-1 bg-[#0f1923]/92 p-1 border border-white/20 val-cut-sm shadow-2xl">
+          <button type="button" id="slot-primary-btn" onclick="window.switchWeaponSlot('primary')"
+                  class="px-2.5 sm:px-3.5 py-1 bg-[#142230] border-b-2 border-transparent text-left min-w-[74px] sm:min-w-[104px] transition cursor-pointer">
+            <div class="flex justify-between items-center text-[8px] font-num text-white/50">
+              <span>[1]</span><span>PRIMARY</span>
+            </div>
+            <div id="slot-primary-name" class="text-[11px] sm:text-xs font-bold text-[#ece8e1] truncate mt-0.5">EMPTY</div>
+          </button>
+
+          <button type="button" id="slot-secondary-btn" onclick="window.switchWeaponSlot('secondary')"
+                  class="px-2.5 sm:px-3.5 py-1 bg-[#1b3142] border-b-2 border-[#38e2c7] text-left min-w-[74px] sm:min-w-[100px] transition cursor-pointer">
+            <div class="flex justify-between items-center text-[8px] font-num text-[#38e2c7]">
+              <span>[2]</span><span>SIDEARM</span>
+            </div>
+            <div id="slot-secondary-name" class="text-[11px] sm:text-xs font-bold text-white truncate mt-0.5">CLASSIC</div>
+          </button>
+
+          <button type="button" id="slot-knife-btn" onclick="window.switchWeaponSlot('knife')"
+                  class="px-2.5 sm:px-3 py-1 bg-[#142230] border-b-2 border-transparent text-left min-w-[62px] sm:min-w-[82px] transition cursor-pointer">
+            <div class="flex justify-between items-center text-[8px] font-num text-white/50">
+              <span>[3]</span><span>MELEE</span>
+            </div>
+            <div class="text-[11px] sm:text-xs font-bold text-[#ece8e1] truncate mt-0.5">KNIFE</div>
+          </button>
+
+          <button type="button" id="slot-spike-bar-btn"
+                  class="px-2.5 sm:px-3 py-1 bg-[#142230] border-b-2 border-[#f5c542] text-left min-w-[62px] sm:min-w-[78px] transition cursor-pointer">
+            <div class="flex justify-between items-center text-[8px] font-num text-[#f5c542]">
+              <span>[4]</span><span>OBJECTIVE</span>
+            </div>
+            <div id="hud-spike-carrier" class="text-[11px] sm:text-xs font-bold text-[#f5c542] truncate mt-0.5">SPIKE</div>
+          </button>
+        </div>
+
+        <!-- Ammo & Credits Readout -->
+        <div class="val-cut-sm bg-[#0f1923]/92 border-r-4 border-[#ff4655] px-3 py-1.5 text-right shadow-xl min-w-[96px]">
+          <div class="flex items-baseline justify-end gap-1">
+            <span id="hud-ammo-mag" class="font-num text-2xl sm:text-3xl font-black text-[#ece8e1] leading-none">12</span>
+            <span class="text-xs text-white/40 font-bold">/</span>
+            <span id="hud-ammo-res" class="font-num text-sm sm:text-base font-bold text-[#ece8e1]/70">36</span>
+          </div>
+          <div class="flex items-center justify-between gap-2 mt-0.5 pt-0.5 border-t border-white/10">
+            <span id="hud-weapon-title" class="text-[9px] font-num font-bold text-[#38e2c7] uppercase truncate max-w-[64px]">CLASSIC</span>
+            <span class="font-num text-[11px] font-black text-[#f5c542]">CRED <span id="hud-credits">800</span></span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== 1. CUSTOM GAME ENTRY SCREEN (2-DIGIT ROOM CODE) ==================== -->
+  <div id="entry-screen" class="modal-scroll fixed inset-0 z-40 flex items-center justify-center p-3 sm:p-6 bg-[#091017]/95 backdrop-blur-md overflow-y-auto">
+    <div class="val-cut val-panel max-w-5xl w-full p-5 sm:p-8 border-t-4 border-[#ff4655] shadow-2xl my-auto">
+      
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-white/15">
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="px-2 py-0.5 bg-[#ff4655] text-[#0f1923] font-num font-black text-xs uppercase">PURE GUNPLAY // ASCENT 1:1</span>
+            <span class="text-xs text-[#38e2c7] font-bold">발로란트 모바일 표준 키 배치 • 스킬 없는 순수 총격전 • 사망 시 아군 1인칭 관전</span>
+          </div>
+          <h1 class="font-val text-3xl sm:text-5xl font-bold text-[#ece8e1] tracking-wider uppercase mt-1">
+            VALORANT : ASCENT (MOBILE & PC EDITION)
+          </h1>
+        </div>
+        <button type="button" onclick="window.quickStartMatch(event)"
+                class="val-cut-sm px-6 py-3.5 bg-[#38e2c7] hover:bg-teal-300 text-[#0f1923] font-black text-sm sm:text-base shadow-xl cursor-pointer transition transform active:scale-95">
+          QUICK START MATCH (즉시 매치 시작)
+        </button>
+      </div>
+
+      <div id="online-status" class="mt-3 text-xs font-bold text-[#38e2c7]">온라인 서버 연결 상태 확인 중...</div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-5 mt-5">
+        <!-- LEFT: CREATE CUSTOM ROOM -->
+        <div class="val-cut-sm bg-[#0f1923] p-5 border border-white/15 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-num font-black text-[#38e2c7] uppercase tracking-widest">HOST // CREATE ROOM</span>
+              <span class="px-2 py-0.5 bg-amber-400/20 text-amber-300 text-[11px] font-bold">HOST AUTHORITY</span>
+            </div>
+            <h2 class="text-xl font-black text-white mt-1">방 만들기 (2자리 코드 지정)</h2>
+
+            <div class="mt-4 p-3.5 bg-[#142230] border border-white/10 flex items-center justify-between">
+              <div>
+                <div class="text-[11px] text-slate-400">사설방 2자리 숫자 코드 (00~99)</div>
+                <div class="flex items-center gap-2 mt-1">
+                  <input id="create-code-input" type="text" maxlength="2" value="07"
+                         class="w-20 text-center font-num text-3xl font-black bg-[#0f1923] text-[#38e2c7] border-2 border-[#38e2c7] py-1 focus:outline-none" />
+                  <button type="button" onclick="window.randomizeCreateCode()"
+                          class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-200 border border-slate-600 cursor-pointer">
+                    RANDOM
+                  </button>
+                </div>
+              </div>
+              <div class="text-right">
+                <div class="text-[10px] text-slate-400">MAP</div>
+                <div class="font-val text-2xl font-bold text-[#ff4655]">ASCENT</div>
+              </div>
+            </div>
+
+            <div class="mt-3 p-3.5 bg-[#142230] border border-amber-400/40 flex items-center justify-between">
+              <div>
+                <div class="text-xs font-bold text-amber-300">사설방 치트 허용 여부 (방장 설정)</div>
+                <div class="text-[11px] text-slate-400">ON 설정 시 인게임 [CHEATS / F1] 사용 가능</div>
+              </div>
+              <button type="button" id="create-cheat-toggle-btn" onclick="window.setCreateCheatPerm(!window.roomState.allowCheats)"
+                      class="px-4 py-2 bg-emerald-500 text-slate-950 font-black text-xs cursor-pointer">
+                CHEATS: ON
+              </button>
+            </div>
+
+            <div class="mt-3 flex items-center justify-between p-3 bg-[#142230] border border-white/10">
+              <span class="text-xs font-bold text-slate-300">승리 조건 (일반전 룰)</span>
+              <div class="flex gap-1.5">
+                <button type="button" id="win-target-13" onclick="window.setCreateWinTarget(13)" class="px-3 py-1 bg-[#ff4655] text-white text-xs font-bold cursor-pointer">13 ROUNDS</button>
+                <button type="button" id="win-target-5" onclick="window.setCreateWinTarget(5)" class="px-3 py-1 bg-slate-800 text-slate-300 text-xs font-bold cursor-pointer">5 ROUNDS</button>
+              </div>
+            </div>
+          </div>
+
+          <button type="button" onclick="window.createCustomRoom(event)"
+                  class="val-cut-sm w-full mt-5 py-3.5 bg-[#ff4655] hover:bg-rose-600 text-white font-black text-sm uppercase tracking-wider shadow-lg cursor-pointer transition">
+            CREATE ROOM & ENTER LOBBY
+          </button>
+        </div>
+
+        <!-- RIGHT: JOIN CUSTOM ROOM -->
+        <div class="val-cut-sm bg-[#0f1923] p-5 border border-white/15 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-num font-black text-[#ff4655] uppercase tracking-widest">JOIN // 2-DIGIT CODE</span>
+              <span class="text-[11px] text-slate-400">숫자 2자리 입력</span>
+            </div>
+            <h2 class="text-xl font-black text-white mt-1">방 코드 입력 참가 (JOIN ROOM)</h2>
+
+            <div class="mt-3 flex items-center justify-center gap-3 py-3 bg-[#142230] border border-white/10">
+              <div id="join-digit-0" class="w-14 h-16 bg-[#0f1923] border-2 border-[#38e2c7] flex items-center justify-center font-num text-4xl font-black text-[#38e2c7]">0</div>
+              <div id="join-digit-1" class="w-14 h-16 bg-[#0f1923] border-2 border-[#38e2c7] flex items-center justify-center font-num text-4xl font-black text-[#38e2c7]">7</div>
+            </div>
+
+            <div class="grid grid-cols-5 gap-1.5 mt-3">
+              <button type="button" onclick="window.pressKeypad('1')" class="py-2 bg-[#142230] hover:bg-slate-700 font-num font-bold text-lg text-white cursor-pointer">1</button>
+              <button type="button" onclick="window.pressKeypad('2')" class="py-2 bg-[#142230] hover:bg-slate-700 font-num font-bold text-lg text-white cursor-pointer">2</button>
+              <button type="button" onclick="window.pressKeypad('3')" class="py-2 bg-[#142230] hover:bg-slate-700 font-num font-bold text-lg text-white cursor-pointer">3</button>
+              <button type="button" onclick="window.pressKeypad('4')" class="py-2 bg-[#142230] hover:bg-slate-700 font-num font-bold text-lg text-white cursor-pointer">4</button>
+              <button type="button" onclick="window.pressKeypad('5')" class="py-2 bg-[#142230] hover:bg-slate-700 font-num font-bold text-lg text-white cursor-pointer">5</button>
+              <button type="button" onclick="window.pressKeypad('6')" class="py-2 bg-[#142230] hover:bg-slate-700 font-num font-bold text-lg text-white cursor-pointer">6</button>
+              <button type="button" onclick="window.pressKeypad('7')" class="py-2 bg-[#142230] hover:bg-slate-700 font-num font-bold text-lg text-white cursor-pointer">7</button>
+              <button type="button" onclick="window.pressKeypad('8')" class="py-2 bg-[#142230] hover:bg-slate-700 font-num font-bold text-lg text-white cursor-pointer">8</button>
+              <button type="button" onclick="window.pressKeypad('9')" class="py-2 bg-[#142230] hover:bg-slate-700 font-num font-bold text-lg text-white cursor-pointer">9</button>
+              <button type="button" onclick="window.pressKeypad('0')" class="py-2 bg-[#142230] hover:bg-slate-700 font-num font-bold text-lg text-white cursor-pointer">0</button>
+            </div>
+            <div class="flex justify-between items-center mt-2">
+              <span class="text-[11px] text-slate-400">참가할 2자리 숫자 방 코드를 누르세요.</span>
+              <button type="button" onclick="window.pressKeypad('CLR')" class="text-xs text-rose-400 font-bold cursor-pointer">CLEAR</button>
+            </div>
+          </div>
+
+          <button type="button" onclick="window.joinCustomRoom(event)"
+                  class="val-cut-sm w-full mt-4 py-3.5 bg-[#38e2c7] hover:bg-teal-300 text-[#0f1923] font-black text-sm uppercase tracking-wider shadow-lg cursor-pointer transition">
+            JOIN ROOM BY CODE
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== 2. CUSTOM ROOM WAITING LOBBY (NO AGENTS / NO SKILLS) ==================== -->
+  <div id="waiting-lobby" class="modal-scroll hidden fixed inset-0 z-40 flex items-center justify-center p-3 sm:p-6 bg-[#091017]/95 backdrop-blur-md overflow-y-auto">
+    <div class="val-cut val-panel max-w-4xl w-full p-5 sm:p-7 border-t-4 border-[#38e2c7] shadow-2xl my-auto">
+      <div class="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-white/15">
+        <div class="flex items-center gap-3">
+          <div class="px-3.5 py-1.5 bg-[#ff4655] text-[#0f1923] font-num font-black text-xl">
+            ROOM #<span id="lobby-code-display">07</span>
+          </div>
+          <div>
+            <div class="text-xs text-[#38e2c7] font-bold">MAP: ASCENT // 5v5 PURE GUNPLAY UNRATED</div>
+            <h2 class="text-xl font-black text-white">사설방 대기실 (Custom Game Lobby)</h2>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <button type="button" id="lobby-cheat-perm-btn" onclick="window.toggleHostCheatPermission(event)"
+                  class="px-3.5 py-2 bg-amber-500/20 border border-amber-400 text-amber-300 font-bold text-xs cursor-pointer">
+            HOST CHEATS: ON
+          </button>
+          <button type="button" onclick="window.openEntryScreen(event)" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold cursor-pointer">
+            LEAVE LOBBY
+          </button>
+        </div>
+      </div>
+
+      <div id="online-lobby-status" class="mt-3 text-xs font-bold text-[#38e2c7]">대기실 상태</div>
+      <div id="online-roster" class="grid grid-cols-2 gap-3 mt-2"></div>
+      <!-- Team Selection (5v5 Pure Gunplay Roster) -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 my-5">
+        <div class="p-4 bg-[#0f1923] border-l-4 border-[#ff4655]">
+          <div class="flex justify-between items-center mb-2">
+            <span class="font-bold text-[#ff4655] text-sm">ATTACKERS (공격팀 • 5명)</span>
+            <button type="button" onclick="window.switchTeam('attack')" id="btn-team-attack" class="px-3 py-1 bg-[#ff4655] text-white text-xs font-bold cursor-pointer">JOINED</button>
+          </div>
+          <div class="text-xs text-slate-300 space-y-1">
+            <div>플레이어 + 아군 전술 오퍼레이터 4명 자동 배정</div>
+            <div class="text-[11px] text-slate-400">A 사이트 / B 사이트 돌파 및 스파이크 설치 • 사망 시 아군 1인칭 실시간 관전</div>
+          </div>
+        </div>
+
+        <div class="p-4 bg-[#0f1923] border-l-4 border-[#38e2c7]">
+          <div class="flex justify-between items-center mb-2">
+            <span class="font-bold text-[#38e2c7] text-sm">DEFENDERS (수비팀 • 5명)</span>
+            <button type="button" onclick="window.switchTeam('defense')" id="btn-team-defense" class="px-3 py-1 bg-slate-800 text-slate-300 text-xs font-bold cursor-pointer">SWITCH SIDE</button>
+          </div>
+          <div class="text-xs text-slate-300 space-y-1">
+            <div>수비 전술 오퍼레이터 5명 자동 배정</div>
+            <div class="text-[11px] text-slate-400">어센트 A 헤븐 / A 가든 / 미드 마켓 / B 2층 테라스 방어 및 스파이크 해체</div>
+          </div>
+        </div>
+      </div>
+
+      <button type="button" id="online-start-btn" onclick="window.startMatchFromLobby(event)"
+              class="val-cut-sm w-full py-4 bg-[#ff4655] hover:bg-rose-600 text-white font-black text-base uppercase tracking-wider shadow-xl cursor-pointer transition">
+        START ASCENT MATCH (어센트 매치 시작)
+      </button>
+    </div>
+  </div>
+
+  <!-- ==================== 3. AUTHENTIC 4-COLUMN VALORANT BUY SHOP (PURE WEAPONS & SHIELDS) ==================== -->
+  <div id="buy-shop-overlay" class="modal-scroll hidden fixed inset-0 z-40 flex items-center justify-center p-2 sm:p-5 bg-[#0f1923]/94 backdrop-blur-md overflow-y-auto">
+    <div class="val-cut bg-[#14212e] max-w-6xl w-full p-4 sm:p-6 border border-[#ece8e1]/25 shadow-2xl my-auto">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b-2 border-[#ff4655]">
+        <div class="flex items-center gap-3">
+          <span class="px-2.5 py-0.5 bg-[#ff4655] text-[#ece8e1] font-num text-xs font-black tracking-widest uppercase">BUY PHASE // ARMORY</span>
+          <h2 class="font-val text-2xl sm:text-3xl font-bold text-[#ece8e1] uppercase tracking-wider">VALORANT TACTICAL ARMORY (WEAPONS & SHIELDS)</h2>
+        </div>
+        <div class="flex items-center gap-4">
+          <div class="val-cut-sm px-4 py-1 bg-[#0f1923] border-l-4 border-[#38e2c7] text-right">
+            <div class="text-[10px] font-num text-[#ece8e1]/60 uppercase">CREDITS</div>
+            <div class="font-num text-xl sm:text-2xl font-black text-[#38e2c7]">CRED <span id="shop-credits-val">800</span></div>
+          </div>
+          <button type="button" onclick="window.closeShop(event)" class="val-cut-sm px-5 py-2.5 bg-[#ff4655] hover:bg-rose-600 text-white font-bold text-xs uppercase cursor-pointer">
+            CLOSE SHOP [B / ESC]
+          </button>
+        </div>
+      </div>
+
+      <!-- 4-Column Full VALORANT Armory Grid -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 my-4">
+        <!-- Col 1: Sidearms -->
+        <div class="space-y-2">
+          <div class="text-xs font-num font-black text-[#ece8e1]/60 tracking-widest uppercase border-b border-white/10 pb-1">SIDEARMS</div>
+          <button type="button" onclick="window.buyItem('classic')" class="val-cut-sm w-full p-2.5 bg-[#0f1923] hover:bg-[#1f3144] border border-white/15 hover:border-[#38e2c7] text-left flex justify-between items-center cursor-pointer">
+            <div><div class="text-sm font-bold text-[#ece8e1]">CLASSIC</div><div class="text-[10px] text-slate-400">HEAD 78 / BODY 26</div></div>
+            <span class="font-num text-xs font-black text-[#38e2c7]">FREE</span>
+          </button>
+          <button type="button" onclick="window.buyItem('shorty')" class="val-cut-sm w-full p-2.5 bg-[#0f1923] hover:bg-[#1f3144] border border-white/15 hover:border-[#38e2c7] text-left flex justify-between items-center cursor-pointer">
+            <div><div class="text-sm font-bold text-[#ece8e1]">SHORTY</div><div class="text-[10px] text-slate-400">SAWED-OFF // 2 RDS</div></div>
+            <span class="font-num text-xs font-black text-[#f5c542]">300</span>
+          </button>
+          <button type="button" onclick="window.buyItem('frenzy')" class="val-cut-sm w-full p-2.5 bg-[#0f1923] hover:bg-[#1f3144] border border-white/15 hover:border-[#38e2c7] text-left flex justify-between items-center cursor-pointer">
+            <div><div class="text-sm font-bold text-[#ece8e1]">FRENZY</div><div class="text-[10px] text-slate-400">AUTO PISTOL // 13 RDS</div></div>
+            <span class="font-num text-xs font-black text-[#f5c542]">450</span>
+          </button>
+          <button type="button" onclick="window.buyItem('ghost')" class="val-cut-sm w-full p-2.5 bg-[#0f1923] hover:bg-[#1f3144] border border-white/15 hover:border-[#38e2c7] text-left flex justify-between items-center cursor-pointer">
+            <div><div class="text-sm font-bold text-[#ece8e1]">GHOST</div><div class="text-[10px] text-slate-400">HEAD 105 / BODY 30</div></div>
+            <span class="font-num text-xs font-black text-[#f5c542]">500</span>
+          </button>
+          <button type="button" onclick="window.buyItem('sheriff')" class="val-cut-sm w-full p-2.5 bg-[#0f1923] hover:bg-[#1f3144] border border-white/15 hover:border-[#38e2c7] text-left flex justify-between items-center cursor-pointer">
+            <div><div class="text-sm font-bold text-[#ece8e1]">SHERIFF</div><div class="text-[10px] text-slate-400">HEAD 159 / BODY 55</div></div>
+            <span class="font-num text-xs font-black text-[#f5c542]">800</span>
+          </button>
+        </div>
+
+        <!-- Col 2: SMGs & Shotguns -->
+        <div class="space-y-2">
+          <div class="text-xs font-num font-black text-[#ece8e1]/60 tracking-widest uppercase border-b border-white/10 pb-1">SMGS & SHOTGUNS</div>
+          <button type="button" onclick="window.buyItem('stinger')" class="val-cut-sm w-full p-2.5 bg-[#0f1923] hover:bg-[#1f3144] border border-white/15 hover:border-[#38e2c7] text-left flex justify-between items-center cursor-pointer">
+            <div><div class="text-sm font-bold text-[#ece8e1]">STINGER</div><div class="text-[10px] text-slate-400">HIGH ROF SMG // 20 RDS</div></div>
+            <span class="font-num text-xs font-black text-[#f5c542]">1,100</span>
+          </button>
+          <button type="button" onclick="window.buyItem('spectre')" class="val-cut-sm w-full p-2.5 bg-[#0f1923] hover:bg-[#1f3144] border border-white/15 hover:border-[#38e2c7] text-left flex justify-between items-center cursor-pointer">
+            <div><div class="text-sm font-bold text-[#ece8e1]">SPECTRE</div><div class="text-[10px] text-slate-400">SILENCED SMG // 30 RDS</div></div>
+            <span class="font-num text-xs font-black text-[#f5c542]">1,600</span>
+          </button>
+          <button type="button" onclick="window.buyItem('bucky')" class="val-cut-sm w-full p-2.5 bg-[#0f1923] hover:bg-[#1f3144] border border-white/15 hover:border-[#38e2c7] text-left flex justify-between items-center cursor-pointer">
+            <div><div class="text-sm font-bold text-[#ece8e1]">BUCKY</div><div class="text-[10px] text-slate-400">PUMP SHOTGUN // 10 PELLETS</div></div>
+            <span class="font-num text-xs font-black text-[#f5c542]">850</span>
+          </button>
+          <button type="button" onclick="window.buyItem('judge')" class="val-cut-sm w-full p-2.5 bg-[#0f1923] hover:bg-[#1f3144] border border-white/15 hover:border-[#38e2c7] text-left flex justify-between items-center cursor-pointer">
+            <div><div class="text-sm font-bold text-[#ece8e1]">JUDGE</div><div class="text-[10px] text-slate-400">AUTO SHOTGUN // 7 RDS</div></div>
+            <span class="font-num text-xs font-black text-[#f5c542]">1,850</span>
+          </button>
+        </div>
+
+        <!-- Col 3: Rifles -->
+        <div class="space-y-2">
+          <div class="text-xs font-num font-black text-[#ece8e1]/60 tracking-widest uppercase border-b border-white/10 pb-1">RIFLES</div>
+          <button type="button" onclick="window.buyItem('bulldog')" class="val-cut-sm w-full p-2.5 bg-[#0f1923] hover:bg-[#1f3144] border border-white/15 hover:border-[#38e2c7] text-left flex justify-between items-center cursor-pointer">
+            <div><div class="text-sm font-bold text-[#ece8e1]">BULLDOG</div><div class="text-[10px] text-slate-400">HEAD 115 / BODY 35</div></div>
+            <span class="font-num text-xs font-black text-[#f5c542]">2,050</span>
+          </button>
+          <button type="button" onclick="window.buyItem('guardian')" class="val-cut-sm w-full p-2.5 bg-[#0f1923] hover:bg-[#1f3144] border border-white/15 hover:border-[#38e2c7] text-left flex justify-between items-center cursor-pointer">
+            <div><div class="text-sm font-bold text-[#ece8e1]">GUARDIAN</div><div class="text-[10px] text-slate-400">SEMI-AUTO DMR // HEAD 195</div></div>
+            <span class="font-num text-xs font-black text-[#f5c542]">2,250</span>
+          </button>
+          <button type="button" onclick="window.buyItem('phantom')" class="val-cut-sm w-full p-3 bg-[#0f1923] hover:bg-[#1f3144] border-l-4 border-[#38e2c7] text-left flex justify-between items-center cursor-pointer">
+            <div><div class="text-sm font-bold text-[#38e2c7]">PHANTOM</div><div class="text-[10px] text-slate-300">SILENCED RIFLE // 30 RDS</div></div>
+            <span class="font-num text-xs font-black text-[#f5c542]">2,900</span>
+          </button>
+          <button type="button" onclick="window.buyItem('vandal')" class="val-cut-sm w-full p-3 bg-[#0f1923] hover:bg-[#1f3144] border-l-4 border-[#ff4655] text-left flex justify-between items-center cursor-pointer">
+            <div><div class="text-sm font-bold text-[#ff4655]">VANDAL</div><div class="text-[10px] text-slate-300">HEADSHOT 160 ONE-TAP RIFLE</div></div>
+            <span class="font-num text-xs font-black text-[#f5c542]">2,900</span>
+          </button>
+        </div>
+
+        <!-- Col 4: Snipers & Shields -->
+        <div class="space-y-2">
+          <div class="text-xs font-num font-black text-[#ece8e1]/60 tracking-widest uppercase border-b border-white/10 pb-1">SNIPERS & ARMOR</div>
+          <button type="button" onclick="window.buyItem('marshal')" class="val-cut-sm w-full p-2.5 bg-[#0f1923] hover:bg-[#1f3144] border border-white/15 hover:border-[#38e2c7] text-left flex justify-between items-center cursor-pointer">
+            <div><div class="text-sm font-bold text-[#ece8e1]">MARSHAL</div><div class="text-[10px] text-slate-400">HEAD 202 / BODY 101</div></div>
+            <span class="font-num text-xs font-black text-[#f5c542]">950</span>
+          </button>
+          <button type="button" onclick="window.buyItem('outlaw')" class="val-cut-sm w-full p-2.5 bg-[#0f1923] hover:bg-[#1f3144] border border-white/15 hover:border-[#38e2c7] text-left flex justify-between items-center cursor-pointer">
+            <div><div class="text-sm font-bold text-[#ece8e1]">OUTLAW</div><div class="text-[10px] text-slate-400">HEAD 238 / BODY 140</div></div>
+            <span class="font-num text-xs font-black text-[#f5c542]">2,400</span>
+          </button>
+          <button type="button" onclick="window.buyItem('operator')" class="val-cut-sm w-full p-2.5 bg-[#0f1923] hover:bg-[#1f3144] border-l-4 border-[#f5c542] text-left flex justify-between items-center cursor-pointer">
+            <div><div class="text-sm font-bold text-[#f5c542]">OPERATOR</div><div class="text-[10px] text-slate-300">HEAD 255 / BODY 150 ONE-SHOT</div></div>
+            <span class="font-num text-xs font-black text-[#f5c542]">4,700</span>
+          </button>
+          <div class="grid grid-cols-2 gap-2 pt-1">
+            <button type="button" onclick="window.buyItem('light_shield')" class="val-cut-sm p-2.5 bg-[#0f1923] hover:bg-[#1f3144] border border-[#38e2c7]/40 text-left cursor-pointer">
+              <div class="text-xs font-bold text-[#38e2c7]">LIGHT SHIELD (+25)</div>
+              <div class="font-num text-xs font-black text-[#f5c542] mt-0.5">400</div>
+            </button>
+            <button type="button" onclick="window.buyItem('heavy_shield')" class="val-cut-sm p-2.5 bg-[#0f1923] hover:bg-[#1f3144] border border-[#38e2c7] text-left cursor-pointer">
+              <div class="text-xs font-bold text-[#38e2c7]">HEAVY SHIELD (+50)</div>
+              <div class="font-num text-xs font-black text-[#f5c542] mt-0.5">1,000</div>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div id="shop-feedback" class="text-xs text-[#38e2c7] font-bold pt-2 border-t border-white/10">
+        SELECT ANY WEAPON OR SHIELD TO EQUIP IMMEDIATELY.
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== 4. CUSTOM GAME HOST CHEAT PANEL (F1 KEY) ==================== -->
+  <div id="cheat-modal" class="modal-scroll hidden fixed inset-0 z-40 flex items-center justify-center p-3 sm:p-6 bg-[#091017]/90 backdrop-blur-md overflow-y-auto">
+    <div class="val-cut val-panel max-w-3xl w-full p-5 sm:p-6 border-2 border-amber-400 shadow-2xl my-auto">
+      <div class="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-white/15">
+        <div>
+          <span class="px-2 py-0.5 bg-amber-400 text-slate-950 font-num font-black text-xs">CUSTOM GAME CHEATS // F1</span>
+          <h2 class="text-xl font-black text-white mt-1">발로란트 사설방 치트 제어판 (방장 통제)</h2>
+        </div>
+        <div class="flex items-center gap-2">
+          <button type="button" id="modal-host-cheat-btn" onclick="window.toggleHostCheatPermission(event)"
+                  class="px-3.5 py-2 bg-emerald-500 text-slate-950 font-black text-xs cursor-pointer">
+            HOST CHEATS: ON
+          </button>
+          <button type="button" onclick="window.toggleCheatPanel(event)" class="px-4 py-2 bg-[#ff4655] text-white font-bold text-xs cursor-pointer">
+            CLOSE [F1 / ESC]
+          </button>
+        </div>
+      </div>
+
+      <div id="cheat-locked-notice" class="hidden my-4 p-4 bg-rose-950/80 border border-rose-500 text-center text-rose-200 text-xs font-bold">
+        현재 방장(Host)이 사설방 치트 사용을 [OFF]로 비활성화했습니다. 상단의 [HOST CHEATS] 버튼을 눌러 ON으로 전환할 수 있습니다.
+      </div>
+
+      <div id="cheat-controls-body" class="space-y-4 mt-4">
+        <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+          <button type="button" id="cheat-btn-ghost" onclick="window.toggleCheatOption('ghost')" class="p-3 bg-[#0f1923] border border-white/15 text-left cursor-pointer">
+            <div class="text-xs font-bold text-purple-300">GHOST NOCLIP [V]</div>
+            <div class="text-[11px] text-slate-400 mt-0.5">벽 통과 및 공중 자유 비행</div>
+          </button>
+          <button type="button" id="cheat-btn-pauseTimer" onclick="window.toggleCheatOption('pauseTimer')" class="p-3 bg-[#0f1923] border border-white/15 text-left cursor-pointer">
+            <div class="text-xs font-bold text-amber-300">PAUSE ROUND TIMER</div>
+            <div class="text-[11px] text-slate-400 mt-0.5">라운드 제한시간 정지</div>
+          </button>
+          <button type="button" id="cheat-btn-infiniteCreds" onclick="window.toggleCheatOption('infiniteCreds')" class="p-3 bg-[#0f1923] border border-white/15 text-left cursor-pointer">
+            <div class="text-xs font-bold text-[#38e2c7]">INFINITE CREDITS (9,000)</div>
+            <div class="text-[11px] text-slate-400 mt-0.5">보유 크레딧 9,000 고정</div>
+          </button>
+          <button type="button" id="cheat-btn-infiniteAmmo" onclick="window.toggleCheatOption('infiniteAmmo')" class="p-3 bg-[#0f1923] border border-white/15 text-left cursor-pointer">
+            <div class="text-xs font-bold text-[#38e2c7]">INFINITE MAGAZINE</div>
+            <div class="text-[11px] text-slate-400 mt-0.5">재장전 없이 무한 사격</div>
+          </button>
+          <button type="button" id="cheat-btn-buyAnywhere" onclick="window.toggleCheatOption('buyAnywhere')" class="p-3 bg-[#0f1923] border border-white/15 text-left cursor-pointer">
+            <div class="text-xs font-bold text-[#38e2c7]">BUY ANYWHERE / ANYTIME</div>
+            <div class="text-[11px] text-slate-400 mt-0.5">전투 중 언제든 상점 구매</div>
+          </button>
+          <button type="button" id="cheat-btn-invincible" onclick="window.toggleCheatOption('invincible')" class="p-3 bg-[#0f1923] border border-white/15 text-left cursor-pointer">
+            <div class="text-xs font-bold text-emerald-300">INVINCIBLE MODE</div>
+            <div class="text-[11px] text-slate-400 mt-0.5">피격 데미지 무시</div>
+          </button>
+          <button type="button" id="cheat-btn-autoRespawn" onclick="window.toggleCheatOption('autoRespawn')" class="p-3 bg-[#0f1923] border border-white/15 text-left cursor-pointer">
+            <div class="text-xs font-bold text-pink-300">AUTO RESPAWN</div>
+            <div class="text-[11px] text-slate-400 mt-0.5">사망 시 즉시 체력 100 회복</div>
+          </button>
+        </div>
+
+        <div class="flex flex-wrap gap-2 pt-2 border-t border-white/10">
+          <button type="button" onclick="window.cheatInstantWin('ally')" class="px-3.5 py-2 bg-[#38e2c7] text-slate-950 font-black text-xs cursor-pointer">WIN ROUND (아군 라운드 즉시 승리)</button>
+          <button type="button" onclick="window.cheatSwapSides()" class="px-3.5 py-2 bg-amber-400 text-slate-950 font-black text-xs cursor-pointer">SWAP SIDES (즉시 공수 교대)</button>
+          <button type="button" onclick="window.respawnPlayerAndBots()" class="px-3.5 py-2 bg-purple-500 text-white font-black text-xs cursor-pointer">RESPAWN ALL (라운드 리셋)</button>
+        </div>
+
+        <div class="pt-2 border-t border-white/10">
+          <div class="text-xs font-bold text-slate-300 mb-2">ASCENT ELEVATION TELEPORT (어센트 주요 지형 즉시 순간이동)</div>
+          <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            <button type="button" onclick="window.teleportTo(29, 3.2, -29, 'A HEAVEN (+3.2m)')" class="p-2 bg-[#142230] hover:bg-slate-700 text-xs font-bold text-[#38e2c7] border border-[#38e2c7]/40 cursor-pointer">A HEAVEN (+3.2m)</button>
+            <button type="button" onclick="window.teleportTo(29, 0.0, -29, 'A HELL (0.0m)')" class="p-2 bg-[#142230] hover:bg-slate-700 text-xs font-bold text-rose-300 border border-rose-400/40 cursor-pointer">A HELL UNDERPASS (0.0m)</button>
+            <button type="button" onclick="window.teleportTo(10.5, 0.0, -14, 'A GARDEN / TREE (0.0m)')" class="p-2 bg-[#142230] hover:bg-slate-700 text-xs font-bold text-pink-300 border border-pink-400/40 cursor-pointer">A GARDEN / TREE (0.0m)</button>
+            <button type="button" onclick="window.teleportTo(7.5, 1.4, 4, 'MID CATWALK (+1.4m)')" class="p-2 bg-[#142230] hover:bg-slate-700 text-xs font-bold text-amber-300 border border-amber-400/40 cursor-pointer">MID CATWALK (+1.4m)</button>
+            <button type="button" onclick="window.teleportTo(-21, 1.6, -8, 'B 2F TERRACE (+1.6m)')" class="p-2 bg-[#142230] hover:bg-slate-700 text-xs font-bold text-[#38e2c7] border border-[#38e2c7]/40 cursor-pointer">B 2F TERRACE (+1.6m)</button>
+            <button type="button" onclick="window.teleportTo(-32, 0.0, -22, 'B SITE PIT / SHED (0.0m)')" class="p-2 bg-[#142230] hover:bg-slate-700 text-xs font-bold text-emerald-300 border border-emerald-400/40 cursor-pointer">B SITE PIT / SHED (0.0m)</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== MAIN GAME ENGINE SCRIPT ==================== -->
+  <script>
+    (function () {
+      'use strict';
+
+      /* =========================================================================
+       * 1. GLOBAL ROOM, CHEAT & VALORANT MOBILE TOUCH STATE
+       * ========================================================================= */
+      const roomState = {
+        code: '07',
+        isHost: true,
+        allowCheats: true,
+        winRounds: 13,
+        playerSide: 'attack',
+        joinBuffer: '07'
+      };
+      window.roomState = roomState;
+
+      const cheats = {
+        ghost: false,
+        pauseTimer: false,
+        infiniteCreds: false,
+        infiniteAmmo: false,
+        buyAnywhere: false,
+        invincible: false,
+        autoRespawn: false
+      };
+
+      const inputSystem = {
+        touchModeEnabled: true // Enabled by default so Valorant Mobile controls are immediately usable
+      };
+      function refreshInputUI() {
+        const mobLayer = document.getElementById('mobile-controls');
+        const toggleBtn = document.getElementById('hud-touch-toggle-btn');
+        if (toggleBtn) {
+          toggleBtn.textContent = inputSystem.touchModeEnabled ? 'TOUCH UI: ON' : 'TOUCH UI: OFF';
+          toggleBtn.className = inputSystem.touchModeEnabled
+            ? 'val-cut-sm px-2.5 py-1 bg-[#38e2c7]/25 border border-[#38e2c7] text-[#38e2c7] font-num font-black text-[11px] cursor-pointer'
+            : 'val-cut-sm px-2.5 py-1 bg-[#0f1923]/95 border border-white/25 text-white/60 font-num font-black text-[11px] cursor-pointer';
+        }
+        if (mobLayer) {
+          if (inputSystem.touchModeEnabled && matchState.inMatch) {
+            mobLayer.classList.remove('hidden');
+          } else {
+            mobLayer.classList.add('hidden');
+          }
+        }
+      }
+
+      window.toggleMobileMode = function (e) {
+        if (e) e.stopPropagation();
+        inputSystem.touchModeEnabled = !inputSystem.touchModeEnabled;
+        if (inputSystem.touchModeEnabled && document.pointerLockElement) {
+          try { document.exitPointerLock(); } catch (err) {}
+        }
+        refreshInputUI();
+      };
+
+      /* =========================================================================
+       * 2. SYNTHESIZED WEB AUDIO SOUND ENGINE
+       * ========================================================================= */
+      const sfx = {
+        ctx: null,
+        init() {
+          try {
+            if (!this.ctx) {
+              const AC = window.AudioContext || window.webkitAudioContext;
+              if (AC) this.ctx = new AC();
+            }
+            if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
+          } catch (err) {}
+        },
+        playGunshot(freq = 160, dur = 0.11) {
+          try {
+            this.init();
+            if (!this.ctx) return;
+            const now = this.ctx.currentTime;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(freq, now);
+            osc.frequency.exponentialRampToValueAtTime(40, now + dur);
+            gain.gain.setValueAtTime(0.24, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + dur);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(now);
+            osc.stop(now + dur);
+          } catch (e) {}
+        },
+        playHeadshotDing() {
+          try {
+            this.init();
+            if (!this.ctx) return;
+            const now = this.ctx.currentTime;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(1350, now);
+            osc.frequency.exponentialRampToValueAtTime(2050, now + 0.16);
+            gain.gain.setValueAtTime(0.30, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(now);
+            osc.stop(now + 0.18);
+          } catch (e) {}
+        },
+        playBeep(freq = 880) {
+          try {
+            this.init();
+            if (!this.ctx) return;
+            const now = this.ctx.currentTime;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(freq, now);
+            gain.gain.setValueAtTime(0.10, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.07);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(now);
+            osc.stop(now + 0.07);
+          } catch (e) {}
+        },
+        playUI() {
+          this.playBeep(640);
+        }
+      };
+
+      /* =========================================================================
+       * 3. THREE.JS SCENE, CAMERA & PROCEDURAL VENETIAN TEXTURES
+       * ========================================================================= */
+      const canvas = document.getElementById('game-canvas');
+      const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x88b9e8);
+      scene.fog = new THREE.FogExp2(0x88b9e8, 0.0038);
+
+      const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 230);
+      camera.rotation.order = 'YXZ';
+      scene.add(camera);
+
+      const hemiLight = new THREE.HemisphereLight(0xfff8ed, 0x334155, 0.88);
+      scene.add(hemiLight);
+
+      const sunLight = new THREE.DirectionalLight(0xfffbeb, 0.96);
+      sunLight.position.set(45, 82, 35);
+      sunLight.castShadow = true;
+      sunLight.shadow.mapSize.width = 2048;
+      sunLight.shadow.mapSize.height = 2048;
+      sunLight.shadow.camera.near = 10;
+      sunLight.shadow.camera.far = 190;
+      const d = 64;
+      sunLight.shadow.camera.left = -d;
+      sunLight.shadow.camera.right = d;
+      sunLight.shadow.camera.top = d;
+      sunLight.shadow.camera.bottom = -d;
+      scene.add(sunLight);
+
+      function makeCobbleTexture(bgHex, lineHex) {
+        const c = document.createElement('canvas');
+        c.width = c.height = 256;
+        const ctx = c.getContext('2d');
+        ctx.fillStyle = bgHex;
+        ctx.fillRect(0, 0, 256, 256);
+        ctx.strokeStyle = lineHex;
+        ctx.lineWidth = 2;
+        for (let y = 0; y < 256; y += 32) {
+          ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(256, y); ctx.stroke();
+          for (let x = (y % 64 === 0 ? 0 : 16); x < 256; x += 32) {
+            ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y + 32); ctx.stroke();
+          }
+        }
+        const tex = new THREE.CanvasTexture(c);
+        tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+        tex.repeat.set(24, 24);
+        return tex;
+      }
+
+      function makeRadianiteTexture() {
+        const c = document.createElement('canvas');
+        c.width = c.height = 256;
+        const ctx = c.getContext('2d');
+        ctx.fillStyle = '#0d3b38';
+        ctx.fillRect(0, 0, 256, 256);
+        ctx.strokeStyle = '#38e2c7';
+        ctx.lineWidth = 10;
+        ctx.strokeRect(8, 8, 240, 240);
+        ctx.strokeStyle = '#5eead4';
+        ctx.lineWidth = 4;
+        ctx.beginPath(); ctx.moveTo(24, 24); ctx.lineTo(232, 232); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(232, 24); ctx.lineTo(24, 232); ctx.stroke();
+        return new THREE.CanvasTexture(c);
+      }
+
+      function makeVenetianBuildingTexture(stuccoHex, shutterHex) {
+        const c = document.createElement('canvas');
+        c.width = 512;
+        c.height = 512;
+        const ctx = c.getContext('2d');
+        ctx.fillStyle = stuccoHex;
+        ctx.fillRect(0, 0, 512, 512);
+        ctx.fillStyle = '#8c7d6e';
+        ctx.fillRect(0, 412, 512, 100);
+        [170, 340].forEach(y => {
+          ctx.fillStyle = '#cfc4b4';
+          ctx.fillRect(0, y - 5, 512, 10);
+        });
+        const cols = [64, 192, 320, 448];
+        const rows = [52, 218];
+        rows.forEach(wy => {
+          cols.forEach(wx => {
+            ctx.fillStyle = shutterHex;
+            ctx.fillRect(wx - 34, wy, 14, 84);
+            ctx.fillRect(wx + 20, wy, 14, 84);
+            ctx.fillStyle = '#1b2631';
+            ctx.fillRect(wx - 18, wy, 36, 84);
+            ctx.strokeStyle = '#dfd7ca';
+            ctx.lineWidth = 3;
+            ctx.strokeRect(wx - 18, wy, 36, 84);
+          });
+        });
+        const tex = new THREE.CanvasTexture(c);
+        tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+        tex.repeat.set(2, 1);
+        return tex;
+      }
+
+      function makeCalloutSignTexture(titleText, subText, accentHex) {
+        const c = document.createElement('canvas');
+        c.width = 512;
+        c.height = 160;
+        const ctx = c.getContext('2d');
+        ctx.fillStyle = '#0f1923';
+        ctx.fillRect(0, 0, 512, 160);
+        ctx.fillStyle = accentHex || '#ff4655';
+        ctx.fillRect(0, 0, 18, 160);
+        ctx.strokeStyle = '#ece8e1';
+        ctx.lineWidth = 4;
+        ctx.strokeRect(4, 4, 504, 152);
+        ctx.fillStyle = '#ece8e1';
+        ctx.font = 'bold 58px Rajdhani, sans-serif';
+        ctx.fillText(titleText, 38, 86);
+        ctx.fillStyle = '#38e2c7';
+        ctx.font = 'bold 28px Rajdhani, sans-serif';
+        ctx.fillText(subText, 40, 132);
+        return new THREE.CanvasTexture(c);
+      }
+
+      function makeHazardGeneratorTexture() {
+        const c = document.createElement('canvas');
+        c.width = 256;
+        c.height = 256;
+        const ctx = c.getContext('2d');
+        ctx.fillStyle = '#18222f';
+        ctx.fillRect(0, 0, 256, 256);
+        ctx.strokeStyle = '#334155';
+        ctx.lineWidth = 8;
+        ctx.strokeRect(8, 8, 240, 240);
+        ctx.fillStyle = '#0f172a';
+        for (let y = 36; y < 170; y += 22) {
+          ctx.fillRect(28, y, 200, 10);
+        }
+        ctx.fillStyle = '#f5c542';
+        ctx.fillRect(16, 198, 224, 34);
+        ctx.fillStyle = '#0f1923';
+        for (let x = -20; x < 260; x += 32) {
+          ctx.beginPath();
+          ctx.moveTo(x, 198);
+          ctx.lineTo(x + 16, 198);
+          ctx.lineTo(x + 4, 232);
+          ctx.lineTo(x - 12, 232);
+          ctx.closePath();
+          ctx.fill();
+        }
+        return new THREE.CanvasTexture(c);
+      }
+
+      function makeBuyBarrierTexture() {
+        const c = document.createElement('canvas');
+        c.width = 256;
+        c.height = 256;
+        const ctx = c.getContext('2d');
+        const grad = ctx.createLinearGradient(0, 0, 0, 256);
+        grad.addColorStop(0, 'rgba(15, 25, 35, 0.96)');
+        grad.addColorStop(0.5, 'rgba(20, 65, 75, 0.94)');
+        grad.addColorStop(1, 'rgba(56, 226, 199, 0.98)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, 256, 256);
+        ctx.strokeStyle = 'rgba(236, 232, 225, 0.32)';
+        ctx.lineWidth = 2;
+        for (let i = 0; i < 256; i += 32) {
+          ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(256, i); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, 256); ctx.stroke();
+        }
+        ctx.fillStyle = '#38e2c7';
+        ctx.fillRect(0, 244, 256, 12);
+        const tex = new THREE.CanvasTexture(c);
+        tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+        tex.repeat.set(4, 1);
+        return tex;
+      }
+
+      /* =========================================================================
+       * 4. AUTHENTIC ASCENT (어센트) GEOMETRY, INDOOR HALLS & MULTI-LAYER PHYSICS
+       * ========================================================================= */
+      const MAP_LIMIT = 56;
+      const EYE_HEIGHT = 1.65;
+      const STEP_HEIGHT = 0.58;
+
+      const walkableSurfaces = [];
+      const wallBoxes3D = [];
+      const mapTargetMeshes = [];
+      const blastDoors = [];
+      const floatingStructures = [];
+
+      const ascentGroup = new THREE.Group();
+      scene.add(ascentGroup);
+      const barrierGroup = new THREE.Group();
+      scene.add(barrierGroup);
+
+      const matStoneFloor = new THREE.MeshStandardMaterial({ map: makeCobbleTexture('#c4bdb2', '#9e9689'), roughness: 0.78 });
+      const matUpperFloor = new THREE.MeshStandardMaterial({ map: makeCobbleTexture('#8c96a3', '#697380'), roughness: 0.62 });
+      const matTilesFloor = new THREE.MeshStandardMaterial({ map: makeCobbleTexture('#b69f89', '#87725f'), roughness: 0.68 });
+      const matWoodFloor = new THREE.MeshStandardMaterial({ color: 0x785238, roughness: 0.65 });
+      const matVenetianWall = new THREE.MeshStandardMaterial({ map: makeVenetianBuildingTexture('#e8dfd1', '#2d5a43'), roughness: 0.68 });
+      const matVenetianOchre = new THREE.MeshStandardMaterial({ map: makeVenetianBuildingTexture('#dfc29d', '#7c2d12'), roughness: 0.68 });
+      const matVenetianPink = new THREE.MeshStandardMaterial({ map: makeVenetianBuildingTexture('#deb3a8', '#1e3a5f'), roughness: 0.68 });
+      const matBrickWall = new THREE.MeshStandardMaterial({ color: 0xa8523b, roughness: 0.75 });
+      const matTerracottaRoof = new THREE.MeshStandardMaterial({ color: 0xb44c32, roughness: 0.65 });
+      const matDarkMetal = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.35, metalness: 0.8 });
+      const matGenerator = new THREE.MeshStandardMaterial({ map: makeHazardGeneratorTexture(), roughness: 0.4, metalness: 0.7 });
+      const matRadianite = new THREE.MeshStandardMaterial({ map: makeRadianiteTexture(), roughness: 0.4, metalness: 0.3 });
+      const matCeiling = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.8 });
+      const matGlassRoof = new THREE.MeshStandardMaterial({ color: 0x93c5fd, transparent: true, opacity: 0.38, roughness: 0.2 });
+      const matCanalWater = new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.18, metalness: 0.2 });
+
+      function addWalkableSlab(minX, maxX, minZ, maxZ, topY, thickness, callout, mat, buildMesh = true) {
+        walkableSurfaces.push({
+          minX, maxX, minZ, maxZ,
+          yStart: topY, yEnd: topY,
+          slopeAxis: 'none',
+          bottomY: topY - thickness,
+          callout
+        });
+        if (buildMesh) {
+          const w = maxX - minX, d = maxZ - minZ;
+          const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, thickness, d), mat || matUpperFloor);
+          mesh.position.set((minX + maxX) / 2, topY - thickness / 2, (minZ + maxZ) / 2);
+          mesh.receiveShadow = true;
+          mesh.castShadow = true;
+          ascentGroup.add(mesh);
+          mapTargetMeshes.push(mesh);
+          wallBoxes3D.push({ minX, maxX, minY: topY - thickness, maxY: topY, minZ, maxZ });
+        }
+      }
+
+      function addWalkableRamp(minX, maxX, minZ, maxZ, yStart, yEnd, slopeAxis, callout, mat) {
+        walkableSurfaces.push({
+          minX, maxX, minZ, maxZ,
+          yStart, yEnd, slopeAxis,
+          bottomY: Math.min(yStart, yEnd) - 0.5,
+          callout
+        });
+        const steps = 10;
+        const w = maxX - minX, d = maxZ - minZ;
+        for (let i = 0; i < steps; i++) {
+          const tMid = (i + 0.5) / steps;
+          const stepTopY = yStart + (yEnd - yStart) * tMid;
+          let sx = (minX + maxX) / 2, sz = (minZ + maxZ) / 2, sw = w, sd = d;
+          if (slopeAxis === 'x') { sw = w / steps; sx = minX + w * tMid; }
+          else { sd = d / steps; sz = minZ + d * tMid; }
+          const stepMesh = new THREE.Mesh(new THREE.BoxGeometry(sw, 0.35, sd), mat || matWoodFloor);
+          stepMesh.position.set(sx, stepTopY - 0.175, sz);
+          stepMesh.receiveShadow = true;
+          ascentGroup.add(stepMesh);
+          mapTargetMeshes.push(stepMesh);
+        }
+      }
+
+      function addSolidBox3D(cx, cz, w, d, minY, maxY, mat, walkableTopCallout = null) {
+        const h = maxY - minY;
+        const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat || matVenetianWall);
+        mesh.position.set(cx, minY + h / 2, cz);
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        ascentGroup.add(mesh);
+        mapTargetMeshes.push(mesh);
+        const minX = cx - w / 2, maxX = cx + w / 2, minZ = cz - d / 2, maxZ = cz + d / 2;
+        const collider = { minX, maxX, minY, maxY, minZ, maxZ };
+        wallBoxes3D.push(collider);
+        if (walkableTopCallout) {
+          walkableSurfaces.push({
+            minX, maxX, minZ, maxZ,
+            yStart: maxY, yEnd: maxY,
+            slopeAxis: 'none',
+            bottomY: minY,
+            callout: walkableTopCallout
+          });
+        }
+        return { mesh, collider };
+      }
+
+      function addVenetianBuilding(cx, cz, w, d, minY, maxY, facadeMat) {
+        addSolidBox3D(cx, cz, w, d, minY, maxY, facadeMat || matVenetianWall);
+        const roof = new THREE.Mesh(new THREE.BoxGeometry(w + 0.8, 0.85, d + 0.8), matTerracottaRoof);
+        roof.position.set(cx, maxY + 0.42, cz);
+        ascentGroup.add(roof);
+      }
+
+      function addIndoorCeiling(minX, maxX, minZ, maxZ, bottomY, thickness = 0.7, isGlass = false) {
+        const w = maxX - minX, d = maxZ - minZ, cx = (minX + maxX) / 2, cz = (minZ + maxZ) / 2;
+        addSolidBox3D(cx, cz, w, d, bottomY, bottomY + thickness, isGlass ? matGlassRoof : matCeiling);
+        if (!isGlass) {
+          const cap = new THREE.Mesh(new THREE.BoxGeometry(w + 0.4, 0.4, d + 0.4), matTerracottaRoof);
+          cap.position.set(cx, bottomY + thickness + 0.2, cz);
+          ascentGroup.add(cap);
+        }
+      }
+
+      function addWallCalloutSign(x, y, z, rotY, title, sub, accent) {
+        const signMesh = new THREE.Mesh(
+          new THREE.PlaneGeometry(3.4, 1.05),
+          new THREE.MeshBasicMaterial({ map: makeCalloutSignTexture(title, sub, accent) })
+        );
+        signMesh.position.set(x, y, z);
+        signMesh.rotation.y = rotY;
+        ascentGroup.add(signMesh);
+      }
+
+      function buildAscentMap() {
+        const baseGround = new THREE.Mesh(new THREE.PlaneGeometry(MAP_LIMIT * 2, MAP_LIMIT * 2), matStoneFloor);
+        baseGround.rotation.x = -Math.PI / 2;
+        baseGround.receiveShadow = true;
+        ascentGroup.add(baseGround);
+        mapTargetMeshes.push(baseGround);
+
+        addWalkableSlab(-56, 56, -56, 56, 0.0, 1.0, 'ASCENT', null, false);
+        addWalkableSlab(-22, 22, 32, 54, 0.0, 1.0, 'ATTACKER SPAWN', null, false);
+        addWalkableSlab(16, 42, 24, 38, 0.0, 1.0, 'A LOBBY', null, false);
+        addWalkableSlab(-42, -16, 24, 38, 0.0, 1.0, 'B LOBBY', null, false);
+        addWalkableSlab(-20, 20, -54, -30, 0.0, 1.0, 'DEFENDER SPAWN', null, false);
+        addWalkableSlab(18, 48, 8, 24, 0.0, 1.0, 'A MAIN', null, false);
+        addWalkableSlab(36, 50, 8, 22, 0.0, 1.0, 'A WINE', null, false);
+        addWalkableSlab(16, 46, -21, 8, 0.0, 1.0, 'A SITE', null, false);
+        addWalkableSlab(16, 44, -38, -21, 0.0, 1.0, 'A HELL', null, false);
+        addWalkableSlab(6, 16, -20, -10, 0.0, 1.0, 'A GARDEN / TREE', null, false);
+        addWalkableSlab(-12, 10, 14, 30, 0.0, 1.0, 'TOP MID', null, false);
+        addWalkableSlab(-10, 6, -11, 14, 0.0, 1.0, 'MID COURTYARD', null, false);
+        addWalkableSlab(-46, -20, -34, -12, 0.0, 1.0, 'B SITE PIT', null, false);
+        addWalkableSlab(-46, -20, -50, -34, 0.0, 1.0, 'B BOATHOUSE', null, false);
+
+        addVenetianBuilding(0, -MAP_LIMIT, MAP_LIMIT * 2, 3, 0, 13.5, matVenetianWall);
+        addVenetianBuilding(0, MAP_LIMIT, MAP_LIMIT * 2, 3, 0, 13.5, matVenetianOchre);
+        addVenetianBuilding(-MAP_LIMIT, 0, 3, MAP_LIMIT * 2, 0, 13.5, matVenetianPink);
+        addVenetianBuilding(MAP_LIMIT, 0, 3, MAP_LIMIT * 2, 0, 13.5, matVenetianWall);
+
+        addVenetianBuilding(15.5, 27, 9.5, 17, 0, 11.5, matVenetianOchre);
+        addVenetianBuilding(-15.5, 25, 11, 18, 0, 11.5, matVenetianPink);
+        addSolidBox3D(0, 29, 10, 2.5, 4.8, 10.5, matVenetianWall);
+        addSolidBox3D(27, 29, 12, 2.5, 5.2, 11.0, matVenetianWall);
+        addSolidBox3D(-30, 31, 14, 2.5, 5.2, 11.0, matVenetianWall);
+
+        addSolidBox3D(9.5, 21, 3.0, 4.5, 0, 9.5, matBrickWall);
+
+        /* --- ZONE A: A MAIN, A WINE, A SITE, A HEAVEN (+3.2m), A HELL (0.0m) --- */
+        addVenetianBuilding(14.5, 14, 5, 12, 0, 11.5, matVenetianWall);
+        addVenetianBuilding(49, 16, 8, 22, 0, 12, matVenetianOchre);
+        addSolidBox3D(36.5, 16.5, 1.4, 9, 0, 6.2, matBrickWall);
+        addIndoorCeiling(36, 46, 9, 23, 6.0, 0.8);
+        addSolidBox3D(42.5, 14, 2.2, 2.2, 0, 1.5, matWoodFloor, 'A WINE BARREL');
+        addVenetianBuilding(20.5, 8.8, 9, 2.2, 0, 10.5, matVenetianWall);
+        addVenetianBuilding(40.0, 8.8, 11, 2.2, 0, 10.5, matVenetianOchre);
+        addSolidBox3D(29.5, 8.8, 9, 2.2, 5.0, 10.5, matVenetianWall);
+
+        addVenetianBuilding(30, -43, 34, 6, 0, 14, matVenetianWall);
+        addSolidBox3D(35, -45, 7, 7, 14, 28, matBrickWall);
+        const belfry = new THREE.Mesh(new THREE.BoxGeometry(7.3, 3.2, 7.3), matVenetianWall);
+        belfry.position.set(35, 29.6, -45);
+        const spire = new THREE.Mesh(new THREE.ConeGeometry(5.5, 7, 4), matTerracottaRoof);
+        spire.position.set(35, 34.5, -45);
+        spire.rotation.y = Math.PI / 4;
+        ascentGroup.add(belfry, spire);
+
+        addVenetianBuilding(48.5, -14, 6, 48, 0, 12.5, matVenetianPink);
+        addWalkableSlab(41, 45.5, -21, 4, 3.2, 0.4, 'A RAFTERS', matUpperFloor, true);
+        addWalkableSlab(16, 44, -38, -21, 3.2, 0.45, 'A HEAVEN', matUpperFloor, true);
+        addSolidBox3D(21, -21.2, 9.5, 0.6, 3.2, 4.35, matVenetianWall, 'A HEAVEN RAIL');
+        addSolidBox3D(39, -21.2, 9.5, 0.6, 3.2, 4.35, matVenetianWall, 'A HEAVEN RAIL');
+
+        addSolidBox3D(16.5, -30, 1.2, 16, 0, 2.75, matDarkMetal);
+        addSolidBox3D(22, -21.4, 7, 0.8, 0, 2.75, matBrickWall);
+        addSolidBox3D(38, -21.4, 7, 0.8, 0, 2.75, matBrickWall);
+        addSolidBox3D(25, -28, 1.4, 1.4, 0, 2.75, matDarkMetal);
+        addSolidBox3D(34, -28, 1.4, 1.4, 0, 2.75, matDarkMetal);
+
+        addWalkableRamp(4, 16, -36, -27, 0.0, 3.2, 'x', 'A HEAVEN RAMP', matWoodFloor);
+
+        // Detailed A Site Generator + Stacked Radianite Dice
+        addSolidBox3D(27, -8, 4.4, 6.2, 0, 2.65, matGenerator, 'A GENERATOR');
+        addSolidBox3D(27, -8, 2.8, 4.4, 2.65, 3.15, matDarkMetal, 'A GENERATOR TOP');
+        addSolidBox3D(35.5, -4, 3.2, 3.2, 0, 1.75, matRadianite, 'A DICE');
+        addSolidBox3D(35.5, -4, 2.1, 2.1, 1.75, 3.1, matRadianite, 'A DICE STACK');
+        addSolidBox3D(35.5, -1.4, 2.0, 1.6, 0, 0.85, matWoodFloor, 'A DICE STEP');
+        addSolidBox3D(20.5, -4.5, 2.2, 2.2, 0, 1.65, matRadianite, 'A GREEN BOX');
+
+        /* --- A GARDEN / A TREE --- */
+        addWalkableSlab(6, 16, -6, 6, 1.4, 1.4, 'A TREE UPPER', matUpperFloor, true);
+        addWalkableRamp(8, 15, -13, -6, 0.0, 1.4, 'z', 'A TREE STAIRS', matWoodFloor);
+        addVenetianBuilding(16, 0, 1.6, 24, 0, 10.5, matVenetianWall);
+        addSolidBox3D(16, -14.5, 1.6, 5.2, 3.8, 10.5, matVenetianWall);
+        addIndoorCeiling(5, 16, -21, -7, 7.6, 0.5, true);
+
+        const aDoorObj = addSolidBox3D(16, -14.5, 0.45, 4.8, 3.6, 7.2, matDarkMetal);
+        const aSwitch = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.65, 0.45), new THREE.MeshBasicMaterial({ color: 0x38e2c7 }));
+        aSwitch.position.set(17.0, 1.5, -11.5);
+        ascentGroup.add(aSwitch);
+        blastDoors.push({
+          id: 'A_DOOR', name: 'A GARDEN DOOR', closed: false, targetMinY: 3.6,
+          mesh: aDoorObj.mesh, collider: aDoorObj.collider, switchMesh: aSwitch, switchPos: new THREE.Vector3(17.2, 1.4, -11.5)
+        });
+
+        addSolidBox3D(10.5, -16.5, 3.0, 3.0, 0, 0.95, matBrickWall, 'TREE PLANTER');
+        const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.58, 4.4, 8), matWoodFloor);
+        trunk.position.set(10.5, 2.9, -16.5);
+        const blossomMat = new THREE.MeshStandardMaterial({ color: 0xf472b6, emissive: 0x831843, emissiveIntensity: 0.25, roughness: 0.7 });
+        const canopyMain = new THREE.Mesh(new THREE.SphereGeometry(2.7, 14, 14), blossomMat);
+        canopyMain.position.set(10.5, 5.3, -16.5);
+        const canopySub1 = new THREE.Mesh(new THREE.SphereGeometry(1.8, 10, 10), blossomMat);
+        canopySub1.position.set(9.1, 4.8, -15.4);
+        const canopySub2 = new THREE.Mesh(new THREE.SphereGeometry(1.9, 10, 10), blossomMat);
+        canopySub2.position.set(11.9, 4.9, -17.3);
+        ascentGroup.add(trunk, canopyMain, canopySub1, canopySub2);
+
+        /* --- ZONE MID: CATWALK (+1.4m), COURTYARD (0.0m), TILES & PIZZA (+0.6m), MARKET (+0.6m) --- */
+        addWalkableSlab(4, 11, -6, 12, 1.4, 1.4, 'MID CATWALK', matUpperFloor, true);
+        addWalkableRamp(4, 11, 12, 20, 1.4, 0.0, 'z', 'CATWALK STAIRS', matWoodFloor);
+        addSolidBox3D(4.2, 2, 0.5, 14, 1.4, 2.45, matBrickWall, 'CATWALK RAIL');
+        addSolidBox3D(-2, 2, 3.8, 3.8, 0, 2.1, matRadianite, 'MID BOX');
+        addSolidBox3D(-2, 4.7, 2.2, 1.6, 0, 0.9, matWoodFloor, 'MID BOX STEP');
+        // Mid Courtyard Venetian Stone Fountain / Monument Base
+        addSolidBox3D(-6.2, -3.5, 2.8, 2.8, 0, 1.25, matVenetianWall, 'MID FOUNTAIN');
+        addSolidBox3D(-6.2, -3.5, 1.1, 1.1, 1.25, 2.8, matVenetianOchre, 'MID MONUMENT');
+
+        addWalkableSlab(-15, -9, -11, 6, 0.6, 0.6, 'MID TILES', matTilesFloor, true);
+        addWalkableRamp(-15, -9, 6, 10, 0.6, 0.0, 'z', 'MID TILES STEPS', matWoodFloor);
+        addWalkableSlab(-22, -15, -24, -15, 0.6, 0.6, 'MID PIZZA', matTilesFloor, true);
+        addSolidBox3D(-20.2, -21.5, 2.2, 2.0, 0.6, 1.9, matBrickWall, 'PIZZA OVEN');
+
+        addWalkableSlab(-18, -3, -27, -11, 0.6, 0.6, 'MID MARKET', matUpperFloor, true);
+        addWalkableRamp(-11, -5, -11, -8, 0.6, 0.0, 'z', 'MARKET STEPS', matWoodFloor);
+        addWalkableRamp(-11, -5, -31, -27, 0.0, 0.6, 'z', 'CT MARKET RAMP', matWoodFloor);
+        addVenetianBuilding(-3.2, -19, 1.6, 16, 0, 10.5, matVenetianPink);
+        addVenetianBuilding(-14.5, -11.2, 7, 1.5, 0, 10.5, matVenetianOchre);
+        addSolidBox3D(-7.5, -11.2, 7, 1.5, 4.2, 10.5, matVenetianOchre);
+        addVenetianBuilding(-15, -26.8, 7, 1.5, 0, 10.5, matVenetianWall);
+        addIndoorCeiling(-18, -3, -27, -11, 5.4, 0.8);
+        addSolidBox3D(-14, -16, 3.2, 2.0, 0.6, 1.9, matBrickWall, 'MARKET COUNTER');
+
+        addSolidBox3D(-18, -14, 1.5, 6, 0, 10.5, matBrickWall);
+        addSolidBox3D(-18, -24.5, 1.5, 5, 0, 10.5, matBrickWall);
+        addSolidBox3D(-18, -19.5, 1.5, 5, 4.2, 10.5, matBrickWall);
+        const bDoorObj = addSolidBox3D(-18, -19.5, 0.45, 4.8, 4.2, 7.8, matDarkMetal);
+        const bSwitch = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.65, 0.45), new THREE.MeshBasicMaterial({ color: 0x38e2c7 }));
+        bSwitch.position.set(-17.1, 2.0, -16.8);
+        ascentGroup.add(bSwitch);
+        blastDoors.push({
+          id: 'B_DOOR', name: 'B MARKET DOOR', closed: false, targetMinY: 4.2,
+          mesh: bDoorObj.mesh, collider: bDoorObj.collider, switchMesh: bSwitch, switchPos: new THREE.Vector3(-16.8, 1.6, -16.8)
+        });
+
+        addWalkableRamp(-20, -12, 2, 10, 1.6, 0.0, 'x', 'MID B LINK', matWoodFloor);
+        addVenetianBuilding(-17, -3.5, 6, 11, 0, 10.5, matVenetianWall);
+
+        /* --- ZONE B: B MAIN (+1.6m), B TERRACE (+1.6m), B PIT & SHED (0.0m), BOATHOUSE --- */
+        addWalkableSlab(-45, -20, 2, 22, 1.6, 1.6, 'B MAIN', matUpperFloor, true);
+        addWalkableRamp(-36, -24, 22, 32, 1.6, 0.0, 'z', 'B LOBBY RAMP', matWoodFloor);
+        addVenetianBuilding(-46, 12, 2, 22, 0, 11, matVenetianPink);
+        addVenetianBuilding(-20, 14, 1.8, 10, 0, 11, matVenetianWall);
+        addSolidBox3D(-38, 2.0, 14, 1.5, 1.6, 9.5, matBrickWall);
+        addSolidBox3D(-26, 2.0, 10, 1.5, 5.2, 9.5, matBrickWall);
+        addIndoorCeiling(-45, -20, 2, 22, 6.4, 0.8);
+        addSolidBox3D(-35, 11, 3.2, 3.2, 1.6, 3.4, matRadianite, 'B MAIN CRATE');
+
+        addWalkableSlab(-24, -18, -22, 2, 1.6, 1.6, 'B TERRACE', matUpperFloor, true);
+        addWalkableSlab(-45, -24, -6, 2, 1.6, 1.6, 'B LANE', matUpperFloor, true);
+        addWalkableRamp(-24, -18, -26, -18, 0.0, 1.6, 'z', 'B STAIRS', matWoodFloor);
+        addWalkableRamp(-44, -38, -15, -6, 0.0, 1.6, 'z', 'B LANE STAIRS', matWoodFloor);
+        addSolidBox3D(-31, -5.6, 11, 0.65, 1.6, 2.7, matBrickWall, 'B TERRACE RAIL');
+
+        addSolidBox3D(-36, -22.5, 0.85, 7.0, 0, 3.4, matBrickWall);
+        addSolidBox3D(-28, -20.2, 0.85, 2.6, 0, 3.4, matBrickWall);
+        addSolidBox3D(-28, -24.8, 0.85, 2.6, 0, 3.4, matBrickWall);
+        addSolidBox3D(-32, -19.0, 5.0, 0.85, 0, 3.4, matBrickWall);
+        addWalkableSlab(-36.5, -27.5, -26.5, -18.5, 3.6, 0.35, 'B SHED ROOF', matTerracottaRoof, true);
+        addSolidBox3D(-32, -22.5, 2.4, 2.4, 0, 1.75, matRadianite, 'B RADIANITE BOX');
+        addSolidBox3D(-41, -24.0, 2.4, 2.4, 0, 1.75, matRadianite, 'B PIT CRATE');
+        addSolidBox3D(-41, -24.0, 1.7, 1.7, 1.75, 3.0, matRadianite, 'B PIT STACK');
+
+        addSolidBox3D(-40, -34.5, 10, 1.2, 0, 6.5, matBrickWall);
+        addSolidBox3D(-23, -34.5, 8, 1.2, 0, 6.5, matBrickWall);
+        addIndoorCeiling(-46, -20, -48, -34.5, 6.0, 0.8);
+        const canalMesh = new THREE.Mesh(new THREE.BoxGeometry(24, 0.2, 6), matCanalWater);
+        canalMesh.position.set(-33, 0.02, -49);
+        // Venetian Gondola / Boat inside Boathouse Canal
+        const boatHull = new THREE.Mesh(new THREE.BoxGeometry(6.5, 0.65, 1.7), matWoodFloor);
+        boatHull.position.set(-33, 0.35, -48.5);
+        const boatCabin = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.9, 1.35), matDarkMetal);
+        boatCabin.position.set(-33, 0.95, -48.5);
+        ascentGroup.add(canalMesh, boatHull, boatCabin);
+
+        /* --- PAINTED ARCHITECTURAL CALLOUT SIGNS --- */
+        addWallCalloutSign(27, 4.2, 9.95, 0, 'A SITE //', 'MAIN ENTRY', '#ff4655');
+        addWallCalloutSign(14.8, 3.6, -9.5, -Math.PI / 2, 'A GARDEN', 'BLAST DOOR [G]', '#38e2c7');
+        addWallCalloutSign(-10.5, 3.6, -10.3, 0, 'MID MARKET', 'PIZZA & B DOOR', '#f5c542');
+        addWallCalloutSign(-26, 4.2, 2.85, 0, 'B SITE //', 'UPPER TERRACE', '#ff4655');
+        addWallCalloutSign(-31.5, 3.8, -33.8, 0, 'BOATHOUSE', 'DEFENDER CANAL', '#38e2c7');
+
+        /* --- FLOATING VENETIAN SKY ISLAND ROCKS & RADIANITE CRYSTALS --- */
+        const rockMat = new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.85 });
+        const crystalMat = new THREE.MeshStandardMaterial({ color: 0x38e2c7, emissive: 0x0d9488, emissiveIntensity: 0.7, roughness: 0.2 });
+        [
+          [66, 26, -32, 7.5], [-68, 22, -26, 8.2], [62, 31, 28, 6.4], [-64, 28, 30, 7.0], [0, 36, -68, 9.0]
+        ].forEach(([fx, fy, fz, r], idx) => {
+          const holder = new THREE.Group();
+          holder.position.set(fx, fy, fz);
+          const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(r, 0), rockMat);
+          const crystal = new THREE.Mesh(new THREE.OctahedronGeometry(r * 0.45, 0), crystalMat);
+          crystal.position.y = r * 0.95;
+          holder.add(rock, crystal);
+          ascentGroup.add(holder);
+          floatingStructures.push({ group: holder, baseY: fy, phase: idx * 1.3 });
+        });
+
+        const ringMat = new THREE.MeshBasicMaterial({ color: 0xf5c542, side: THREE.DoubleSide, transparent: true, opacity: 0.65 });
+        const aRing = new THREE.Mesh(new THREE.RingGeometry(8.2, 8.6, 40), ringMat);
+        aRing.rotation.x = -Math.PI / 2;
+        aRing.position.set(29, 0.04, -8);
+        const bRing = new THREE.Mesh(new THREE.RingGeometry(8.2, 8.6, 40), ringMat);
+        bRing.rotation.x = -Math.PI / 2;
+        bRing.position.set(-32, 0.04, -23);
+        ascentGroup.add(aRing, bRing);
+
+        /* --- OPAQUE GLOWING BUY PHASE BARRIERS (BLOCKS SIGHTLINES BEFORE ROUND STARTS) --- */
+        const bMat = new THREE.MeshBasicMaterial({
+          map: makeBuyBarrierTexture(),
+          transparent: true,
+          opacity: 0.96,
+          side: THREE.DoubleSide
+        });
+        [
+          [32, 5.5, 15.5, 32],   // A Main Attacker Spawn Barrier
+          [0, 5.5, 15.5, 28],    // Top Mid Attacker Spawn Barrier
+          [-32, 5.5, 15.5, 32],  // B Main Attacker Spawn Barrier
+          [26, 5.5, -13.5, 42],  // A Site / Garden Defender Spawn Barrier
+          [-8, 5.5, -11.5, 28],  // Mid Market / Courtyard Defender Barrier
+          [-32, 5.5, -11.5, 30]  // B Site Defender Spawn Barrier
+        ].forEach(([bx, by, bz, bw]) => {
+          const m = new THREE.Mesh(new THREE.PlaneGeometry(bw, 11), bMat);
+          m.position.set(bx, by, bz);
+          barrierGroup.add(m);
+        });
+      }
+
+      buildAscentMap();
+
+      function getSurfaceSupport(x, z, currentFootY) {
+        let bestY = 0.0;
+        let bestCallout = 'ASCENT';
+        for (let i = 0; i < walkableSurfaces.length; i++) {
+          const s = walkableSurfaces[i];
+          if (x >= s.minX && x <= s.maxX && z >= s.minZ && z <= s.maxZ) {
+            let surfY = s.yStart;
+            if (s.slopeAxis === 'x') {
+              const t = Math.max(0, Math.min(1, (x - s.minX) / (s.maxX - s.minX)));
+              surfY = s.yStart + (s.yEnd - s.yStart) * t;
+            } else if (s.slopeAxis === 'z') {
+              const t = Math.max(0, Math.min(1, (z - s.minZ) / (s.maxZ - s.minZ)));
+              surfY = s.yStart + (s.yEnd - s.yStart) * t;
+            }
+            if (surfY <= currentFootY + STEP_HEIGHT && surfY >= bestY) {
+              bestY = surfY;
+              bestCallout = s.callout || bestCallout;
+            }
+          }
+        }
+        return { y: bestY, callout: bestCallout };
+      }
+
+      function resolveCollisions3D(pos, footY, radius, isBuyPhase, side) {
+        pos.x = Math.max(-MAP_LIMIT + 1.6, Math.min(MAP_LIMIT - 1.6, pos.x));
+        pos.z = Math.max(-MAP_LIMIT + 1.6, Math.min(MAP_LIMIT - 1.6, pos.z));
+        if (isBuyPhase) {
+          if (side === 'attack' && pos.z < 16.2) pos.z = 16.2;
+          if (side === 'defense' && pos.z > -14.2) pos.z = -14.2;
+        }
+        const pMinY = footY + 0.15;
+        const pMaxY = footY + 1.62;
+        for (let i = 0; i < wallBoxes3D.length; i++) {
+          const b = wallBoxes3D[i];
+          if (pMaxY <= b.minY || pMinY >= b.maxY) continue;
+          if (b.maxY <= footY + STEP_HEIGHT) continue;
+          const cx = Math.max(b.minX, Math.min(pos.x, b.maxX));
+          const cz = Math.max(b.minZ, Math.min(pos.z, b.maxZ));
+          const dx = pos.x - cx, dz = pos.z - cz;
+          const distSq = dx * dx + dz * dz;
+          if (distSq < radius * radius) {
+            const dist = Math.sqrt(distSq) || 0.001;
+            const overlap = radius - dist;
+            pos.x += (dx / dist) * overlap;
+            pos.z += (dz / dist) * overlap;
+          }
+        }
+      }
+
+      /* =========================================================================
+       * 5. FULL VALORANT WEAPON ROSTER & 4-SLOT PURE GUNPLAY LOADOUT
+       * ========================================================================= */
+      const WEAPON_CATALOG = {
+        knife:    { id: 'knife', slot: 'knife', name: 'MELEE KNIFE', cost: 0, headDmg: 150, bodyDmg: 50, fireRate: 0.42, magSize: 1, resSize: 0, spreadBase: 0, spreadMove: 0, recoilPitch: 0.01, auto: false, canScope: false, pellets: 1, range: 3.4, color: 0xf5c542 },
+        classic:  { id: 'classic', slot: 'secondary', name: 'CLASSIC', cost: 0, headDmg: 78, bodyDmg: 26, fireRate: 0.16, magSize: 12, resSize: 36, spreadBase: 0.004, spreadMove: 0.045, recoilPitch: 0.016, auto: false, canScope: false, pellets: 1, range: 95, color: 0x94a3b8 },
+        shorty:   { id: 'shorty', slot: 'secondary', name: 'SHORTY', cost: 300, headDmg: 36, bodyDmg: 18, fireRate: 0.28, magSize: 2, resSize: 6, spreadBase: 0.075, spreadMove: 0.09, recoilPitch: 0.045, auto: false, canScope: false, pellets: 8, range: 28, color: 0xf97316 },
+        frenzy:   { id: 'frenzy', slot: 'secondary', name: 'FRENZY', cost: 450, headDmg: 78, bodyDmg: 26, fireRate: 0.095, magSize: 13, resSize: 39, spreadBase: 0.012, spreadMove: 0.05, recoilPitch: 0.018, auto: true, canScope: false, pellets: 1, range: 80, color: 0xfacc15 },
+        ghost:    { id: 'ghost', slot: 'secondary', name: 'GHOST', cost: 500, headDmg: 105, bodyDmg: 30, fireRate: 0.15, magSize: 15, resSize: 45, spreadBase: 0.0025, spreadMove: 0.045, recoilPitch: 0.015, auto: false, canScope: false, pellets: 1, range: 95, color: 0x38e2c7 },
+        sheriff:  { id: 'sheriff', slot: 'secondary', name: 'SHERIFF', cost: 800, headDmg: 159, bodyDmg: 55, fireRate: 0.25, magSize: 6, resSize: 24, spreadBase: 0.0018, spreadMove: 0.08, recoilPitch: 0.045, auto: false, canScope: false, pellets: 1, range: 95, color: 0xfbbf24 },
+        stinger:  { id: 'stinger', slot: 'primary', name: 'STINGER', cost: 1100, headDmg: 67, bodyDmg: 27, fireRate: 0.068, magSize: 20, resSize: 60, spreadBase: 0.014, spreadMove: 0.045, recoilPitch: 0.014, auto: true, canScope: true, pellets: 1, range: 85, color: 0xa855f7 },
+        spectre:  { id: 'spectre', slot: 'primary', name: 'SPECTRE', cost: 1600, headDmg: 78, bodyDmg: 26, fireRate: 0.085, magSize: 30, resSize: 90, spreadBase: 0.010, spreadMove: 0.042, recoilPitch: 0.013, auto: true, canScope: true, pellets: 1, range: 90, color: 0x38bdf8 },
+        bucky:    { id: 'bucky', slot: 'primary', name: 'BUCKY', cost: 850, headDmg: 44, bodyDmg: 22, fireRate: 0.85, magSize: 5, resSize: 10, spreadBase: 0.058, spreadMove: 0.085, recoilPitch: 0.05, auto: false, canScope: false, pellets: 10, range: 35, color: 0xfb923c },
+        judge:    { id: 'judge', slot: 'primary', name: 'JUDGE', cost: 1850, headDmg: 34, bodyDmg: 17, fireRate: 0.32, magSize: 7, resSize: 21, spreadBase: 0.062, spreadMove: 0.09, recoilPitch: 0.038, auto: true, canScope: false, pellets: 8, range: 35, color: 0xf97316 },
+        bulldog:  { id: 'bulldog', slot: 'primary', name: 'BULLDOG', cost: 2050, headDmg: 115, bodyDmg: 35, fireRate: 0.10, magSize: 24, resSize: 72, spreadBase: 0.0035, spreadMove: 0.08, recoilPitch: 0.019, auto: true, canScope: true, pellets: 1, range: 110, color: 0x34d399 },
+        guardian: { id: 'guardian', slot: 'primary', name: 'GUARDIAN', cost: 2250, headDmg: 195, bodyDmg: 65, fireRate: 0.19, magSize: 12, resSize: 36, spreadBase: 0.001, spreadMove: 0.09, recoilPitch: 0.034, auto: false, canScope: true, pellets: 1, range: 120, color: 0x60a5fa },
+        phantom:  { id: 'phantom', slot: 'primary', name: 'PHANTOM', cost: 2900, headDmg: 140, bodyDmg: 39, fireRate: 0.09, magSize: 30, resSize: 90, spreadBase: 0.0026, spreadMove: 0.09, recoilPitch: 0.018, auto: true, canScope: true, pellets: 1, range: 115, color: 0x38e2c7 },
+        vandal:   { id: 'vandal', slot: 'primary', name: 'VANDAL', cost: 2900, headDmg: 160, bodyDmg: 40, fireRate: 0.10, magSize: 25, resSize: 75, spreadBase: 0.0020, spreadMove: 0.10, recoilPitch: 0.024, auto: true, canScope: true, pellets: 1, range: 120, color: 0xff4655 },
+        marshal:  { id: 'marshal', slot: 'primary', name: 'MARSHAL', cost: 950, headDmg: 202, bodyDmg: 101, fireRate: 0.95, magSize: 5, resSize: 15, spreadBase: 0.0015, spreadMove: 0.11, recoilPitch: 0.055, auto: false, canScope: true, pellets: 1, range: 140, color: 0xa3e635 },
+        outlaw:   { id: 'outlaw', slot: 'primary', name: 'OUTLAW', cost: 2400, headDmg: 238, bodyDmg: 140, fireRate: 0.45, magSize: 2, resSize: 10, spreadBase: 0.0008, spreadMove: 0.13, recoilPitch: 0.065, auto: false, canScope: true, pellets: 1, range: 140, color: 0xc084fc },
+        operator: { id: 'operator', slot: 'primary', name: 'OPERATOR', cost: 4700, headDmg: 255, bodyDmg: 150, fireRate: 1.15, magSize: 5, resSize: 10, spreadBase: 0.0004, spreadMove: 0.15, recoilPitch: 0.08, auto: false, canScope: true, pellets: 1, range: 150, color: 0xeab308 }
+      };
+
+      function cloneWeaponInstance(id) {
+        const spec = WEAPON_CATALOG[id];
+        return Object.assign({}, spec, { mag: spec.magSize, reserve: spec.resSize });
+      }
+
+      const player = {
+        pos: new THREE.Vector3(0, EYE_HEIGHT, 40),
+        vel: new THREE.Vector3(),
+        footY: 0.0,
+        callout: 'ATTACKER SPAWN',
+        yaw: 0,
+        pitch: 0,
+        hp: 100,
+        armor: 0,
+        credits: 800,
+        alive: true,
+        onGround: true,
+        isScoped: false,
+        crouchToggle: false,
+        walkToggle: false,
+        activeSlot: 'secondary',
+        primary: null,
+        secondary: cloneWeaponInstance('classic'),
+        knife: cloneWeaponInstance('knife'),
+        reloading: false,
+        lastShotTime: 0,
+        spectateIdx: 0
+      };
+
+      // 1st-Person Weapon Viewmodel attached to Camera
+      const gunGroup = new THREE.Group();
+      const gunBodyMesh = new THREE.Mesh(
+        new THREE.BoxGeometry(0.11, 0.14, 0.62),
+        new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.75, roughness: 0.3 })
+      );
+      const gunAccentMesh = new THREE.Mesh(
+        new THREE.BoxGeometry(0.116, 0.035, 0.48),
+        new THREE.MeshBasicMaterial({ color: 0x38e2c7 })
+      );
+      gunAccentMesh.position.y = 0.055;
+      const muzzleFlashMesh = new THREE.Mesh(
+        new THREE.SphereGeometry(0.09, 8, 8),
+        new THREE.MeshBasicMaterial({ color: 0xfef08a, transparent: true, opacity: 0 })
+      );
+      muzzleFlashMesh.position.set(0, 0.02, -0.36);
+      gunGroup.add(gunBodyMesh, gunAccentMesh, muzzleFlashMesh);
+      gunGroup.position.set(0.26, -0.22, -0.45);
+      camera.add(gunGroup);
+
+      function getActiveWeapon() {
+        if (player.activeSlot === 'primary' && player.primary) return player.primary;
+        if (player.activeSlot === 'knife') return player.knife;
+        return player.secondary;
+      }
+
+      /* =========================================================================
+       * 6. 5v5 AI TEAMMATES & ENEMIES + LIVE 1ST-PERSON SPECTATOR ENGINE
+       * ========================================================================= */
+      const bots = [];
+      const activeTracers = [];
+
+      const spikeMesh = new THREE.Group();
+      const spikeCore = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.28, 0.34, 0.68, 8),
+        new THREE.MeshStandardMaterial({ color: 0x0f1923, emissive: 0xf5c542, emissiveIntensity: 0.8 })
+      );
+      spikeCore.position.y = 0.34;
+      spikeMesh.add(spikeCore);
+      spikeMesh.visible = false;
+      scene.add(spikeMesh);
+
+      const matchState = {
+        inMatch: false,
+        round: 1,
+        allyScore: 0,
+        enemyScore: 0,
+        phase: 'buy',
+        timer: 20,
+        spikePlanted: false,
+        spikeSite: null,
+        spikePos: new THREE.Vector3(),
+        plantProgress: 0,
+        defuseProgress: 0,
+        halfDefuseReached: false,
+        beepAccum: 0
+      };
+
+      function createTacticalBotMesh(isAlly) {
+        const group = new THREE.Group();
+        const suitColor = isAlly ? 0x0d9488 : 0xe11d48;
+        const headColor = isAlly ? 0x5eead4 : 0xfda4af;
+
+        const body = new THREE.Mesh(
+          new THREE.BoxGeometry(0.76, 1.24, 0.44),
+          new THREE.MeshStandardMaterial({ color: suitColor, roughness: 0.5 })
+        );
+        body.position.y = 0.62;
+        body.castShadow = true;
+
+        const head = new THREE.Mesh(
+          new THREE.BoxGeometry(0.42, 0.42, 0.42),
+          new THREE.MeshStandardMaterial({ color: headColor, roughness: 0.35 })
+        );
+        head.position.y = 1.46;
+        head.castShadow = true;
+
+        group.add(body, head);
+        scene.add(group);
+        return { group, body, head };
+      }
+
+      const ATK_PATROL_ROUTES = [
+        [new THREE.Vector3(28, 0, 18), new THREE.Vector3(29, 0, -8), new THREE.Vector3(29, 3.2, -26)],
+        [new THREE.Vector3(-30, 1.6, 12), new THREE.Vector3(-22, 1.6, -12), new THREE.Vector3(-32, 0, -22)],
+        [new THREE.Vector3(7.5, 1.4, 8), new THREE.Vector3(11, 1.4, -3), new THREE.Vector3(12, 0, -15), new THREE.Vector3(27, 0, -10)],
+        [new THREE.Vector3(-4, 0, 4), new THREE.Vector3(-10, 0.6, -18), new THREE.Vector3(-25, 0, -22)]
+      ];
+
+      const DEF_PATROL_ROUTES = [
+        [new THREE.Vector3(29, 3.2, -26), new THREE.Vector3(24, 3.2, -22), new THREE.Vector3(29, 0, -8)],
+        [new THREE.Vector3(29, 0.0, -26), new THREE.Vector3(34, 0.0, -6), new THREE.Vector3(26, 0, 4)],
+        [new THREE.Vector3(11, 0.0, -15), new THREE.Vector3(9, 1.4, -2), new THREE.Vector3(7.5, 1.4, 8)],
+        [new THREE.Vector3(-10, 0.6, -18), new THREE.Vector3(-3, 0.0, -4), new THREE.Vector3(-14, 0.6, -16)],
+        [new THREE.Vector3(-21, 1.6, -10), new THREE.Vector3(-32, 0.0, -22), new THREE.Vector3(-32, 1.6, 8)]
+      ];
+
+      function spawnTeamsForRound() {
+        bots.forEach(b => scene.remove(b.group));
+        bots.length = 0;
+
+        const isAtk = roomState.playerSide === 'attack';
+        if (isAtk) {
+          player.pos.set(0, EYE_HEIGHT, 40);
+          player.yaw = 0;
+        } else {
+          player.pos.set(0, EYE_HEIGHT, -42);
+          player.yaw = Math.PI;
+        }
+        player.pitch = 0;
+        player.footY = 0.0;
+        player.vel.set(0, 0, 0);
+        player.hp = 100;
+        player.alive = true;
+        player.isScoped = false;
+        document.getElementById('scope-overlay').classList.add('hidden');
+        document.getElementById('spectator-banner').classList.add('hidden');
+        camera.fov = 75;
+        camera.updateProjectionMatrix();
+
+        blastDoors.forEach(d => {
+          d.closed = false;
+          d.targetMinY = d.id === 'A_DOOR' ? 3.6 : 4.2;
+        });
+
+        const allyCallsigns = ['ALLY ALPHA #1', 'ALLY BRAVO #2', 'ALLY CHARLIE #3', 'ALLY DELTA #4'];
+        const allyWeapons = ['vandal', 'phantom', 'spectre', 'guardian'];
+        for (let i = 0; i < 4; i++) {
+          const m = createTacticalBotMesh(true);
+          const route = isAtk ? ATK_PATROL_ROUTES[i % ATK_PATROL_ROUTES.length] : DEF_PATROL_ROUTES[i % DEF_PATROL_ROUTES.length];
+          const sx = isAtk ? (-9 + i * 6) : route[0].x;
+          const sz = isAtk ? 39 : route[0].z;
+          const sy = isAtk ? 0 : route[0].y;
+          m.group.position.set(sx, sy, sz);
+          bots.push({
+            id: 'ally_' + i,
+            name: allyCallsigns[i],
+            team: 'ally',
+            alive: true,
+            hp: 100,
+            armor: 50,
+            footY: sy,
+            callout: isAtk ? 'ATTACKER SPAWN' : 'ASCENT',
+            yaw: isAtk ? 0 : Math.PI,
+            pitch: 0,
+            weapon: cloneWeaponInstance(allyWeapons[i]),
+            group: m.group,
+            bodyMesh: m.body,
+            headMesh: m.head,
+            route: route.map(v => v.clone()),
+            wpIdx: 0,
+            shootCooldown: 0.75 + Math.random() * 0.5
+          });
+        }
+
+        const enemyCallsigns = ['ENEMY OMEGA #1', 'ENEMY SIGMA #2', 'ENEMY VECTOR #3', 'ENEMY COBRA #4', 'ENEMY VIPER #5'];
+        const enemyWeapons = ['vandal', 'phantom', 'operator', 'spectre', 'vandal'];        for (let i = 0; i < 5; i++) {
+          const m = createTacticalBotMesh(false);
+          const route = isAtk ? DEF_PATROL_ROUTES[i % DEF_PATROL_ROUTES.length] : ATK_PATROL_ROUTES[i % ATK_PATROL_ROUTES.length];
+          const sx = isAtk ? route[0].x : (-10 + i * 5);
+          const sz = isAtk ? route[0].z : 39;
+          const sy = isAtk ? route[0].y : 0;
+          m.group.position.set(sx, sy, sz);
+          // Hide enemies completely before round starts (during Buy Phase)!
+          m.group.visible = false;
+          bots.push({
+            id: 'enemy_' + i,
+            name: enemyCallsigns[i],
+            team: 'enemy',
+            alive: true,
+            spotted: false,
+            hp: 100,
+            armor: 50,
+            footY: sy,
+            callout: 'ASCENT',
+            yaw: isAtk ? Math.PI : 0,
+            pitch: 0,
+            weapon: cloneWeaponInstance(enemyWeapons[i]),
+            group: m.group,
+            bodyMesh: m.body,
+            headMesh: m.head,
+            route: route.map(v => v.clone()),
+            wpIdx: 0,
+            shootCooldown: 0.85 + Math.random() * 0.6
+          });
+        }
+      }
+
+      /* --- LIVE 1ST-PERSON TEAMMATE SPECTATOR SYSTEM --- */
+      function getAliveAllies() {
+        return bots.filter(b => b.team === 'ally' && b.alive);
+      }
+
+      function getCurrentSpectatedAlly() {
+        const aliveAllies = getAliveAllies();
+        if (aliveAllies.length === 0) return null;
+        if (player.spectateIdx < 0) player.spectateIdx = aliveAllies.length - 1;
+        if (player.spectateIdx >= aliveAllies.length) player.spectateIdx = 0;
+        return aliveAllies[player.spectateIdx];
+      }
+
+      window.cycleSpectator = function (dir, e) {
+        if (e) e.stopPropagation();
+        const aliveAllies = getAliveAllies();
+        if (aliveAllies.length === 0) return;
+        player.spectateIdx = (player.spectateIdx + dir + aliveAllies.length) % aliveAllies.length;
+        sfx.playUI();
+        updateHUD();
+      };
+
+      /* =========================================================================
+       * 7. ROUND LIFECYCLE, HUD SYNC & KILL BANNER (ZERO ICONS)
+       * ========================================================================= */
+      let roundKillStreak = 0;
+
+      function showRoundBanner(subText, mainText) {
+        const banner = document.getElementById('round-banner');
+        const subEl = document.getElementById('round-banner-sub');
+        const mainEl = document.getElementById('round-banner-main');
+        if (!banner) return;
+        subEl.textContent = subText;
+        mainEl.textContent = mainText;
+        banner.style.opacity = '1';
+        banner.style.transform = 'scale(1)';
+        setTimeout(() => {
+          banner.style.opacity = '0';
+          banner.style.transform = 'scale(0.95)';
+        }, 2300);
+      }
+
+      function triggerValorantKillEmblem(isHead) {
+        roundKillStreak++;
+        const slot = document.getElementById('val-kill-banner-slot');
+        if (!slot) return;
+        slot.innerHTML = '';
+        const wrap = document.createElement('div');
+        wrap.className = 'val-kill-emblem flex flex-col items-center';
+        const label = roundKillStreak >= 5 ? 'ACE // 5 KILLS' : roundKillStreak === 4 ? 'QUADRA KILL' : roundKillStreak === 3 ? 'TRIPLE KILL' : roundKillStreak === 2 ? 'DOUBLE KILL' : (isHead ? 'HEADSHOT KILL' : 'ELIMINATED');
+        wrap.innerHTML = `
+          <div class="w-14 h-14 bg-[#0f1923]/95 border-2 border-[#ff4655] rotate-45 flex items-center justify-center shadow-[0_0_25px_#ff4655]">
+            <div class="w-6 h-6 border-2 border-[#ece8e1] -rotate-45 flex items-center justify-center">
+              <div class="w-2 h-2 bg-[#ff4655]"></div>
+            </div>
+          </div>
+          <div class="mt-2 px-3 py-0.5 bg-[#ff4655] text-[#0f1923] font-num font-black text-[11px] tracking-widest uppercase">${label}</div>
+        `;
+        slot.appendChild(wrap);
+      }
+
+      function addKillFeed(killer, victim, weaponName, isHead) {
+        const feed = document.getElementById('kill-feed');
+        if (!feed) return;
+        const row = document.createElement('div');
+        const isAlly = killer.includes('YOU') || killer.includes('ALLY');
+        row.className = `val-cut-sm px-3 py-1 bg-[#0f1923]/95 border-r-4 ${isAlly ? 'border-[#38e2c7]' : 'border-[#ff4655]'} text-xs flex items-center gap-2 shadow-lg`;
+        row.innerHTML = `<span class="font-bold ${isAlly ? 'text-[#38e2c7]' : 'text-[#ff4655]'}">${killer}</span>
+                         <span class="px-1.5 bg-white/10 font-num text-[10px] text-[#ece8e1]">${weaponName}${isHead ? ' [HS]' : ''}</span>
+                         <span class="font-bold ${isAlly ? 'text-[#ff4655]' : 'text-[#38e2c7]'}">${victim}</span>`;
+        feed.prepend(row);
+        if (feed.children.length > 5) feed.lastElementChild.remove();
+        setTimeout(() => row.remove(), 4000);
+        if (killer.includes('YOU')) triggerValorantKillEmblem(isHead);
+      }
+
+      function renderTopAlivePortraits() {
+        const allyBox = document.getElementById('hud-allies-alive');
+        const enemyBox = document.getElementById('hud-enemies-alive');
+        if (!allyBox || !enemyBox) return;
+        allyBox.innerHTML = '';
+        enemyBox.innerHTML = '';
+
+        const allies = [{ alive: player.alive, hp: player.hp, code: 'YOU' }];
+        bots.filter(b => b.team === 'ally').forEach((b, i) => allies.push({ alive: b.alive, hp: b.hp, code: 'A' + (i + 1) }));
+        allies.forEach(a => {
+          const el = document.createElement('div');
+          el.className = `w-6 h-7 flex flex-col items-center justify-between border ${a.alive ? 'bg-[#162936] border-[#38e2c7]' : 'bg-black/60 border-white/10 opacity-35'}`;
+          el.innerHTML = `<span class="font-num text-[9px] font-black text-[#ece8e1] leading-none mt-1">${a.code}</span>
+                          <div class="w-full h-1 bg-black"><div class="h-full bg-[#38e2c7]" style="width:${Math.max(0, a.hp)}%"></div></div>`;
+          allyBox.appendChild(el);
+        });
+
+        bots.filter(b => b.team === 'enemy').forEach((b, i) => {
+          const el = document.createElement('div');
+          el.className = `w-6 h-7 flex flex-col items-center justify-between border ${b.alive ? 'bg-[#2e151b] border-[#ff4655]' : 'bg-black/60 border-white/10 opacity-35'}`;
+          el.innerHTML = `<span class="font-num text-[9px] font-black text-[#ece8e1] leading-none mt-1">${b.alive ? 'E' + (i + 1) : 'X'}</span>
+                          <div class="w-full h-1 bg-black"><div class="h-full bg-[#ff4655]" style="width:${b.alive ? 100 : 0}%"></div></div>`;
+          enemyBox.appendChild(el);
+        });
+      }
+
+      function updateHUD() {
+        document.getElementById('hud-room-code').textContent = roomState.code;
+        document.getElementById('hud-score-ally').textContent = matchState.allyScore;
+        document.getElementById('hud-score-enemy').textContent = matchState.enemyScore;
+        document.getElementById('hud-round-label').textContent = `ROUND ${matchState.round} // ${matchState.phase.toUpperCase()}`;
+
+        const isAtk = roomState.playerSide === 'attack';
+        const roleEl = document.getElementById('hud-team-role');
+        roleEl.textContent = isAtk ? 'ATTACKERS (공격팀)' : 'DEFENDERS (수비팀)';
+        roleEl.className = isAtk ? 'font-bold text-[#ff4655] text-[10px] mt-0.5 uppercase tracking-wider' : 'font-bold text-[#38e2c7] text-[10px] mt-0.5 uppercase tracking-wider';
+
+        if (roomState.allowCheats && cheats.infiniteCreds) player.credits = 9000;
+        document.getElementById('hud-credits').textContent = player.credits.toLocaleString();
+        const shopCredEl = document.getElementById('shop-credits-val');
+        if (shopCredEl) shopCredEl.textContent = player.credits.toLocaleString();
+
+        const specTarget = !player.alive ? getCurrentSpectatedAlly() : null;
+        const specBanner = document.getElementById('spectator-banner');
+
+        if (!player.alive && specTarget) {
+          specBanner.classList.remove('hidden');
+          document.getElementById('spec-alive-count').textContent = `ALIVE ALLIES: ${getAliveAllies().length}`;
+          document.getElementById('spec-target-name').textContent = `SPECTATING // ${specTarget.name}`;
+          document.getElementById('spec-target-info').textContent = `HP ${Math.ceil(specTarget.hp)} // ${specTarget.weapon.name} // ${specTarget.callout}`;
+        } else {
+          specBanner.classList.add('hidden');
+        }
+
+        const displayHp = specTarget ? Math.max(0, Math.ceil(specTarget.hp)) : Math.max(0, Math.ceil(player.hp));
+        const displayArmor = specTarget ? specTarget.armor : player.armor;
+        const hpOwnerEl = document.getElementById('hud-hp-owner');
+        hpOwnerEl.textContent = specTarget ? 'SPEC HP' : 'HP';
+
+        const hpEl = document.getElementById('hud-hp-val');
+        hpEl.textContent = displayHp;
+        hpEl.className = displayHp <= 30 ? 'font-num text-2xl sm:text-3xl font-black text-[#ff4655] leading-none' : 'font-num text-2xl sm:text-3xl font-black text-[#ece8e1] leading-none';
+
+        document.getElementById('hud-armor-val').textContent = displayArmor;
+        const hpBar = document.getElementById('hud-hp-bar');
+        hpBar.style.width = Math.max(0, displayHp) + '%';
+        hpBar.className = displayHp <= 30 ? 'h-full bg-[#ff4655] transition-all duration-150' : 'h-full bg-[#38e2c7] transition-all duration-150';
+
+        document.getElementById('slot-primary-name').textContent = player.primary ? player.primary.name : 'EMPTY';
+        document.getElementById('slot-secondary-name').textContent = player.secondary.name;
+
+        const w = specTarget ? specTarget.weapon : getActiveWeapon();
+        document.getElementById('hud-weapon-title').textContent = w.name;
+        document.getElementById('hud-ammo-mag').textContent = w.slot === 'knife' ? 'INF' : ((roomState.allowCheats && cheats.infiniteAmmo && !specTarget) ? 'INF' : w.mag);
+        document.getElementById('hud-ammo-res').textContent = w.slot === 'knife' ? '-' : w.reserve;
+        gunAccentMesh.material.color.setHex(w.color || 0x38e2c7);
+
+        renderTopAlivePortraits();
+      }
+
+      function startNewRound() {
+        roundKillStreak = 0;
+        matchState.phase = 'buy';
+        matchState.timer = 16;
+        matchState.spikePlanted = false;
+        matchState.plantProgress = 0;
+        matchState.defuseProgress = 0;
+        matchState.halfDefuseReached = false;
+        spikeMesh.visible = false;
+        barrierGroup.visible = true;
+        const skipBtn = document.getElementById('hud-skip-buy-btn');
+        if (skipBtn) skipBtn.classList.remove('hidden');
+
+        if (player.primary) {
+          player.primary.mag = player.primary.magSize;
+          player.primary.reserve = player.primary.resSize;
+        }
+        player.secondary.mag = player.secondary.magSize;
+        player.secondary.reserve = player.secondary.resSize;
+
+        spawnTeamsForRound();
+        document.getElementById('hud-phase-badge').textContent = 'BUY PHASE — [SHOP] 버튼 또는 [B] 키로 무기를 구매하십시오';
+        showRoundBanner(`ASCENT // ROUND ${matchState.round}`, 'BUY PHASE');
+        updateHUD();
+      }
+
+      window.respawnPlayerAndBots = function () {
+        startNewRound();
+      };
+
+      /* =========================================================================
+       * 7B. LOBBY, ROOM CODE, SHOP, CHEAT & INSTANT MATCH LAUNCH CONTROLLERS
+       * ========================================================================= */
+      function tryLockPointerSafe() {
+        try {
+          const isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+          if (!isTouch && !inputSystem.touchModeEnabled && canvas.requestPointerLock) {
+            canvas.requestPointerLock();
+          }
+        } catch (err) {}
+      }
+
+      function syncCheatPermissionUI() {
+        const allowed = roomState.allowCheats;
+        const createBtn = document.getElementById('create-cheat-toggle-btn');
+        if (createBtn) {
+          createBtn.textContent = allowed ? 'CHEATS: ON' : 'CHEATS: OFF';
+          createBtn.className = allowed
+            ? 'px-4 py-2 bg-emerald-500 text-slate-950 font-black text-xs cursor-pointer'
+            : 'px-4 py-2 bg-slate-800 text-slate-400 font-black text-xs cursor-pointer';
+        }
+        const lobbyBtn = document.getElementById('lobby-cheat-perm-btn');
+        if (lobbyBtn) {
+          lobbyBtn.textContent = allowed ? 'HOST CHEATS: ON' : 'HOST CHEATS: OFF';
+          lobbyBtn.className = allowed
+            ? 'px-3.5 py-2 bg-amber-500/20 border border-amber-400 text-amber-300 font-bold text-xs cursor-pointer'
+            : 'px-3.5 py-2 bg-slate-800 border border-slate-600 text-slate-400 font-bold text-xs cursor-pointer';
+        }
+        const modalBtn = document.getElementById('modal-host-cheat-btn');
+        if (modalBtn) {
+          modalBtn.textContent = allowed ? 'HOST CHEATS: ON' : 'HOST CHEATS: OFF';
+          modalBtn.className = allowed
+            ? 'px-3.5 py-2 bg-emerald-500 text-slate-950 font-black text-xs cursor-pointer'
+            : 'px-3.5 py-2 bg-rose-600 text-white font-black text-xs cursor-pointer';
+        }
+        const lockedNotice = document.getElementById('cheat-locked-notice');
+        const bodyEl = document.getElementById('cheat-controls-body');
+        if (lockedNotice && bodyEl) {
+          if (allowed) {
+            lockedNotice.classList.add('hidden');
+            bodyEl.classList.remove('opacity-40', 'pointer-events-none');
+          } else {
+            lockedNotice.classList.remove('hidden');
+            bodyEl.classList.add('opacity-40', 'pointer-events-none');
+          }
+        }
+      }
+
+      window.setCreateCheatPerm = function (val) {
+        roomState.allowCheats = !!val;
+        if (!roomState.allowCheats) {
+          Object.keys(cheats).forEach(k => { cheats[k] = false; });
+          document.getElementById('hud-ghost-banner').classList.add('hidden');
+        }
+        sfx.playUI();
+        syncCheatPermissionUI();
+      };
+
+      window.toggleHostCheatPermission = function (e) {
+        if (window.MP.active) return;
+        if (e) e.stopPropagation();
+        window.setCreateCheatPerm(!roomState.allowCheats);
+      };
+
+      window.randomizeCreateCode = function () {
+        const rand = String(Math.floor(Math.random() * 100)).padStart(2, '0');
+        roomState.code = rand;
+        const inp = document.getElementById('create-code-input');
+        if (inp) inp.value = rand;
+        sfx.playUI();
+      };
+
+      window.setCreateWinTarget = function (rounds) {
+        roomState.winRounds = rounds;
+        const b13 = document.getElementById('win-target-13');
+        const b5 = document.getElementById('win-target-5');
+        if (b13 && b5) {
+          b13.className = rounds === 13 ? 'px-3 py-1 bg-[#ff4655] text-white text-xs font-bold cursor-pointer' : 'px-3 py-1 bg-slate-800 text-slate-300 text-xs font-bold cursor-pointer';
+          b5.className = rounds === 5 ? 'px-3 py-1 bg-[#ff4655] text-white text-xs font-bold cursor-pointer' : 'px-3 py-1 bg-slate-800 text-slate-300 text-xs font-bold cursor-pointer';
+        }
+        sfx.playUI();
+      };
+
+      window.pressKeypad = function (key) {
+        sfx.playUI();
+        if (key === 'CLR') {
+          roomState.joinBuffer = '';
+        } else if (roomState.joinBuffer.length < 2) {
+          roomState.joinBuffer += String(key);
+        } else {
+          roomState.joinBuffer = String(key);
+        }
+        const d0 = document.getElementById('join-digit-0');
+        const d1 = document.getElementById('join-digit-1');
+        if (d0) d0.textContent = roomState.joinBuffer[0] || '-';
+        if (d1) d1.textContent = roomState.joinBuffer[1] || '-';
+      };
+
+      window.switchTeam = function (side) {
+        if (window.MP.active) { window.MP.send({type:'team',team:side}); return; }
+        roomState.playerSide = side === 'defense' ? 'defense' : 'attack';
+        const atkBtn = document.getElementById('btn-team-attack');
+        const defBtn = document.getElementById('btn-team-defense');
+        if (atkBtn && defBtn) {
+          if (roomState.playerSide === 'attack') {
+            atkBtn.textContent = 'JOINED';
+            atkBtn.className = 'px-3 py-1 bg-[#ff4655] text-white text-xs font-bold cursor-pointer';
+            defBtn.textContent = 'SWITCH SIDE';
+            defBtn.className = 'px-3 py-1 bg-slate-800 text-slate-300 text-xs font-bold cursor-pointer';
+          } else {
+            defBtn.textContent = 'JOINED';
+            defBtn.className = 'px-3 py-1 bg-[#38e2c7] text-[#0f1923] text-xs font-bold cursor-pointer';
+            atkBtn.textContent = 'SWITCH SIDE';
+            atkBtn.className = 'px-3 py-1 bg-slate-800 text-slate-300 text-xs font-bold cursor-pointer';
+          }
+        }
+        sfx.playUI();
+      };
+
+      window.openEntryScreen = function (e) {
+        if (e) e.stopPropagation();
+        if (window.MP.active) window.MP.disconnect();
+        matchState.inMatch = false;
+        if (document.pointerLockElement) {
+          try { document.exitPointerLock(); } catch (err) {}
+        }
+        document.getElementById('entry-screen').classList.remove('hidden');
+        document.getElementById('waiting-lobby').classList.add('hidden');
+        document.getElementById('ingame-hud').classList.add('hidden');
+        document.getElementById('crosshair-wrap').classList.add('hidden');
+        document.getElementById('mobile-controls').classList.add('hidden');
+        document.getElementById('buy-shop-overlay').classList.add('hidden');
+        document.getElementById('cheat-modal').classList.add('hidden');
+      };
+
+      window.openWaitingLobby = function (e) {
+        if (e) e.stopPropagation();
+        matchState.inMatch = false;
+        if (document.pointerLockElement) {
+          try { document.exitPointerLock(); } catch (err) {}
+        }
+        document.getElementById('lobby-code-display').textContent = roomState.code;
+        document.getElementById('entry-screen').classList.add('hidden');
+        document.getElementById('waiting-lobby').classList.remove('hidden');
+        document.getElementById('ingame-hud').classList.add('hidden');
+        document.getElementById('crosshair-wrap').classList.add('hidden');
+        document.getElementById('mobile-controls').classList.add('hidden');
+        document.getElementById('buy-shop-overlay').classList.add('hidden');
+        document.getElementById('cheat-modal').classList.add('hidden');
+        syncCheatPermissionUI();
+      };
+
+      window.createCustomRoom = function (e) {
+        if (e) e.stopPropagation();
+        const entryCode = (document.getElementById('create-code-input').value || '07').replace(/\D/g,'').padStart(2,'0').slice(0,2);
+        window.MP.connect('create',entryCode,roomState.winRounds);
+        return;
+        sfx.init();
+        const inp = document.getElementById('create-code-input');
+        let raw = inp ? inp.value.replace(/\D/g, '') : '07';
+        if (!raw) raw = '07';
+        roomState.code = raw.padStart(2, '0').slice(0, 2);
+        roomState.isHost = true;
+        window.openWaitingLobby();
+      };
+
+      window.joinCustomRoom = function (e) {
+        if (e) e.stopPropagation();
+        const entryCode = (roomState.joinBuffer || '07').replace(/\D/g,'').padStart(2,'0').slice(0,2);
+        window.MP.connect('join',entryCode,roomState.winRounds);
+        return;
+        sfx.init();
+        let code = (roomState.joinBuffer || '07').replace(/\D/g, '');
+        if (!code) code = '07';
+        roomState.code = code.padStart(2, '0').slice(0, 2);
+        roomState.isHost = true;
+        window.openWaitingLobby();
+      };
+
+      function launchAscentMatchImmediate() {
+        try {
+          sfx.init();
+          document.getElementById('entry-screen').classList.add('hidden');
+          document.getElementById('waiting-lobby').classList.add('hidden');
+          document.getElementById('buy-shop-overlay').classList.add('hidden');
+          document.getElementById('cheat-modal').classList.add('hidden');
+
+          document.getElementById('ingame-hud').classList.remove('hidden');
+          document.getElementById('crosshair-wrap').classList.remove('hidden');
+
+          matchState.inMatch = true;
+          matchState.round = 1;
+          matchState.allyScore = 0;
+          matchState.enemyScore = 0;
+          player.credits = 800;
+          player.armor = 0;
+          player.primary = null;
+          player.secondary = cloneWeaponInstance('classic');
+          player.activeSlot = 'secondary';
+
+          refreshInputUI();
+          syncCheatPermissionUI();
+          startNewRound();
+          tryLockPointerSafe();
+        } catch (err) {
+          console.error('Match start error:', err);
+        }
+      }
+
+      window.quickStartMatch = function (e) {
+        if (e) e.stopPropagation();
+        if (window.MP.active) window.MP.disconnect();
+        const inp = document.getElementById('create-code-input');
+        if (inp && inp.value) {
+          roomState.code = inp.value.replace(/\D/g, '').padStart(2, '0').slice(0, 2) || '07';
+        }
+        launchAscentMatchImmediate();
+      };
+
+      window.startMatchFromLobby = function (e) {
+        if (e) e.stopPropagation();
+        if (window.MP.active) { window.MP.send({type:'start'}); return; }
+        launchAscentMatchImmediate();
+      };
+
+      window.skipBuyPhase = function (e) {
+        if (e) e.stopPropagation();
+        if (window.MP.active) { window.MP.send({type:'skip'}); return; }
+        if (!matchState.inMatch || matchState.phase !== 'buy') return;
+        matchState.timer = 0.05;
+        sfx.playUI();
+      };
+
+      window.toggleShop = function (e) {
+        if (e) e.stopPropagation();
+        if (!matchState.inMatch) return;
+        const shopEl = document.getElementById('buy-shop-overlay');
+        if (!shopEl.classList.contains('hidden')) {
+          shopEl.classList.add('hidden');
+          tryLockPointerSafe();
+          return;
+        }
+        const canBuy = matchState.phase === 'buy' || (roomState.allowCheats && cheats.buyAnywhere);
+        if (!canBuy) {
+          showRoundBanner('BUY PHASE ENDED', '구매 페이즈에만 상점을 열 수 있습니다');
+          return;
+        }
+        if (document.pointerLockElement) {
+          try { document.exitPointerLock(); } catch (err) {}
+        }
+        document.getElementById('shop-credits-val').textContent = player.credits.toLocaleString();
+        shopEl.classList.remove('hidden');
+        sfx.playUI();
+      };
+
+      window.closeShop = function (e) {
+        if (e) e.stopPropagation();
+        document.getElementById('buy-shop-overlay').classList.add('hidden');
+        tryLockPointerSafe();
+      };
+
+      window.buyItem = function (itemId) {
+        if (window.MP.active) { window.MP.buy(itemId); return; }
+        const fb = document.getElementById('shop-feedback');
+        if (roomState.allowCheats && cheats.infiniteCreds) player.credits = 9000;
+
+        if (itemId === 'light_shield' || itemId === 'heavy_shield') {
+          const cost = itemId === 'light_shield' ? 400 : 1000;
+          const targetArmor = itemId === 'light_shield' ? 25 : 50;
+          if (player.armor >= targetArmor) {
+            if (fb) fb.textContent = 'ALREADY EQUIPPED EQUAL OR STRONGER SHIELD.';
+            return;
+          }
+          if (player.credits < cost) {
+            if (fb) fb.textContent = 'NOT ENOUGH CREDITS.';
+            return;
+          }
+          player.credits -= cost;
+          player.armor = targetArmor;
+          sfx.playUI();
+          if (fb) fb.textContent = `EQUIPPED ${itemId === 'light_shield' ? 'LIGHT SHIELD (+25)' : 'HEAVY SHIELD (+50)'}.`;
+          updateHUD();
+          return;
+        }
+
+        const spec = WEAPON_CATALOG[itemId];
+        if (!spec) return;
+        if (player.credits < spec.cost) {
+          if (fb) fb.textContent = 'NOT ENOUGH CREDITS.';
+          return;
+        }
+        player.credits -= spec.cost;
+        if (spec.slot === 'primary') {
+          player.primary = cloneWeaponInstance(itemId);
+          window.switchWeaponSlot('primary');
+        } else if (spec.slot === 'secondary') {
+          player.secondary = cloneWeaponInstance(itemId);
+          window.switchWeaponSlot('secondary');
+        }
+        sfx.playUI();
+        if (fb) fb.textContent = `PURCHASED & EQUIPPED ${spec.name}.`;
+        updateHUD();
+      };
+
+      window.toggleCheatPanel = function (e) {
+        if (e) e.stopPropagation();
+        const modal = document.getElementById('cheat-modal');
+        if (modal.classList.contains('hidden')) {
+          if (document.pointerLockElement) {
+            try { document.exitPointerLock(); } catch (err) {}
+          }
+          syncCheatPermissionUI();
+          modal.classList.remove('hidden');
+        } else {
+          modal.classList.add('hidden');
+          if (matchState.inMatch) tryLockPointerSafe();
+        }
+        sfx.playUI();
+      };
+
+      window.toggleCheatOption = function (key) {
+        if (!roomState.allowCheats) return;
+        cheats[key] = !cheats[key];
+        const btn = document.getElementById('cheat-btn-' + key);
+        if (btn) {
+          btn.className = cheats[key]
+            ? 'p-3 bg-[#1b3142] border-2 border-[#38e2c7] text-left cursor-pointer'
+            : 'p-3 bg-[#0f1923] border border-white/15 text-left cursor-pointer';
+        }
+        if (key === 'ghost') {
+          document.getElementById('hud-ghost-banner').classList.toggle('hidden', !cheats.ghost);
+        }
+        if (key === 'infiniteCreds' && cheats.infiniteCreds) {
+          player.credits = 9000;
+        }
+        sfx.playUI();
+        updateHUD();
+      };
+
+      window.cheatInstantWin = function (team) {
+        if (!roomState.allowCheats) return;
+        document.getElementById('cheat-modal').classList.add('hidden');
+        endRound(team || 'ally', 'HOST CHEAT // INSTANT WIN');
+      };
+
+      window.cheatSwapSides = function () {
+        if (!roomState.allowCheats) return;
+        roomState.playerSide = roomState.playerSide === 'attack' ? 'defense' : 'attack';
+        document.getElementById('cheat-modal').classList.add('hidden');
+        showRoundBanner('HOST CHEAT', 'SIDES SWAPPED');
+        startNewRound();
+      };
+
+      window.teleportTo = function (x, footY, z, label) {
+        if (!roomState.allowCheats) return;
+        player.alive = true;
+        player.hp = 100;
+        player.footY = footY;
+        player.pos.set(x, footY + EYE_HEIGHT, z);
+        player.vel.set(0, 0, 0);
+        document.getElementById('cheat-modal').classList.add('hidden');
+        showRoundBanner('ASCENT TELEPORT', label);
+        updateHUD();
+      };
+
+      function endRound(winnerTeam, reasonText) {
+        if (window.MP.active) return;
+        if (matchState.phase === 'round_end') return;
+        matchState.phase = 'round_end';
+        matchState.timer = 4.0;
+
+        if (winnerTeam === 'ally') {
+          matchState.allyScore++;
+          player.credits = Math.min(9000, player.credits + 3000);
+          showRoundBanner(reasonText, 'ROUND WON // ALLY VICTORY');
+        } else {
+          matchState.enemyScore++;
+          player.credits = Math.min(9000, player.credits + 1900);
+          showRoundBanner(reasonText, 'ROUND LOST // ENEMY VICTORY');
+        }
+        updateHUD();
+
+        setTimeout(() => {
+          if (matchState.allyScore >= roomState.winRounds || matchState.enemyScore >= roomState.winRounds) {
+            const wonMatch = matchState.allyScore >= roomState.winRounds;
+            showRoundBanner('MATCH COMPLETE', wonMatch ? 'VICTORY // MATCH WON' : 'DEFEAT // MATCH OVER');
+            matchState.allyScore = 0;
+            matchState.enemyScore = 0;
+            matchState.round = 1;
+          } else {
+            matchState.round++;
+            const halfRound = roomState.winRounds;
+            if (matchState.round === halfRound) {
+              roomState.playerSide = roomState.playerSide === 'attack' ? 'defense' : 'attack';
+              player.credits = 800;
+              player.primary = null;
+              player.secondary = cloneWeaponInstance('classic');
+              showRoundBanner('HALFTIME // SIDE SWAP', 'SWITCHING SIDES');
+            }
+          }
+          startNewRound();
+        }, 3500);
+      }
+
+      /* =========================================================================
+       * 8. SHOOTING, RELOAD, SCOPE & ASCENT MECHANICAL DOORS
+       * ========================================================================= */
+      const raycaster = new THREE.Raycaster();
+
+      function showHitmarker(isHead) {
+        const hm = document.getElementById('hitmarker');
+        const l1 = document.getElementById('hm-line-1');
+        const l2 = document.getElementById('hm-line-2');
+        if (!hm) return;
+        l1.className = `absolute inset-0 m-auto w-7 h-0.5 rotate-45 ${isHead ? 'bg-[#ff4655]' : 'bg-white'}`;
+        l2.className = `absolute inset-0 m-auto w-7 h-0.5 -rotate-45 ${isHead ? 'bg-[#ff4655]' : 'bg-white'}`;
+        hm.style.opacity = '1';
+        setTimeout(() => { hm.style.opacity = '0'; }, 120);
+      }
+
+      function spawnBulletTracer(startPos, endPos, colorHex) {
+        const geom = new THREE.BufferGeometry().setFromPoints([startPos, endPos]);
+        const mat = new THREE.LineBasicMaterial({ color: colorHex || 0xfef08a, transparent: true, opacity: 0.9 });
+        const line = new THREE.Line(geom, mat);
+        scene.add(line);
+        activeTracers.push({ line, life: 0.085 });
+      }
+
+      function attemptFire() {
+        if (!matchState.inMatch) return;
+        if (window.MP.active) { window.MP.fire(); return; }
+        if (!player.alive) {
+          window.cycleSpectator(1);
+          return;
+        }
+        if (player.reloading) return;
+
+        const w = getActiveWeapon();
+        const now = performance.now() / 1000;
+        if (now - player.lastShotTime < w.fireRate) return;
+
+        const infAmmo = (roomState.allowCheats && cheats.infiniteAmmo) || w.slot === 'knife';
+        if (!infAmmo && w.mag <= 0) {
+          window.triggerReload();
+          return;
+        }
+        player.lastShotTime = now;
+        if (!infAmmo) w.mag--;
+
+        sfx.playGunshot(w.slot === 'knife' ? 420 : w.id === 'operator' ? 92 : w.id === 'vandal' ? 145 : 190, 0.11);
+        if (w.slot !== 'knife') {
+          muzzleFlashMesh.material.opacity = 1;
+          setTimeout(() => { muzzleFlashMesh.material.opacity = 0; }, 45);
+        }
+
+        gunGroup.position.z = -0.32;
+
+        const moveSpeed = Math.hypot(player.vel.x, player.vel.z);
+        const spread = player.isScoped ? 0.0004 : (w.spreadBase + (moveSpeed > 0.8 ? w.spreadMove : 0));
+
+        const enemyMeshes = [];
+        bots.forEach(b => {
+          if (b.alive && b.team === 'enemy') {
+            b.headMesh.userData = { bot: b, isHead: true };
+            b.bodyMesh.userData = { bot: b, isHead: false };
+            enemyMeshes.push(b.headMesh, b.bodyMesh);
+          }
+        });
+
+        const allTargets = enemyMeshes.concat(mapTargetMeshes);
+        const maxDist = w.range || 110;
+
+        for (let p = 0; p < w.pellets; p++) {
+          const rx = (Math.random() - 0.5) * spread;
+          const ry = (Math.random() - 0.5) * spread;
+          raycaster.setFromCamera(new THREE.Vector2(rx, ry), camera);
+          raycaster.far = maxDist;
+          const hits = raycaster.intersectObjects(allTargets, false);
+
+          const muzzleWorld = new THREE.Vector3(0.18, -0.14, -0.6).applyMatrix4(camera.matrixWorld);
+          let endPt = raycaster.ray.origin.clone().addScaledVector(raycaster.ray.direction, maxDist);
+
+          if (hits.length > 0) {
+            const firstHit = hits[0];
+            endPt = firstHit.point;
+            if (firstHit.object.userData && firstHit.object.userData.bot) {
+              const targetBot = firstHit.object.userData.bot;
+              const isHead = firstHit.object.userData.isHead;
+              const dmg = isHead ? w.headDmg : w.bodyDmg;
+              targetBot.hp -= dmg;
+              showHitmarker(isHead);
+              if (isHead) sfx.playHeadshotDing();
+
+              if (targetBot.hp <= 0 && targetBot.alive) {
+                targetBot.alive = false;
+                targetBot.group.visible = false;
+                player.credits = Math.min(9000, player.credits + 200);
+                addKillFeed('YOU', targetBot.name, w.name, isHead);
+              }
+            }
+          }
+          if (w.slot !== 'knife') {
+            spawnBulletTracer(muzzleWorld, endPt, w.color);
+          }
+        }
+
+        player.pitch = Math.min(1.48, player.pitch + w.recoilPitch);
+        updateHUD();
+      }
+
+      window.triggerReload = function () {
+        if (window.MP.active) {window.MP.send({type:'reload'});player.reloading=true;setTimeout(()=>{player.reloading=false;},1150);return;}
+        if (!matchState.inMatch || !player.alive || player.reloading) return;
+        const w = getActiveWeapon();
+        if (w.slot === 'knife' || w.mag >= w.magSize || w.reserve <= 0) return;
+        player.reloading = true;
+        sfx.playUI();
+        setTimeout(() => {
+          const need = w.magSize - w.mag;
+          const take = Math.min(need, w.reserve);
+          w.mag += take;
+          w.reserve -= take;
+          player.reloading = false;
+          updateHUD();
+        }, 1100);
+      };
+
+      window.switchWeaponSlot = function (slot) {
+        if (window.MP.active && window.MP.started) window.MP.send({type:'equip',slot});
+        if (slot === 'primary' && !player.primary) return;
+        player.activeSlot = slot;
+        player.isScoped = false;
+        document.getElementById('scope-overlay').classList.add('hidden');
+        document.getElementById('mob-ads-btn').classList.remove('vm-btn-active-state');
+        camera.fov = 75;
+        camera.updateProjectionMatrix();
+
+        ['primary', 'secondary', 'knife'].forEach(s => {
+          const btn = document.getElementById('slot-' + s + '-btn');
+          if (btn) {
+            btn.className = s === slot
+              ? 'px-2.5 sm:px-3.5 py-1 bg-[#1b3142] border-b-2 border-[#38e2c7] text-left min-w-[72px] sm:min-w-[96px] transition cursor-pointer'
+              : 'px-2.5 sm:px-3.5 py-1 bg-[#142230] border-b-2 border-transparent text-left min-w-[72px] sm:min-w-[96px] transition cursor-pointer';
+          }
+        });
+        updateHUD();
+      };
+
+      window.toggleScope = function () {
+        if (!player.alive) {
+          window.cycleSpectator(-1);
+          return;
+        }
+        const w = getActiveWeapon();
+        if (!w.canScope) return;
+        player.isScoped = !player.isScoped;
+        const sc = document.getElementById('scope-overlay');
+        const adsBtn = document.getElementById('mob-ads-btn');
+        if (player.isScoped) {
+          sc.classList.remove('hidden');
+          if (adsBtn) adsBtn.classList.add('vm-btn-active-state');
+          camera.fov = (w.id === 'operator' || w.id === 'marshal' || w.id === 'outlaw') ? 28 : 52;
+        } else {
+          sc.classList.add('hidden');
+          if (adsBtn) adsBtn.classList.remove('vm-btn-active-state');
+          camera.fov = 75;
+        }
+        camera.updateProjectionMatrix();
+      };
+
+      window.toggleCrouchMobile = function () {
+        player.crouchToggle = !player.crouchToggle;
+        const btn = document.getElementById('mob-crouch-btn');
+        if (btn) {
+          btn.classList.toggle('vm-btn-active-state', player.crouchToggle);
+        }
+      };
+
+      window.toggleWalkMobile = function () {
+        player.walkToggle = !player.walkToggle;
+        const btn = document.getElementById('mob-walk-btn');
+        const st = document.getElementById('mob-walk-state');
+        if (btn) btn.classList.toggle('vm-btn-active-state', player.walkToggle);
+        if (st) st.textContent = player.walkToggle ? 'LOCK' : 'OFF';
+      };
+
+      window.triggerJump = function () {
+        if (!matchState.inMatch || !player.alive) return;
+        if (roomState.allowCheats && cheats.ghost) {
+          player.pos.y += 2.2;
+          return;
+        }
+        if (player.onGround) {
+          player.vel.y = 7.6;
+          player.onGround = false;
+        }
+      };
+
+      window.toggleAscentDoor = function () {
+        let nearest = null;
+        let minDist = 11.0;
+        blastDoors.forEach(d => {
+          const dist = player.pos.distanceTo(d.switchPos);
+          if (dist < minDist) {
+            minDist = dist;
+            nearest = d;
+          }
+        });
+        if (!nearest) nearest = blastDoors[0];
+        nearest.closed = !nearest.closed;
+        nearest.targetMinY = nearest.closed ? 0.0 : (nearest.id === 'A_DOOR' ? 3.6 : 4.2);
+        if (nearest.switchMesh) {
+          nearest.switchMesh.material.color.setHex(nearest.closed ? 0xff4655 : 0x38e2c7);
+        }
+        sfx.playUI();
+        showRoundBanner('ASCENT DOOR SWITCH', `${nearest.name} // ${nearest.closed ? 'CLOSED' : 'OPEN'}`);
+        return true;
+      };
+
+      /* =========================================================================
+       * 10. UNIFIED MULTI-TOUCH & POINTER ENGINE (100% MOBILE COMPATIBILITY)
+       * ========================================================================= */
+      const keys = {};
+      let isMouseFiring = false;
+      let isLeftTouchFiring = false;
+      let isRightTouchFiring = false;
+      let isSpikeKeyHeld = false;
+      let isSpikeMobileToggleLock = false;
+
+      window.addEventListener('keydown', (e) => {
+        keys[e.code] = true;
+
+        if (e.code === 'F1') {
+          e.preventDefault();
+          window.toggleCheatPanel();
+          return;
+        }
+        if (e.code === 'KeyB' && matchState.inMatch) {
+          window.toggleShop();
+          return;
+        }
+        if (e.code === 'Escape') {
+          document.getElementById('buy-shop-overlay').classList.add('hidden');
+          document.getElementById('cheat-modal').classList.add('hidden');
+          return;
+        }
+        if (!matchState.inMatch) return;
+
+        if (!player.alive) {
+          if (e.code === 'KeyA' || e.code === 'ArrowLeft') window.cycleSpectator(-1);
+          if (e.code === 'KeyD' || e.code === 'ArrowRight') window.cycleSpectator(1);
+          return;
+        }
+
+        if (e.code === 'KeyV' && roomState.allowCheats) window.toggleCheatOption('ghost');
+        if (e.code === 'Space') window.triggerJump();
+        if (e.code === 'KeyR') window.triggerReload();
+        if (e.code === 'Digit1') window.switchWeaponSlot('primary');
+        if (e.code === 'Digit2') window.switchWeaponSlot('secondary');
+        if (e.code === 'Digit3') window.switchWeaponSlot('knife');
+        if (e.code === 'KeyG') window.toggleAscentDoor();
+        if (e.code === 'Digit4' || e.code === 'KeyF') isSpikeKeyHeld = true;
+      });
+
+      window.addEventListener('keyup', (e) => {
+        keys[e.code] = false;
+        if (e.code === 'Digit4' || e.code === 'KeyF') isSpikeKeyHeld = false;
+      });
+
+      window.addEventListener('pointermove', (e) => {
+        if (document.pointerLockElement === canvas && matchState.inMatch && player.alive) {
+          const sens = player.isScoped ? 0.0011 : 0.0022;
+          player.yaw -= e.movementX * sens;
+          player.pitch = Math.max(-1.48, Math.min(1.48, player.pitch - e.movementY * sens));
+        }
+      });
+
+      canvas.addEventListener('mousedown', (e) => {
+        if (!matchState.inMatch) return;
+        const isTouchEnv = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+        if (!isTouchEnv && !inputSystem.touchModeEnabled && document.pointerLockElement !== canvas) {
+          tryLockPointerSafe();        }
+        if (!player.alive) {
+          window.cycleSpectator(e.button === 2 ? -1 : 1);
+          return;
+        }
+        if (e.button === 0) {
+          isMouseFiring = true;
+          attemptFire();
+        } else if (e.button === 2) {
+          window.toggleScope();
+        }
+      });
+
+      window.addEventListener('mouseup', (e) => {
+        if (e.button === 0) isMouseFiring = false;
+      });
+      window.addEventListener('contextmenu', (e) => e.preventDefault());
+
+      /* --- UNIFIED TOUCH + POINTER VIRTUAL JOYSTICK (TRACKS OUTSIDE ZONE SMOOTHLY) --- */
+      const joyState = { active: false, touchId: null, pointerId: null, dx: 0, dy: 0, distRatio: 0 };
+      const joyZone = document.getElementById('joy-zone');
+      const joyKnob = document.getElementById('joy-knob');
+
+      function updateJoyFromPoint(clientX, clientY) {
+        const rect = joyZone.getBoundingClientRect();
+        const cx = rect.left + rect.width / 2;
+        const cy = rect.top + rect.height / 2;
+        let dx = clientX - cx;
+        let dy = clientY - cy;
+        const maxR = Math.max(28, rect.width * 0.38);
+        const dist = Math.hypot(dx, dy);
+        joyState.distRatio = Math.min(1, dist / maxR);
+        if (dist > maxR) {
+          dx = (dx / dist) * maxR;
+          dy = (dy / dist) * maxR;
+        }
+        joyKnob.style.transform = `translate(${dx}px, ${dy}px)`;
+        joyState.dx = dx / maxR;
+        joyState.dy = dy / maxR;
+      }
+
+      function clearJoyState() {
+        joyState.active = false;
+        joyState.touchId = null;
+        joyState.pointerId = null;
+        joyState.dx = 0;
+        joyState.dy = 0;
+        joyState.distRatio = 0;
+        joyKnob.style.transform = 'translate(0px, 0px)';
+      }
+
+      joyZone.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const t = e.changedTouches[0];
+        if (!t) return;
+        joyState.active = true;
+        joyState.touchId = t.identifier;
+        updateJoyFromPoint(t.clientX, t.clientY);
+      }, { passive: false });
+
+      joyZone.addEventListener('pointerdown', (e) => {
+        if (e.pointerType === 'touch' && joyState.touchId !== null) return;
+        e.preventDefault();
+        e.stopPropagation();
+        joyState.active = true;
+        joyState.pointerId = e.pointerId;
+        try { joyZone.setPointerCapture(e.pointerId); } catch (err) {}
+        updateJoyFromPoint(e.clientX, e.clientY);
+      });
+
+      joyZone.addEventListener('pointermove', (e) => {
+        if (joyState.active && e.pointerId === joyState.pointerId) {
+          e.preventDefault();
+          updateJoyFromPoint(e.clientX, e.clientY);
+        }
+      });
+
+      joyZone.addEventListener('pointerup', (e) => {
+        if (e.pointerId === joyState.pointerId) clearJoyState();
+      });
+      joyZone.addEventListener('pointercancel', (e) => {
+        if (e.pointerId === joyState.pointerId) clearJoyState();
+      });
+
+      /* --- UNIFIED TOUCH + POINTER 360° AIM LOOK PAD & R-FIRE DRAG AIMING --- */
+      const lookZone = document.getElementById('touch-look-zone');
+      let lookTouchId = null;
+      let lookPointerId = null;
+      let lastLookX = 0, lastLookY = 0;
+
+      function applyLookDelta(dx, dy, scale = 1.0) {
+        if (!player.alive) return;
+        const sens = (player.isScoped ? 0.0028 : 0.0058) * scale;
+        player.yaw -= dx * sens;
+        player.pitch = Math.max(-1.46, Math.min(1.46, player.pitch - dy * sens));
+      }
+
+      lookZone.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        if (!player.alive) {
+          window.cycleSpectator(1);
+          return;
+        }
+        if (lookTouchId === null && e.changedTouches.length > 0) {
+          const t = e.changedTouches[0];
+          lookTouchId = t.identifier;
+          lastLookX = t.clientX;
+          lastLookY = t.clientY;
+        }
+      }, { passive: false });
+
+      lookZone.addEventListener('pointerdown', (e) => {
+        if (e.pointerType === 'touch' && lookTouchId !== null) return;
+        e.preventDefault();
+        if (!player.alive) {
+          window.cycleSpectator(1);
+          return;
+        }
+        lookPointerId = e.pointerId;
+        lastLookX = e.clientX;
+        lastLookY = e.clientY;
+        try { lookZone.setPointerCapture(e.pointerId); } catch (err) {}
+      });
+
+      lookZone.addEventListener('pointermove', (e) => {
+        if (lookPointerId !== null && e.pointerId === lookPointerId) {
+          e.preventDefault();
+          applyLookDelta(e.clientX - lastLookX, e.clientY - lastLookY, 1.0);
+          lastLookX = e.clientX;
+          lastLookY = e.clientY;
+        }
+      });
+
+      lookZone.addEventListener('pointerup', (e) => {
+        if (e.pointerId === lookPointerId) lookPointerId = null;
+      });
+      lookZone.addEventListener('pointercancel', (e) => {
+        if (e.pointerId === lookPointerId) lookPointerId = null;
+      });
+
+      // Right Main FIRE Button (Hold to Shoot + Simultaneous Drag Aiming)
+      const rFireBtn = document.getElementById('mob-rfire-btn');
+      let rFireTouchId = null;
+      let rFirePointerId = null;
+      let lastRFireX = 0, lastRFireY = 0;
+
+      rFireBtn.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const t = e.changedTouches[0];
+        if (!t) return;
+        rFireTouchId = t.identifier;
+        lastRFireX = t.clientX;
+        lastRFireY = t.clientY;
+        rFireBtn.classList.add('active-hold');
+        isRightTouchFiring = true;
+        attemptFire();
+      }, { passive: false });
+
+      rFireBtn.addEventListener('pointerdown', (e) => {
+        if (e.pointerType === 'touch' && rFireTouchId !== null) return;
+        e.preventDefault();
+        e.stopPropagation();
+        rFirePointerId = e.pointerId;
+        lastRFireX = e.clientX;
+        lastRFireY = e.clientY;
+        try { rFireBtn.setPointerCapture(e.pointerId); } catch (err) {}
+        rFireBtn.classList.add('active-hold');
+        isRightTouchFiring = true;
+        attemptFire();
+      });
+
+      rFireBtn.addEventListener('pointermove', (e) => {
+        if (rFirePointerId !== null && e.pointerId === rFirePointerId) {
+          e.preventDefault();
+          applyLookDelta(e.clientX - lastRFireX, e.clientY - lastRFireY, 0.88);
+          lastRFireX = e.clientX;
+          lastRFireY = e.clientY;
+        }
+      });
+
+      function stopRFirePointer(e) {
+        if (e.pointerId === rFirePointerId) {
+          rFirePointerId = null;
+          isRightTouchFiring = false;
+          rFireBtn.classList.remove('active-hold');
+        }
+      }
+      rFireBtn.addEventListener('pointerup', stopRFirePointer);
+      rFireBtn.addEventListener('pointercancel', stopRFirePointer);
+
+      // Global window-level touchmove / touchend so dragging outside joyZone or rFireBtn never drops tracking
+      window.addEventListener('touchmove', (e) => {
+        if (!matchState.inMatch) return;
+        for (let i = 0; i < e.changedTouches.length; i++) {
+          const t = e.changedTouches[i];
+          if (joyState.active && t.identifier === joyState.touchId) {
+            updateJoyFromPoint(t.clientX, t.clientY);
+          } else if (t.identifier === lookTouchId) {
+            applyLookDelta(t.clientX - lastLookX, t.clientY - lastLookY, 1.0);
+            lastLookX = t.clientX;
+            lastLookY = t.clientY;
+          } else if (t.identifier === rFireTouchId) {
+            applyLookDelta(t.clientX - lastRFireX, t.clientY - lastRFireY, 0.88);
+            lastRFireX = t.clientX;
+            lastRFireY = t.clientY;
+          }
+        }
+      }, { passive: false });
+
+      function handleGlobalTouchEnd(e) {
+        for (let i = 0; i < e.changedTouches.length; i++) {
+          const id = e.changedTouches[i].identifier;
+          if (id === joyState.touchId) clearJoyState();
+          if (id === lookTouchId) lookTouchId = null;
+          if (id === rFireTouchId) {
+            rFireTouchId = null;
+            isRightTouchFiring = false;
+            rFireBtn.classList.remove('active-hold');
+          }
+        }
+      }
+      window.addEventListener('touchend', handleGlobalTouchEnd, { passive: false });
+      window.addEventListener('touchcancel', handleGlobalTouchEnd, { passive: false });
+
+      // Upper-Left L-FIRE Button
+      const lFireBtn = document.getElementById('mob-lfire-btn');
+      lFireBtn.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        try { lFireBtn.setPointerCapture(e.pointerId); } catch (err) {}
+        lFireBtn.classList.add('active-hold');
+        isLeftTouchFiring = true;
+        attemptFire();
+      });
+      const releaseLFire = () => {
+        isLeftTouchFiring = false;
+        lFireBtn.classList.remove('active-hold');
+      };
+      lFireBtn.addEventListener('pointerup', releaseLFire);
+      lFireBtn.addEventListener('pointercancel', releaseLFire);
+      lFireBtn.addEventListener('touchend', releaseLFire);
+
+      // Bind Instant Tactical Buttons (ADS, JUMP, CROUCH, RELOAD, WALK, DOOR) with deduplicated Touch + Pointer
+      function bindInstantTouchButton(id, fn) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        let lastTrig = 0;
+        const trigger = (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const now = performance.now();
+          if (now - lastTrig < 80) return;
+          lastTrig = now;
+          fn();
+        };
+        el.addEventListener('touchstart', trigger, { passive: false });
+        el.addEventListener('pointerdown', trigger);
+      }
+
+      bindInstantTouchButton('mob-ads-btn', () => window.toggleScope());
+      bindInstantTouchButton('mob-jump-btn', () => window.triggerJump());
+      bindInstantTouchButton('mob-crouch-btn', () => window.toggleCrouchMobile());
+      bindInstantTouchButton('mob-reload-btn', () => window.triggerReload());
+      bindInstantTouchButton('mob-walk-btn', () => window.toggleWalkMobile());
+      bindInstantTouchButton('mob-door-btn', () => window.toggleAscentDoor());
+
+      // Spike Hold + Tap Auto-Hold Toggle Buttons (Supports both holding and single-tap auto-plant/defuse on mobile)
+      ['mob-spike-btn', 'slot-spike-bar-btn'].forEach(id => {
+        const btn = document.getElementById(id);
+        if (!btn) return;
+        let pressTime = 0;
+        const startHold = (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          pressTime = performance.now();
+          isSpikeKeyHeld = true;
+          btn.classList.add('active-hold');
+        };
+        const endHold = (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const heldDur = performance.now() - pressTime;
+          if (heldDur < 260) {
+            // Quick tap toggles auto-hold for convenient mobile planting/defusing
+            isSpikeMobileToggleLock = !isSpikeMobileToggleLock;
+            isSpikeKeyHeld = isSpikeMobileToggleLock;
+            btn.classList.toggle('vm-btn-active-state', isSpikeMobileToggleLock);
+          } else {
+            isSpikeMobileToggleLock = false;
+            isSpikeKeyHeld = false;
+            btn.classList.remove('vm-btn-active-state');
+          }
+          if (!isSpikeKeyHeld) btn.classList.remove('active-hold');
+        };
+        btn.addEventListener('touchstart', startHold, { passive: false });
+        btn.addEventListener('touchend', endHold, { passive: false });
+        btn.addEventListener('pointerdown', (e) => { if (e.pointerType !== 'touch') startHold(e); });
+        btn.addEventListener('pointerup', (e) => { if (e.pointerType !== 'touch') endHold(e); });
+      });
+
+      /* =========================================================================
+       * 11. ASCENT RADAR MINIMAP, AI COMBAT & 1ST-PERSON SPECTATOR CAMERA LOOP
+       * ========================================================================= */
+      const radarCanvas = document.getElementById('radar-canvas');
+      const rCtx = radarCanvas.getContext('2d');
+
+      function drawAscentRadar() {
+        const w = radarCanvas.width, h = radarCanvas.height;
+        rCtx.clearRect(0, 0, w, h);
+        rCtx.fillStyle = '#091119';
+        rCtx.fillRect(0, 0, w, h);
+
+        const toRx = (x) => ((x + MAP_LIMIT) / (MAP_LIMIT * 2)) * w;
+        const toRz = (z) => ((z + MAP_LIMIT) / (MAP_LIMIT * 2)) * h;
+
+        rCtx.fillStyle = 'rgba(255, 70, 85, 0.24)';
+        rCtx.fillRect(toRx(20), toRz(-16), 24, 24);
+        rCtx.fillRect(toRx(-40), toRz(-31), 24, 24);
+
+        // Draw Buy Phase Barrier lines on Radar during Buy Phase
+        if (matchState.phase === 'buy') {
+          rCtx.strokeStyle = '#38e2c7';
+          rCtx.lineWidth = 2;
+          rCtx.beginPath();
+          rCtx.moveTo(0, toRz(15.5));
+          rCtx.lineTo(w, toRz(15.5));
+          rCtx.moveTo(0, toRz(-12.5));
+          rCtx.lineTo(w, toRz(-12.5));
+          rCtx.stroke();
+        }
+
+        rCtx.fillStyle = '#ece8e1';
+        rCtx.font = 'bold 11px Rajdhani, sans-serif';
+        rCtx.fillText('A', toRx(28), toRz(-4));
+        rCtx.fillText('B', toRx(-33), toRz(-19));
+
+        bots.forEach(b => {
+          if (!b.alive) return;
+          // Hide enemy dots during BUY phase, and during combat only show if spotted by an ally
+          if (b.team === 'enemy') {
+            if (matchState.phase === 'buy' || !b.spotted) return;
+          }
+          rCtx.fillStyle = b.team === 'ally' ? '#38e2c7' : '#ff4655';
+          rCtx.beginPath();
+          rCtx.arc(toRx(b.group.position.x), toRz(b.group.position.z), 3.6, 0, Math.PI * 2);
+          rCtx.fill();
+        });
+
+        if (matchState.spikePlanted) {
+          rCtx.fillStyle = '#f5c542';
+          rCtx.beginPath();
+          rCtx.arc(toRx(matchState.spikePos.x), toRz(matchState.spikePos.z), 5, 0, Math.PI * 2);
+          rCtx.fill();
+        }
+
+        const specAlly = !player.alive ? getCurrentSpectatedAlly() : null;
+        const povX = specAlly ? specAlly.group.position.x : player.pos.x;
+        const povZ = specAlly ? specAlly.group.position.z : player.pos.z;
+        const povYaw = specAlly ? specAlly.yaw : player.yaw;
+
+        const px = toRx(povX), pz = toRz(povZ);
+        rCtx.strokeStyle = 'rgba(56, 226, 199, 0.55)';
+        rCtx.beginPath();
+        rCtx.moveTo(px, pz);
+        rCtx.lineTo(px - Math.sin(povYaw) * 18, pz - Math.cos(povYaw) * 18);
+        rCtx.stroke();
+
+        rCtx.fillStyle = '#ffffff';
+        rCtx.beginPath();
+        rCtx.arc(px, pz, 4.4, 0, Math.PI * 2);
+        rCtx.fill();
+      }
+
+      function updatePlayerAndSpectatorCamera(dt) {
+        const isBuy = matchState.phase === 'buy';
+        bots.forEach(b => {
+          if (!b.alive) {
+            b.group.visible = false;
+          } else if (b.team === 'enemy' && isBuy) {
+            // Strictly hide all enemy 3D models before round starts!
+            b.group.visible = false;
+            b.spotted = false;
+          } else {
+            b.group.visible = true;
+          }
+        });
+
+        if (player.alive) {
+          let moveF = (keys['KeyW'] || keys['ArrowUp'] ? 1 : 0) - (keys['KeyS'] || keys['ArrowDown'] ? 1 : 0);
+          let moveR = (keys['KeyD'] || keys['ArrowRight'] ? 1 : 0) - (keys['KeyA'] || keys['ArrowLeft'] ? 1 : 0);
+          if (joyState.active) {
+            moveF = -joyState.dy;
+            moveR = joyState.dx;
+          }
+
+          const forward = new THREE.Vector3(-Math.sin(player.yaw), 0, -Math.cos(player.yaw));
+          const right = new THREE.Vector3(Math.cos(player.yaw), 0, -Math.sin(player.yaw));
+          const wishDir = new THREE.Vector3().addScaledVector(forward, moveF).addScaledVector(right, moveR);
+          if (wishDir.lengthSq() > 1) wishDir.normalize();
+
+          if (roomState.allowCheats && cheats.ghost) {
+            const flySpeed = 21;
+            player.pos.addScaledVector(wishDir, flySpeed * dt);
+            if (keys['Space']) player.pos.y += 14 * dt;
+            if (keys['ControlLeft'] || keys['ShiftLeft']) player.pos.y -= 14 * dt;
+            player.footY = player.pos.y - EYE_HEIGHT;
+          } else {
+            const isCrouching = keys['ControlLeft'] || player.crouchToggle;
+            const isWalkingSlow = keys['ShiftLeft'] || player.walkToggle || (joyState.active && joyState.distRatio < 0.52);
+            const knifeBonus = player.activeSlot === 'knife' ? 1.15 : 1.0;
+            const baseSpeed = (isCrouching || isWalkingSlow) ? 4.3 : 7.6;
+            const walkSpeed = baseSpeed * knifeBonus;
+
+            player.vel.x = wishDir.x * walkSpeed;
+            player.vel.z = wishDir.z * walkSpeed;
+            player.pos.x += player.vel.x * dt;
+            player.pos.z += player.vel.z * dt;
+
+            resolveCollisions3D(player.pos, player.footY, 0.62, matchState.phase === 'buy', roomState.playerSide);
+
+            const sup = getSurfaceSupport(player.pos.x, player.pos.z, player.footY);
+            player.callout = sup.callout;
+
+            player.vel.y -= 21.0 * dt;
+            player.footY += player.vel.y * dt;
+            if (player.footY <= sup.y) {
+              player.footY = sup.y;
+              player.vel.y = 0;
+              player.onGround = true;
+            } else {
+              player.onGround = false;
+            }
+            const crouchOffset = isCrouching ? -0.45 : 0;
+            player.pos.y = player.footY + EYE_HEIGHT + crouchOffset;
+          }
+
+          camera.position.copy(player.pos);
+          camera.rotation.y = player.yaw;
+          camera.rotation.x = player.pitch;
+
+          document.getElementById('hud-callout-name').textContent = player.callout;
+          const elevSign = player.footY >= 0 ? '+' : '';
+          document.getElementById('hud-elevation-badge').textContent = `${elevSign}${player.footY.toFixed(1)}m`;
+        } else {
+          // PLAYER IS DEAD -> LIVE 1ST-PERSON TEAMMATE SPECTATOR CAMERA!
+          const specAlly = getCurrentSpectatedAlly();
+          if (specAlly) {
+            specAlly.group.visible = false;
+            const targetEye = new THREE.Vector3(
+              specAlly.group.position.x,
+              specAlly.footY + EYE_HEIGHT,
+              specAlly.group.position.z
+            );
+            camera.position.lerp(targetEye, Math.min(1, dt * 18));
+            camera.rotation.y = specAlly.yaw;
+            camera.rotation.x = specAlly.pitch;
+
+            document.getElementById('hud-callout-name').textContent = specAlly.callout;
+            const elevSign = specAlly.footY >= 0 ? '+' : '';
+            document.getElementById('hud-elevation-badge').textContent = `${elevSign}${specAlly.footY.toFixed(1)}m`;
+          }
+        }
+
+        gunGroup.position.z = THREE.MathUtils.lerp(gunGroup.position.z, -0.45, dt * 14);
+      }
+
+      function updateBotsAndTeamCombat(dt) {
+        if (window.MP.active) return;
+        const isBuy = matchState.phase === 'buy';
+        bots.forEach(b => {
+          if (!b.alive) return;
+          if (b.team === 'enemy') {
+            if (isBuy) {
+              b.spotted = false;
+              return;
+            }
+            // Check if any living ally or player has line-of-sight / proximity to spot this enemy on radar
+            let seen = false;
+            if (player.alive && b.group.position.distanceTo(player.pos) < 34 && Math.abs((b.footY + 1.4) - player.pos.y) < 4.2) {
+              seen = true;
+            }
+            bots.forEach(ab => {
+              if (ab.alive && ab.team === 'ally' && b.group.position.distanceTo(ab.group.position) < 32) {
+                seen = true;
+              }
+            });
+            b.spotted = seen;
+          }
+
+          if (!isBuy) {
+            const wp = b.route[b.wpIdx] || b.route[0];
+            const toTarget = new THREE.Vector3(wp.x - b.group.position.x, 0, wp.z - b.group.position.z);
+            if (toTarget.length() > 1.4) {
+              toTarget.normalize();
+              b.group.position.x += toTarget.x * 5.2 * dt;
+              b.group.position.z += toTarget.z * 5.2 * dt;
+              resolveCollisions3D(b.group.position, b.footY, 0.55, false, 'attack');
+              const sup = getSurfaceSupport(b.group.position.x, b.group.position.z, b.footY);
+              b.footY = sup.y;
+              b.callout = sup.callout;
+              b.group.position.y = b.footY;
+
+              const desiredYaw = Math.atan2(-toTarget.x, -toTarget.z);
+              b.yaw = desiredYaw;
+              b.group.rotation.y = desiredYaw + Math.PI;
+            } else {
+              b.wpIdx = (b.wpIdx + 1) % b.route.length;
+            }
+          }
+
+          if (!isBuy) {
+            b.shootCooldown -= dt;
+            if (b.shootCooldown <= 0) {
+              b.shootCooldown = 0.95 + Math.random() * 0.75;
+
+              if (b.team === 'ally') {
+                let nearestEnemy = null;
+                let bestD = 30;
+                bots.forEach(eb => {
+                  if (eb.alive && eb.team === 'enemy') {
+                    const d = b.group.position.distanceTo(eb.group.position);
+                    if (d < bestD && Math.abs(b.footY - eb.footY) < 3.6) {
+                      bestD = d;
+                      nearestEnemy = eb;
+                    }
+                  }
+                });
+                if (nearestEnemy) {
+                  const dx = nearestEnemy.group.position.x - b.group.position.x;
+                  const dz = nearestEnemy.group.position.z - b.group.position.z;
+                  b.yaw = Math.atan2(-dx, -dz);
+                  const startP = b.group.position.clone().add(new THREE.Vector3(0, 1.45, 0));
+                  const endP = nearestEnemy.group.position.clone().add(new THREE.Vector3(0, 1.35, 0));
+                  spawnBulletTracer(startP, endP, 0x38e2c7);
+
+                  if (!player.alive && getCurrentSpectatedAlly() === b) {
+                    gunGroup.position.z = -0.33;
+                    sfx.playGunshot(150, 0.10);
+                  }
+
+                  nearestEnemy.hp -= 38;
+                  if (nearestEnemy.hp <= 0 && nearestEnemy.alive) {
+                    nearestEnemy.alive = false;
+                    nearestEnemy.group.visible = false;
+                    addKillFeed(b.name, nearestEnemy.name, b.weapon.name, Math.random() > 0.5);
+                    updateHUD();
+                  }
+                }
+              } else {
+                let targetIsPlayer = false;
+                let nearestAllyBot = null;
+                let bestD = 28;
+
+                if (player.alive) {
+                  const dp = b.group.position.distanceTo(player.pos);
+                  if (dp < bestD && Math.abs((b.footY + 1.4) - player.pos.y) < 3.6) {
+                    bestD = dp;
+                    targetIsPlayer = true;
+                  }
+                }
+                bots.forEach(ab => {
+                  if (ab.alive && ab.team === 'ally') {
+                    const da = b.group.position.distanceTo(ab.group.position);
+                    if (da < bestD && Math.abs(b.footY - ab.footY) < 3.6) {
+                      bestD = da;
+                      nearestAllyBot = ab;
+                      targetIsPlayer = false;
+                    }
+                  }
+                });
+
+                if (targetIsPlayer && player.alive) {
+                  const startP = b.group.position.clone().add(new THREE.Vector3(0, 1.45, 0));
+                  spawnBulletTracer(startP, player.pos.clone().add(new THREE.Vector3(0, -0.2, 0)), 0xff4655);
+
+                  if (!(roomState.allowCheats && cheats.invincible)) {
+                    const dmg = 16;
+                    if (player.armor > 0) {
+                      const absorb = Math.min(player.armor, Math.ceil(dmg * 0.66));
+                      player.armor -= absorb;
+                      player.hp -= (dmg - absorb);
+                    } else {
+                      player.hp -= dmg;
+                    }
+                    const vig = document.getElementById('damage-vignette');
+                    vig.style.opacity = '1';
+                    setTimeout(() => { vig.style.opacity = '0'; }, 160);
+
+                    if (player.hp <= 0) {
+                      if (roomState.allowCheats && cheats.autoRespawn) {
+                        player.hp = 100;
+                        player.armor = 50;
+                        showRoundBanner('AUTO RESPAWN', 'RESPAWN CHEAT TRIGGERED');
+                      } else {
+                        player.hp = 0;
+                        player.alive = false;
+                        player.isScoped = false;
+                        document.getElementById('scope-overlay').classList.add('hidden');
+                        camera.fov = 75;
+                        camera.updateProjectionMatrix();
+                        player.spectateIdx = 0;
+                        addKillFeed(b.name, 'YOU', b.weapon.name, false);
+                      }
+                    }
+                    updateHUD();
+                  }
+                } else if (nearestAllyBot) {
+                  const startP = b.group.position.clone().add(new THREE.Vector3(0, 1.45, 0));
+                  const endP = nearestAllyBot.group.position.clone().add(new THREE.Vector3(0, 1.35, 0));
+                  spawnBulletTracer(startP, endP, 0xff4655);
+                  nearestAllyBot.hp -= 34;
+                  if (nearestAllyBot.hp <= 0 && nearestAllyBot.alive) {
+                    nearestAllyBot.alive = false;
+                    nearestAllyBot.group.visible = false;
+                    addKillFeed(b.name, nearestAllyBot.name, b.weapon.name, false);
+                    updateHUD();
+                  }
+                }
+              }
+            }
+          }
+        });
+      }
+
+      function updateSpikeAndMatchRules(dt) {
+        if (window.MP.active) return;
+        blastDoors.forEach(d => {
+          const nextY = THREE.MathUtils.lerp(d.collider.minY, d.targetMinY, dt * 6.0);
+          d.collider.minY = nextY;
+          d.collider.maxY = nextY + 3.6;
+          d.mesh.position.y = nextY + 1.8;
+        });
+
+        if (!(roomState.allowCheats && cheats.pauseTimer) && matchState.phase !== 'round_end') {
+          matchState.timer -= dt;
+          if (matchState.timer <= 0) {
+            if (matchState.phase === 'buy') {
+              matchState.phase = 'combat';
+              matchState.timer = 100;
+              barrierGroup.visible = false;
+              const skipBtn = document.getElementById('hud-skip-buy-btn');
+              if (skipBtn) skipBtn.classList.add('hidden');
+              document.getElementById('hud-phase-badge').textContent = 'COMBAT PHASE — A / B 사이트에 스파이크를 설치하거나 적을 섬멸하십시오';
+              showRoundBanner('BARRIERS DROPPED', 'COMBAT PHASE START');
+            } else if (matchState.phase === 'combat') {
+              const defWin = roomState.playerSide === 'defense' ? 'ally' : 'enemy';
+              endRound(defWin, 'TIME EXPIRED');
+            } else if (matchState.phase === 'planted') {
+              const atkWin = roomState.playerSide === 'attack' ? 'ally' : 'enemy';
+              endRound(atkWin, 'SPIKE DETONATED');
+            }
+          }
+        }
+
+        const sec = Math.max(0, Math.ceil(matchState.timer));
+        const m = Math.floor(sec / 60);
+        const s = String(sec % 60).padStart(2, '0');
+        document.getElementById('hud-timer-text').textContent = matchState.spikePlanted ? `SPIKE ${sec}s` : `${m}:${s}`;
+
+        if (matchState.spikePlanted && matchState.phase === 'planted') {
+          const interval = matchState.timer < 10 ? 0.22 : matchState.timer < 20 ? 0.45 : 0.9;
+          matchState.beepAccum += dt;
+          if (matchState.beepAccum >= interval) {
+            matchState.beepAccum = 0;
+            sfx.playBeep(1040);
+          }
+        }
+
+        const dSiteA = Math.hypot(player.pos.x - 29, player.pos.z - (-8));
+        const dSiteB = Math.hypot(player.pos.x - (-32), player.pos.z - (-23));
+        const inSite = (dSiteA < 8.5 ? 'A' : (dSiteB < 8.5 ? 'B' : null));
+        const promptEl = document.getElementById('hud-context-prompt');
+        const boxEl = document.getElementById('spike-action-box');
+        const barEl = document.getElementById('spike-action-bar');
+        const pctEl = document.getElementById('spike-action-pct');
+        const lblEl = document.getElementById('spike-action-label');
+
+        const isAtk = roomState.playerSide === 'attack';
+        if (player.alive && matchState.phase === 'combat' && isAtk && inSite && player.footY < 0.5) {
+          promptEl.textContent = `[SPIKE] 버튼 또는 [4/F] 키를 길게 눌러 ${inSite} 사이트에 스파이크 설치 (4초)`;
+          promptEl.classList.remove('hidden');
+          if (isSpikeKeyHeld) {
+            boxEl.classList.remove('hidden');
+            lblEl.textContent = `PLANTING SPIKE (${inSite} SITE)...`;
+            matchState.plantProgress += dt / 4.0;
+            const pct = Math.min(100, Math.floor(matchState.plantProgress * 100));
+            barEl.style.width = pct + '%';
+            pctEl.textContent = pct + '%';
+            if (matchState.plantProgress >= 1.0) {
+              matchState.spikePlanted = true;
+              matchState.phase = 'planted';
+              matchState.timer = 45.0;
+              matchState.spikeSite = inSite;
+              matchState.spikePos.set(player.pos.x, player.footY, player.pos.z);
+              spikeMesh.position.copy(matchState.spikePos);
+              spikeMesh.visible = true;
+              player.credits = Math.min(9000, player.credits + 300);
+              boxEl.classList.add('hidden');
+              document.getElementById('hud-phase-badge').textContent = `SPIKE PLANTED (${inSite} SITE) — 45초 후 폭발`;
+              showRoundBanner(`SITE ${inSite} COMPROMISED`, 'SPIKE PLANTED');
+              updateHUD();
+            }
+          } else {
+            matchState.plantProgress = 0;
+            boxEl.classList.add('hidden');
+          }
+        } else if (player.alive && matchState.phase === 'planted' && !isAtk && player.pos.distanceTo(matchState.spikePos) < 4.5) {
+          promptEl.textContent = '[SPIKE] 버튼 또는 [4/F] 키를 길게 눌러 스파이크 해체 (7초 • 50% 반해체 저장)';
+          promptEl.classList.remove('hidden');
+          if (isSpikeKeyHeld) {
+            boxEl.classList.remove('hidden');
+            lblEl.textContent = 'DEFUSING SPIKE...';
+            matchState.defuseProgress += dt / 7.0;
+            if (matchState.defuseProgress >= 0.5) matchState.halfDefuseReached = true;
+            const pct = Math.min(100, Math.floor(matchState.defuseProgress * 100));
+            barEl.style.width = pct + '%';
+            pctEl.textContent = pct + '%';
+            if (matchState.defuseProgress >= 1.0) {
+              boxEl.classList.add('hidden');
+              endRound('ally', 'SPIKE DEFUSED');
+            }
+          } else {
+            matchState.defuseProgress = matchState.halfDefuseReached ? 0.5 : 0.0;
+            boxEl.classList.add('hidden');
+          }
+        } else {
+          promptEl.classList.add('hidden');
+          boxEl.classList.add('hidden');
+        }
+
+        if (matchState.phase === 'combat' || matchState.phase === 'planted') {
+          const enemiesAlive = bots.filter(b => b.team === 'enemy' && b.alive).length;
+          const alliesAlive = (player.alive ? 1 : 0) + bots.filter(b => b.team === 'ally' && b.alive).length;
+          if (enemiesAlive === 0) {
+            endRound('ally', 'ENEMY TEAM ELIMINATED');
+          } else if (alliesAlive === 0 && !matchState.spikePlanted) {
+            endRound('enemy', 'ALLY TEAM ELIMINATED');
+          }
+        }
+      }
+
+      window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      });
+
+      let prevTime = performance.now();
+      function animate(now) {
+        requestAnimationFrame(animate);
+        const dt = Math.min(0.05, (now - prevTime) / 1000);
+        prevTime = now;
+
+        if (matchState.inMatch) {
+          const holdingAnyFire = isMouseFiring || isLeftTouchFiring || isRightTouchFiring;
+          if (holdingAnyFire && player.alive && getActiveWeapon().auto) attemptFire();
+          updatePlayerAndSpectatorCamera(dt);
+          updateBotsAndTeamCombat(dt);
+          updateSpikeAndMatchRules(dt);
+          window.MP.tick(dt);
+          drawAscentRadar();
+        } else {
+          const t = now * 0.00022;
+          camera.position.set(Math.cos(t) * 38, 17, Math.sin(t) * 38);
+          camera.lookAt(0, 2, 0);
+        }
+
+        for (let i = activeTracers.length - 1; i >= 0; i--) {
+          activeTracers[i].life -= dt;
+          if (activeTracers[i].life <= 0) {
+            scene.remove(activeTracers[i].line);
+            activeTracers.splice(i, 1);
+          }
+        }
+
+        // Animate floating Venetian sky rocks & Radianite crystals
+        for (let i = 0; i < floatingStructures.length; i++) {
+          const fs = floatingStructures[i];
+          fs.group.position.y = fs.baseY + Math.sin(now * 0.0012 + fs.phase) * 1.15;
+          fs.group.rotation.y += dt * 0.18;
+        }
+
+        renderer.render(scene, camera);
+      }
+
+      window.MP.install({roomState,matchState,player,bots,scene,spikeMesh,barrierGroup,gunGroup,muzzleFlashMesh,sfx,
+        createTacticalBotMesh,cloneWeaponInstance,WEAPON_CATALOG,getActiveWeapon,startNewRound,
+        updateHUD,showHitmarker,showRoundBanner,addKillFeed,syncCheatPermissionUI,
+        launchAscentMatchImmediate,openWaitingLobby:window.openWaitingLobby,
+        switchWeaponSlot:window.switchWeaponSlot,getSpikeHeld:()=>isSpikeKeyHeld});
+      window.onload = function () {
+        refreshInputUI();
+        syncCheatPermissionUI();
+        requestAnimationFrame(animate);
+      };
+    })();
+  </script>
+</body>
+</html>

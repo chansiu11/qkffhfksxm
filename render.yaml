@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: qkffhfksxm-realtime
+    runtime: node
+    plan: free
+    region: singapore
+    repo: https://github.com/chansiu11/qkffhfksxm
+    branch: main
+    rootDir: .
+    buildCommand: echo 'No build dependencies'
+    startCommand: node server/server.js
+    healthCheckPath: /health
+    autoDeployTrigger: commit
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: ALLOWED_ORIGINS
+        value: https://chansiu11.github.io,http://localhost:8080,http://127.0.0.1:8080
