@@ -97,6 +97,21 @@
       backdrop-filter: blur(8px);
     }
 
+    /* Floating mobile movement pad: neither half blocks HUD/action buttons. */
+    #touch-move-zone, #touch-look-zone {
+      position: fixed; top: 0; bottom: 0; width: 50%; z-index: 10;
+      pointer-events: auto; touch-action: none;
+    }
+    #touch-move-zone { left: 0; }
+    #touch-look-zone { right: 0; }
+    #joy-zone {
+      display: none; position: fixed; top: 0; left: 0;
+      bottom: auto !important; width: 132px !important; height: 132px !important;
+      transform: translate(-50%, -50%); z-index: 22;
+      pointer-events: none !important;
+    }
+    #joy-zone.active-joystick { display: flex; }
+    #joy-zone, #joy-zone * { touch-action: none; pointer-events: none !important; }
     /* VALORANT Mobile Tactical Touch Button Styling (Pure Geometry, Zero Icons) */
     .vm-btn {
       background: rgba(15, 25, 35, 0.72);
@@ -188,8 +203,9 @@
   <!-- ==================== FULL VALORANT MOBILE TOUCH LAYER (ZERO ICONS / NO SKILLS) ==================== -->
   <div id="mobile-controls" class="hidden fixed inset-0 pointer-events-none z-25">
     
-    <!-- Full Right-Half & Center Look Drag Surface -->
-    <div id="touch-look-zone" class="pointer-events-auto fixed inset-0 z-10"></div>
+    <!-- Two independent touch halves: place a floating joystick anywhere on the left. -->
+    <div id="touch-move-zone" aria-label="왼쪽 이동 터치 영역"></div>
+    <div id="touch-look-zone" aria-label="오른쪽 시점 회전 터치 영역"></div>
 
     <!-- LEFT SIDE: Upper-Left Index L-FIRE + WALK Lock Toggle + Virtual Movement Joystick -->
     <!-- Upper-Left L-FIRE (Claw / Left-Hand Fire Button) -->
@@ -210,7 +226,7 @@
       <span id="mob-walk-state" class="text-[9px] text-white/60 font-bold leading-none pointer-events-none">OFF</span>
     </button>
 
-    <!-- Bottom-Left Tactical Movement Joystick -->
+    <!-- Floating movement joystick, visible only while touching the left half. -->
     <div id="joy-zone"
          class="pointer-events-auto z-20 fixed bottom-8 left-6 w-32 h-32 sm:w-36 sm:h-36 rounded-full bg-[#0f1923]/65 border-2 border-[#ece8e1]/35 flex items-center justify-center shadow-2xl">
       <!-- Inner Walk / Outer Run Ring Guide -->
@@ -797,7 +813,8 @@
         const mobLayer = document.getElementById('mobile-controls');
         const toggleBtn = document.getElementById('hud-touch-toggle-btn');
         if (toggleBtn) {
-          toggleBtn.textContent = inputSystem.touchModeEnabled ? 'TOUCH UI: ON' : 'TOUCH UI: OFF';          toggleBtn.className = inputSystem.touchModeEnabled
+          toggleBtn.textContent = inputSystem.touchModeEnabled ? 'TOUCH UI: ON' : 'TOUCH UI: OFF';
+          toggleBtn.className = inputSystem.touchModeEnabled
             ? 'val-cut-sm px-2.5 py-1 bg-[#38e2c7]/25 border border-[#38e2c7] text-[#38e2c7] font-num font-black text-[11px] cursor-pointer'
             : 'val-cut-sm px-2.5 py-1 bg-[#0f1923]/95 border border-white/25 text-white/60 font-num font-black text-[11px] cursor-pointer';
         }
@@ -830,8 +847,7 @@
               const AC = window.AudioContext || window.webkitAudioContext;
               if (AC) this.ctx = new AC();
             }
-            if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
-          } catch (err) {}
+            if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();          } catch (err) {}
         },
         playGunshot(freq = 160, dur = 0.11) {
           try {
@@ -1487,22 +1503,22 @@
        * ========================================================================= */
       const WEAPON_CATALOG = {
         knife:    { id: 'knife', slot: 'knife', name: 'MELEE KNIFE', cost: 0, headDmg: 150, bodyDmg: 50, fireRate: 0.42, magSize: 1, resSize: 0, spreadBase: 0, spreadMove: 0, recoilPitch: 0.01, auto: false, canScope: false, pellets: 1, range: 3.4, color: 0xf5c542 },
-        classic:  { id: 'classic', slot: 'secondary', name: 'CLASSIC', cost: 0, headDmg: 78, bodyDmg: 26, fireRate: 0.16, magSize: 12, resSize: 36, spreadBase: 0.004, spreadMove: 0.045, recoilPitch: 0.016, auto: false, canScope: false, pellets: 1, range: 95, color: 0x94a3b8 },
-        shorty:   { id: 'shorty', slot: 'secondary', name: 'SHORTY', cost: 300, headDmg: 36, bodyDmg: 18, fireRate: 0.28, magSize: 2, resSize: 6, spreadBase: 0.075, spreadMove: 0.09, recoilPitch: 0.045, auto: false, canScope: false, pellets: 8, range: 28, color: 0xf97316 },
-        frenzy:   { id: 'frenzy', slot: 'secondary', name: 'FRENZY', cost: 450, headDmg: 78, bodyDmg: 26, fireRate: 0.095, magSize: 13, resSize: 39, spreadBase: 0.012, spreadMove: 0.05, recoilPitch: 0.018, auto: true, canScope: false, pellets: 1, range: 80, color: 0xfacc15 },
-        ghost:    { id: 'ghost', slot: 'secondary', name: 'GHOST', cost: 500, headDmg: 105, bodyDmg: 30, fireRate: 0.15, magSize: 15, resSize: 45, spreadBase: 0.0025, spreadMove: 0.045, recoilPitch: 0.015, auto: false, canScope: false, pellets: 1, range: 95, color: 0x38e2c7 },
-        sheriff:  { id: 'sheriff', slot: 'secondary', name: 'SHERIFF', cost: 800, headDmg: 159, bodyDmg: 55, fireRate: 0.25, magSize: 6, resSize: 24, spreadBase: 0.0018, spreadMove: 0.08, recoilPitch: 0.045, auto: false, canScope: false, pellets: 1, range: 95, color: 0xfbbf24 },
-        stinger:  { id: 'stinger', slot: 'primary', name: 'STINGER', cost: 1100, headDmg: 67, bodyDmg: 27, fireRate: 0.068, magSize: 20, resSize: 60, spreadBase: 0.014, spreadMove: 0.045, recoilPitch: 0.014, auto: true, canScope: true, pellets: 1, range: 85, color: 0xa855f7 },
-        spectre:  { id: 'spectre', slot: 'primary', name: 'SPECTRE', cost: 1600, headDmg: 78, bodyDmg: 26, fireRate: 0.085, magSize: 30, resSize: 90, spreadBase: 0.010, spreadMove: 0.042, recoilPitch: 0.013, auto: true, canScope: true, pellets: 1, range: 90, color: 0x38bdf8 },
-        bucky:    { id: 'bucky', slot: 'primary', name: 'BUCKY', cost: 850, headDmg: 44, bodyDmg: 22, fireRate: 0.85, magSize: 5, resSize: 10, spreadBase: 0.058, spreadMove: 0.085, recoilPitch: 0.05, auto: false, canScope: false, pellets: 10, range: 35, color: 0xfb923c },
-        judge:    { id: 'judge', slot: 'primary', name: 'JUDGE', cost: 1850, headDmg: 34, bodyDmg: 17, fireRate: 0.32, magSize: 7, resSize: 21, spreadBase: 0.062, spreadMove: 0.09, recoilPitch: 0.038, auto: true, canScope: false, pellets: 8, range: 35, color: 0xf97316 },
-        bulldog:  { id: 'bulldog', slot: 'primary', name: 'BULLDOG', cost: 2050, headDmg: 115, bodyDmg: 35, fireRate: 0.10, magSize: 24, resSize: 72, spreadBase: 0.0035, spreadMove: 0.08, recoilPitch: 0.019, auto: true, canScope: true, pellets: 1, range: 110, color: 0x34d399 },
-        guardian: { id: 'guardian', slot: 'primary', name: 'GUARDIAN', cost: 2250, headDmg: 195, bodyDmg: 65, fireRate: 0.19, magSize: 12, resSize: 36, spreadBase: 0.001, spreadMove: 0.09, recoilPitch: 0.034, auto: false, canScope: true, pellets: 1, range: 120, color: 0x60a5fa },
-        phantom:  { id: 'phantom', slot: 'primary', name: 'PHANTOM', cost: 2900, headDmg: 140, bodyDmg: 39, fireRate: 0.09, magSize: 30, resSize: 90, spreadBase: 0.0026, spreadMove: 0.09, recoilPitch: 0.018, auto: true, canScope: true, pellets: 1, range: 115, color: 0x38e2c7 },
-        vandal:   { id: 'vandal', slot: 'primary', name: 'VANDAL', cost: 2900, headDmg: 160, bodyDmg: 40, fireRate: 0.10, magSize: 25, resSize: 75, spreadBase: 0.0020, spreadMove: 0.10, recoilPitch: 0.024, auto: true, canScope: true, pellets: 1, range: 120, color: 0xff4655 },
-        marshal:  { id: 'marshal', slot: 'primary', name: 'MARSHAL', cost: 950, headDmg: 202, bodyDmg: 101, fireRate: 0.95, magSize: 5, resSize: 15, spreadBase: 0.0015, spreadMove: 0.11, recoilPitch: 0.055, auto: false, canScope: true, pellets: 1, range: 140, color: 0xa3e635 },
-        outlaw:   { id: 'outlaw', slot: 'primary', name: 'OUTLAW', cost: 2400, headDmg: 238, bodyDmg: 140, fireRate: 0.45, magSize: 2, resSize: 10, spreadBase: 0.0008, spreadMove: 0.13, recoilPitch: 0.065, auto: false, canScope: true, pellets: 1, range: 140, color: 0xc084fc },
-        operator: { id: 'operator', slot: 'primary', name: 'OPERATOR', cost: 4700, headDmg: 255, bodyDmg: 150, fireRate: 1.15, magSize: 5, resSize: 10, spreadBase: 0.0004, spreadMove: 0.15, recoilPitch: 0.08, auto: false, canScope: true, pellets: 1, range: 150, color: 0xeab308 }
+        classic:  { id: 'classic', slot: 'secondary', name: 'CLASSIC', cost: 0, headDmg: 78, bodyDmg: 26, fireRate: 0.16, magSize: 12, resSize: 36, spreadBase: 0.004, spreadMove: 0.045, recoilPitch: 0.016, auto: false, canScope: false, pellets: 1, range: 220, color: 0x94a3b8 },
+        shorty:   { id: 'shorty', slot: 'secondary', name: 'SHORTY', cost: 300, headDmg: 36, bodyDmg: 18, fireRate: 0.28, magSize: 2, resSize: 6, spreadBase: 0.075, spreadMove: 0.09, recoilPitch: 0.045, auto: false, canScope: false, pellets: 8, range: 42, color: 0xf97316 },
+        frenzy:   { id: 'frenzy', slot: 'secondary', name: 'FRENZY', cost: 450, headDmg: 78, bodyDmg: 26, fireRate: 0.095, magSize: 13, resSize: 39, spreadBase: 0.012, spreadMove: 0.05, recoilPitch: 0.018, auto: true, canScope: false, pellets: 1, range: 220, color: 0xfacc15 },
+        ghost:    { id: 'ghost', slot: 'secondary', name: 'GHOST', cost: 500, headDmg: 105, bodyDmg: 30, fireRate: 0.15, magSize: 15, resSize: 45, spreadBase: 0.0025, spreadMove: 0.045, recoilPitch: 0.015, auto: false, canScope: false, pellets: 1, range: 220, color: 0x38e2c7 },
+        sheriff:  { id: 'sheriff', slot: 'secondary', name: 'SHERIFF', cost: 800, headDmg: 159, bodyDmg: 55, fireRate: 0.25, magSize: 6, resSize: 24, spreadBase: 0.0018, spreadMove: 0.08, recoilPitch: 0.045, auto: false, canScope: false, pellets: 1, range: 220, color: 0xfbbf24 },
+        stinger:  { id: 'stinger', slot: 'primary', name: 'STINGER', cost: 1100, headDmg: 67, bodyDmg: 27, fireRate: 0.068, magSize: 20, resSize: 60, spreadBase: 0.014, spreadMove: 0.045, recoilPitch: 0.014, auto: true, canScope: true, pellets: 1, range: 220, color: 0xa855f7 },
+        spectre:  { id: 'spectre', slot: 'primary', name: 'SPECTRE', cost: 1600, headDmg: 78, bodyDmg: 26, fireRate: 0.085, magSize: 30, resSize: 90, spreadBase: 0.010, spreadMove: 0.042, recoilPitch: 0.013, auto: true, canScope: true, pellets: 1, range: 220, color: 0x38bdf8 },
+        bucky:    { id: 'bucky', slot: 'primary', name: 'BUCKY', cost: 850, headDmg: 44, bodyDmg: 22, fireRate: 0.85, magSize: 5, resSize: 10, spreadBase: 0.058, spreadMove: 0.085, recoilPitch: 0.05, auto: false, canScope: false, pellets: 10, range: 50, color: 0xfb923c },
+        judge:    { id: 'judge', slot: 'primary', name: 'JUDGE', cost: 1850, headDmg: 34, bodyDmg: 17, fireRate: 0.32, magSize: 7, resSize: 21, spreadBase: 0.062, spreadMove: 0.09, recoilPitch: 0.038, auto: true, canScope: false, pellets: 8, range: 52, color: 0xf97316 },
+        bulldog:  { id: 'bulldog', slot: 'primary', name: 'BULLDOG', cost: 2050, headDmg: 115, bodyDmg: 35, fireRate: 0.10, magSize: 24, resSize: 72, spreadBase: 0.0035, spreadMove: 0.08, recoilPitch: 0.019, auto: true, canScope: true, pellets: 1, range: 220, color: 0x34d399 },
+        guardian: { id: 'guardian', slot: 'primary', name: 'GUARDIAN', cost: 2250, headDmg: 195, bodyDmg: 65, fireRate: 0.19, magSize: 12, resSize: 36, spreadBase: 0.001, spreadMove: 0.09, recoilPitch: 0.034, auto: false, canScope: true, pellets: 1, range: 220, color: 0x60a5fa },
+        phantom:  { id: 'phantom', slot: 'primary', name: 'PHANTOM', cost: 2900, headDmg: 140, bodyDmg: 39, fireRate: 0.09, magSize: 30, resSize: 90, spreadBase: 0.0026, spreadMove: 0.09, recoilPitch: 0.018, auto: true, canScope: true, pellets: 1, range: 220, color: 0x38e2c7 },
+        vandal:   { id: 'vandal', slot: 'primary', name: 'VANDAL', cost: 2900, headDmg: 160, bodyDmg: 40, fireRate: 0.10, magSize: 25, resSize: 75, spreadBase: 0.0020, spreadMove: 0.10, recoilPitch: 0.024, auto: true, canScope: true, pellets: 1, range: 220, color: 0xff4655 },
+        marshal:  { id: 'marshal', slot: 'primary', name: 'MARSHAL', cost: 950, headDmg: 202, bodyDmg: 101, fireRate: 0.95, magSize: 5, resSize: 15, spreadBase: 0.0015, spreadMove: 0.11, recoilPitch: 0.055, auto: false, canScope: true, pellets: 1, range: 220, color: 0xa3e635 },
+        outlaw:   { id: 'outlaw', slot: 'primary', name: 'OUTLAW', cost: 2400, headDmg: 238, bodyDmg: 140, fireRate: 0.45, magSize: 2, resSize: 10, spreadBase: 0.0008, spreadMove: 0.13, recoilPitch: 0.065, auto: false, canScope: true, pellets: 1, range: 220, color: 0xc084fc },
+        operator: { id: 'operator', slot: 'primary', name: 'OPERATOR', cost: 4700, headDmg: 255, bodyDmg: 150, fireRate: 1.15, magSize: 5, resSize: 10, spreadBase: 0.0004, spreadMove: 0.15, recoilPitch: 0.08, auto: false, canScope: true, pellets: 1, range: 220, color: 0xeab308 }
       };
 
       function cloneWeaponInstance(id) {
@@ -1596,6 +1612,7 @@
         const group = new THREE.Group();
         const suitColor = isAlly ? 0x0d9488 : 0xe11d48;
         const headColor = isAlly ? 0x5eead4 : 0xfda4af;
+
         const body = new THREE.Mesh(
           new THREE.BoxGeometry(0.76, 1.24, 0.44),
           new THREE.MeshStandardMaterial({ color: suitColor, roughness: 0.5 })
@@ -1610,9 +1627,29 @@
         head.position.y = 1.46;
         head.castShadow = true;
 
+        // Yellow silhouette on opponents; occluded by world geometry (no wall hack).
+        const outlineParts = [];
+        const rimMat = new THREE.MeshBasicMaterial({ color: 0xffda42, side: THREE.BackSide, depthWrite: false });
+        const edgeMat = new THREE.LineBasicMaterial({ color: 0xffeb70, transparent: true, opacity: 0.95, depthTest: true });
+        for (const mesh of [body, head]) {
+          const rim = new THREE.Mesh(mesh.geometry, rimMat);
+          rim.scale.set(1.15, 1.10, 1.19);
+          mesh.add(rim);
+          const edges = new THREE.LineSegments(new THREE.EdgesGeometry(mesh.geometry), edgeMat);
+          edges.scale.set(1.02, 1.02, 1.02);
+          mesh.add(edges);
+          outlineParts.push(rim, edges);
+        }
+        group.userData.enemyOutlineParts = outlineParts;
+        outlineParts.forEach(part => { part.visible = !isAlly; });
         group.add(body, head);
         scene.add(group);
         return { group, body, head };
+      }
+
+      function setEnemyOutline(bot, isEnemy) {
+        const parts = bot?.group?.userData?.enemyOutlineParts || [];
+        parts.forEach(part => { part.visible = !!isEnemy; });
       }
 
       const ATK_PATROL_ROUTES = [
@@ -1659,8 +1696,7 @@
         });
 
         const allyCallsigns = ['ALLY ALPHA #1', 'ALLY BRAVO #2', 'ALLY CHARLIE #3', 'ALLY DELTA #4'];
-        const allyWeapons = ['vandal', 'phantom', 'spectre', 'guardian'];
-        for (let i = 0; i < 4; i++) {
+        const allyWeapons = ['vandal', 'phantom', 'spectre', 'guardian'];        for (let i = 0; i < 4; i++) {
           const m = createTacticalBotMesh(true);
           const route = isAtk ? ATK_PATROL_ROUTES[i % ATK_PATROL_ROUTES.length] : DEF_PATROL_ROUTES[i % DEF_PATROL_ROUTES.length];
           const sx = isAtk ? (-9 + i * 6) : route[0].x;
@@ -2343,12 +2379,41 @@
         setTimeout(() => { hm.style.opacity = '0'; }, 120);
       }
 
-      function spawnBulletTracer(startPos, endPos, colorHex) {
-        const geom = new THREE.BufferGeometry().setFromPoints([startPos, endPos]);
-        const mat = new THREE.LineBasicMaterial({ color: colorHex || 0xfef08a, transparent: true, opacity: 0.9 });
-        const line = new THREE.Line(geom, mat);
-        scene.add(line);
-        activeTracers.push({ line, life: 0.085 });
+      // Visible moving tracer, separate from instant hitscan damage calculations.
+      // The same particle is used for AI shots and server-broadcast remote shots.
+      const tracerGeometry = new THREE.CylinderGeometry(0.055, 0.075, 1.6, 7);
+      const tracerGlowGeometry = new THREE.SphereGeometry(0.18, 8, 8);
+      const tracerForward = new THREE.Vector3(0, 1, 0);
+      function spawnBulletTracer(startPos, endPos, colorHex = 0xffd567) {
+        const start = startPos.clone(), end = endPos.clone();
+        const delta = end.sub(start);
+        const distance = delta.length();
+        if (!(distance > 0.05) || !Number.isFinite(distance)) return;
+        const dir = delta.multiplyScalar(1 / distance);
+        const material = new THREE.MeshBasicMaterial({ color: colorHex, transparent: true, opacity: 1,
+          blending: THREE.AdditiveBlending, depthWrite: false, depthTest: true });
+        const flash = new THREE.Mesh(tracerGeometry, material);
+        flash.quaternion.setFromUnitVectors(tracerForward, dir);
+        const glow = new THREE.Mesh(tracerGlowGeometry, new THREE.MeshBasicMaterial({
+          color: 0xfff4ab, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending,
+          depthWrite: false, depthTest: true }));
+        scene.add(flash, glow);
+        activeTracers.push({ flash, glow, start, dir, distance, progress: 0,
+          duration: Math.max(0.12, Math.min(0.42, distance / 480)), life: 1 });
+      }
+
+      function drawLocalShot(weapon) {
+        if (weapon.slot === 'knife') return;
+        const maxDist = weapon.range || 200;
+        const direction = new THREE.Vector3(-Math.sin(player.yaw) * Math.cos(player.pitch),
+          -Math.sin(player.pitch), -Math.cos(player.yaw) * Math.cos(player.pitch));
+        const cast = new THREE.Raycaster(player.pos.clone(), direction, 0, maxDist);
+        const hits = cast.intersectObjects(mapTargetMeshes, false);
+        const end = hits.length ? hits[0].point : player.pos.clone().addScaledVector(direction, maxDist);
+        const right = new THREE.Vector3(Math.cos(player.yaw), 0, -Math.sin(player.yaw));
+        const start = player.pos.clone().addScaledVector(direction, 0.46)
+          .addScaledVector(right, 0.17).add(new THREE.Vector3(0, -0.13, 0));
+        spawnBulletTracer(start, end, weapon.color || 0xffd567);
       }
 
       function attemptFire() {
@@ -2381,7 +2446,8 @@
         gunGroup.position.z = -0.32;
 
         const moveSpeed = Math.hypot(player.vel.x, player.vel.z);
-        const spread = player.isScoped ? 0.0004 : (w.spreadBase + (moveSpeed > 0.8 ? w.spreadMove : 0));
+        const spread = player.isScoped ? 0.0003 : (w.spreadBase * 0.65 +
+          (moveSpeed > 0.8 ? w.spreadMove * 0.22 : 0));
 
         const enemyMeshes = [];
         bots.forEach(b => {
@@ -2395,7 +2461,8 @@
         const allTargets = enemyMeshes.concat(mapTargetMeshes);
         const maxDist = w.range || 110;
 
-        for (let p = 0; p < w.pellets; p++) {          const rx = (Math.random() - 0.5) * spread;
+        for (let p = 0; p < w.pellets; p++) {
+          const rx = (Math.random() - 0.5) * spread;
           const ry = (Math.random() - 0.5) * spread;
           raycaster.setFromCamera(new THREE.Vector2(rx, ry), camera);
           raycaster.far = maxDist;
@@ -2423,7 +2490,8 @@
               }
             }
           }
-          if (w.slot !== 'knife') {
+          if (w.slot !== 'knife' && p === 0) {
+            // One clearly visible tracer per shot; shotgun pellets still hit individually.
             spawnBulletTracer(muzzleWorld, endPt, w.color);
           }
         }
@@ -2477,8 +2545,7 @@
         }
         const w = getActiveWeapon();
         if (!w.canScope) return;
-        player.isScoped = !player.isScoped;
-        const sc = document.getElementById('scope-overlay');
+        player.isScoped = !player.isScoped;        const sc = document.getElementById('scope-overlay');
         const adsBtn = document.getElementById('mob-ads-btn');
         if (player.isScoped) {
           sc.classList.remove('hidden');
@@ -2611,242 +2678,124 @@
         }
         if (e.button === 0) {
           isMouseFiring = true;
-          attemptFire();
+          if (getActiveWeapon().auto) attemptFire();
         } else if (e.button === 2) {
           window.toggleScope();
         }
       });
 
       window.addEventListener('mouseup', (e) => {
-        if (e.button === 0) isMouseFiring = false;
+        if (e.button !== 0 || !isMouseFiring) return;
+        isMouseFiring = false;
+        if (!getActiveWeapon().auto) attemptFire();
       });
       window.addEventListener('contextmenu', (e) => e.preventDefault());
 
-      /* --- UNIFIED TOUCH + POINTER VIRTUAL JOYSTICK (TRACKS OUTSIDE ZONE SMOOTHLY) --- */
-      const joyState = { active: false, touchId: null, pointerId: null, dx: 0, dy: 0, distRatio: 0 };
+      /* --- FLOATING LEFT-HALF JOYSTICK + INDEPENDENT RIGHT-HALF AIM --- */
+      const joyState = { active: false, pointerId: null, dx: 0, dy: 0, distRatio: 0, cx: 0, cy: 0 };
+      const moveZone = document.getElementById('touch-move-zone');
       const joyZone = document.getElementById('joy-zone');
       const joyKnob = document.getElementById('joy-knob');
+      const maxJoyRadius = 50;
 
       function updateJoyFromPoint(clientX, clientY) {
-        const rect = joyZone.getBoundingClientRect();
-        const cx = rect.left + rect.width / 2;
-        const cy = rect.top + rect.height / 2;
-        let dx = clientX - cx;
-        let dy = clientY - cy;
-        const maxR = Math.max(28, rect.width * 0.38);
-        const dist = Math.hypot(dx, dy);
-        joyState.distRatio = Math.min(1, dist / maxR);
-        if (dist > maxR) {
-          dx = (dx / dist) * maxR;
-          dy = (dy / dist) * maxR;
-        }
+        let dx = clientX - joyState.cx, dy = clientY - joyState.cy;
+        const length = Math.hypot(dx, dy);
+        joyState.distRatio = Math.min(1, length / maxJoyRadius);
+        if (length > maxJoyRadius) { dx = dx / length * maxJoyRadius; dy = dy / length * maxJoyRadius; }
         joyKnob.style.transform = `translate(${dx}px, ${dy}px)`;
-        joyState.dx = dx / maxR;
-        joyState.dy = dy / maxR;
+        joyState.dx = dx / maxJoyRadius;
+        joyState.dy = dy / maxJoyRadius;
       }
-
       function clearJoyState() {
-        joyState.active = false;
-        joyState.touchId = null;
-        joyState.pointerId = null;
-        joyState.dx = 0;
-        joyState.dy = 0;
-        joyState.distRatio = 0;
+        joyState.active = false; joyState.pointerId = null;
+        joyState.dx = joyState.dy = joyState.distRatio = 0;
         joyKnob.style.transform = 'translate(0px, 0px)';
+        joyZone.classList.remove('active-joystick');
       }
-
-      joyZone.addEventListener('touchstart', (e) => {
+      moveZone.addEventListener('pointerdown', e => {
+        if (!matchState.inMatch || joyState.active) return;
         e.preventDefault();
-        e.stopPropagation();
-        const t = e.changedTouches[0];
-        if (!t) return;
-        joyState.active = true;
-        joyState.touchId = t.identifier;
-        updateJoyFromPoint(t.clientX, t.clientY);
-      }, { passive: false });
-
-      joyZone.addEventListener('pointerdown', (e) => {
-        if (e.pointerType === 'touch' && joyState.touchId !== null) return;
-        e.preventDefault();
-        e.stopPropagation();
-        joyState.active = true;
-        joyState.pointerId = e.pointerId;
-        try { joyZone.setPointerCapture(e.pointerId); } catch (err) {}
+        joyState.active = true; joyState.pointerId = e.pointerId;
+        joyState.cx = e.clientX; joyState.cy = e.clientY;
+        joyZone.style.left = e.clientX + 'px';
+        joyZone.style.top = e.clientY + 'px';
+        joyZone.classList.add('active-joystick');
         updateJoyFromPoint(e.clientX, e.clientY);
+        try { moveZone.setPointerCapture(e.pointerId); } catch (_) {}
       });
+      moveZone.addEventListener('pointermove', e => {
+        if (joyState.pointerId === e.pointerId) { e.preventDefault(); updateJoyFromPoint(e.clientX, e.clientY); }
+      });
+      for (const type of ['pointerup', 'pointercancel', 'lostpointercapture'])
+        moveZone.addEventListener(type, e => { if (joyState.pointerId === e.pointerId) clearJoyState(); });
 
-      joyZone.addEventListener('pointermove', (e) => {
-        if (joyState.active && e.pointerId === joyState.pointerId) {
-          e.preventDefault();
-          updateJoyFromPoint(e.clientX, e.clientY);
-        }
-      });
-
-      joyZone.addEventListener('pointerup', (e) => {
-        if (e.pointerId === joyState.pointerId) clearJoyState();
-      });
-      joyZone.addEventListener('pointercancel', (e) => {
-        if (e.pointerId === joyState.pointerId) clearJoyState();
-      });
-
-      /* --- UNIFIED TOUCH + POINTER 360° AIM LOOK PAD & R-FIRE DRAG AIMING --- */
       const lookZone = document.getElementById('touch-look-zone');
-      let lookTouchId = null;
-      let lookPointerId = null;
-      let lastLookX = 0, lastLookY = 0;
-
-      function applyLookDelta(dx, dy, scale = 1.0) {
+      let lookPointerId = null, lastLookX = 0, lastLookY = 0;
+      function applyLookDelta(dx, dy, scale = 1) {
         if (!player.alive) return;
         const sens = (player.isScoped ? 0.0028 : 0.0058) * scale;
         player.yaw -= dx * sens;
         player.pitch = Math.max(-1.46, Math.min(1.46, player.pitch - dy * sens));
       }
-
-      lookZone.addEventListener('touchstart', (e) => {
+      lookZone.addEventListener('pointerdown', e => {
+        if (lookPointerId !== null) return;
         e.preventDefault();
-        if (!player.alive) {
-          window.cycleSpectator(1);
-          return;
-        }
-        if (lookTouchId === null && e.changedTouches.length > 0) {
-          const t = e.changedTouches[0];
-          lookTouchId = t.identifier;
-          lastLookX = t.clientX;
-          lastLookY = t.clientY;
-        }
-      }, { passive: false });
-
-      lookZone.addEventListener('pointerdown', (e) => {
-        if (e.pointerType === 'touch' && lookTouchId !== null) return;
-        e.preventDefault();
-        if (!player.alive) {
-          window.cycleSpectator(1);
-          return;
-        }
+        if (!player.alive) { window.cycleSpectator(1); return; }
         lookPointerId = e.pointerId;
-        lastLookX = e.clientX;
-        lastLookY = e.clientY;
-        try { lookZone.setPointerCapture(e.pointerId); } catch (err) {}
+        lastLookX = e.clientX; lastLookY = e.clientY;
+        try { lookZone.setPointerCapture(e.pointerId); } catch (_) {}
       });
+      lookZone.addEventListener('pointermove', e => {
+        if (lookPointerId !== e.pointerId) return;
+        e.preventDefault();
+        applyLookDelta(e.clientX - lastLookX, e.clientY - lastLookY);
+        lastLookX = e.clientX; lastLookY = e.clientY;
+      });
+      for (const type of ['pointerup', 'pointercancel', 'lostpointercapture'])
+        lookZone.addEventListener(type, e => { if (lookPointerId === e.pointerId) lookPointerId = null; });
 
-      lookZone.addEventListener('pointermove', (e) => {
-        if (lookPointerId !== null && e.pointerId === lookPointerId) {
-          e.preventDefault();
-          applyLookDelta(e.clientX - lastLookX, e.clientY - lastLookY, 1.0);
-          lastLookX = e.clientX;
-          lastLookY = e.clientY;
-        }
-      });
-
-      lookZone.addEventListener('pointerup', (e) => {
-        if (e.pointerId === lookPointerId) lookPointerId = null;
-      });
-      lookZone.addEventListener('pointercancel', (e) => {
-        if (e.pointerId === lookPointerId) lookPointerId = null;
-      });
-
-      // Right Main FIRE Button (Hold to Shoot + Simultaneous Drag Aiming)
+      // Firing thumb can be dragged off the button while aiming. Single shots occur on release.
       const rFireBtn = document.getElementById('mob-rfire-btn');
-      let rFireTouchId = null;
-      let rFirePointerId = null;
-      let lastRFireX = 0, lastRFireY = 0;
-
-      rFireBtn.addEventListener('touchstart', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        const t = e.changedTouches[0];
-        if (!t) return;
-        rFireTouchId = t.identifier;
-        lastRFireX = t.clientX;
-        lastRFireY = t.clientY;
-        rFireBtn.classList.add('active-hold');
-        isRightTouchFiring = true;
-        attemptFire();
-      }, { passive: false });
-
-      rFireBtn.addEventListener('pointerdown', (e) => {
-        if (e.pointerType === 'touch' && rFireTouchId !== null) return;
-        e.preventDefault();
-        e.stopPropagation();
-        rFirePointerId = e.pointerId;
-        lastRFireX = e.clientX;
-        lastRFireY = e.clientY;
-        try { rFireBtn.setPointerCapture(e.pointerId); } catch (err) {}
-        rFireBtn.classList.add('active-hold');
-        isRightTouchFiring = true;
-        attemptFire();
-      });
-
-      rFireBtn.addEventListener('pointermove', (e) => {
-        if (rFirePointerId !== null && e.pointerId === rFirePointerId) {
-          e.preventDefault();
-          applyLookDelta(e.clientX - lastRFireX, e.clientY - lastRFireY, 0.88);
-          lastRFireX = e.clientX;
-          lastRFireY = e.clientY;
-        }
-      });
-
-      function stopRFirePointer(e) {
-        if (e.pointerId === rFirePointerId) {
-          rFirePointerId = null;
-          isRightTouchFiring = false;
-          rFireBtn.classList.remove('active-hold');
-        }
-      }
-      rFireBtn.addEventListener('pointerup', stopRFirePointer);
-      rFireBtn.addEventListener('pointercancel', stopRFirePointer);
-
-      // Global window-level touchmove / touchend so dragging outside joyZone or rFireBtn never drops tracking
-      window.addEventListener('touchmove', (e) => {
-        if (!matchState.inMatch) return;
-        for (let i = 0; i < e.changedTouches.length; i++) {
-          const t = e.changedTouches[i];
-          if (joyState.active && t.identifier === joyState.touchId) {
-            updateJoyFromPoint(t.clientX, t.clientY);
-          } else if (t.identifier === lookTouchId) {
-            applyLookDelta(t.clientX - lastLookX, t.clientY - lastLookY, 1.0);
-            lastLookX = t.clientX;
-            lastLookY = t.clientY;
-          } else if (t.identifier === rFireTouchId) {
-            applyLookDelta(t.clientX - lastRFireX, t.clientY - lastRFireY, 0.88);
-            lastRFireX = t.clientX;
-            lastRFireY = t.clientY;
-          }
-        }
-      }, { passive: false });
-
-      function handleGlobalTouchEnd(e) {
-        for (let i = 0; i < e.changedTouches.length; i++) {
-          const id = e.changedTouches[i].identifier;
-          if (id === joyState.touchId) clearJoyState();
-          if (id === lookTouchId) lookTouchId = null;
-          if (id === rFireTouchId) {
-            rFireTouchId = null;
-            isRightTouchFiring = false;
-            rFireBtn.classList.remove('active-hold');
-          }
-        }
-      }
-      window.addEventListener('touchend', handleGlobalTouchEnd, { passive: false });
-      window.addEventListener('touchcancel', handleGlobalTouchEnd, { passive: false });
-
-      // Upper-Left L-FIRE Button
       const lFireBtn = document.getElementById('mob-lfire-btn');
-      lFireBtn.addEventListener('pointerdown', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        try { lFireBtn.setPointerCapture(e.pointerId); } catch (err) {}
-        lFireBtn.classList.add('active-hold');
-        isLeftTouchFiring = true;
-        attemptFire();
-      });
-      const releaseLFire = () => {
-        isLeftTouchFiring = false;
+      function bindFiringButton(button, side, canAim) {
+        let activePointer = null, lastX = 0, lastY = 0;
+        function active(v) {
+          if (side === 'right') isRightTouchFiring = v;
+          else isLeftTouchFiring = v;
+          button.classList.toggle('active-hold', v);
+        }
+        button.addEventListener('pointerdown', e => {
+          if (activePointer !== null || !matchState.inMatch) return;
+          e.preventDefault(); e.stopPropagation();
+          activePointer = e.pointerId; lastX = e.clientX; lastY = e.clientY;
+          active(true);
+          try { button.setPointerCapture(e.pointerId); } catch (_) {}
+          if (getActiveWeapon().auto) attemptFire();
+        });
+        button.addEventListener('pointermove', e => {
+          if (activePointer !== e.pointerId) return;
+          e.preventDefault(); e.stopPropagation();
+          if (canAim) applyLookDelta(e.clientX - lastX, e.clientY - lastY, 0.88);
+          lastX = e.clientX; lastY = e.clientY;
+        });
+        function release(e, shoot) {
+          if (activePointer !== e.pointerId) return;
+          activePointer = null; active(false);
+          if (shoot && !getActiveWeapon().auto) attemptFire();
+        }
+        button.addEventListener('pointerup', e => release(e, true));
+        button.addEventListener('pointercancel', e => release(e, false));
+        button.addEventListener('lostpointercapture', e => release(e, false));
+      }
+      bindFiringButton(rFireBtn, 'right', true);
+      bindFiringButton(lFireBtn, 'left', false);
+      window.addEventListener('blur', () => {
+        clearJoyState(); lookPointerId = null;
+        isMouseFiring = isRightTouchFiring = isLeftTouchFiring = false;
+        rFireBtn.classList.remove('active-hold');
         lFireBtn.classList.remove('active-hold');
-      };
-      lFireBtn.addEventListener('pointerup', releaseLFire);
-      lFireBtn.addEventListener('pointercancel', releaseLFire);
-      lFireBtn.addEventListener('touchend', releaseLFire);
+      });
 
       // Bind Instant Tactical Buttons (ADS, JUMP, CROUCH, RELOAD, WALK, DOOR) with deduplicated Touch + Pointer
       function bindInstantTouchButton(id, fn) {
@@ -3194,7 +3143,8 @@
                     vig.style.opacity = '1';
                     setTimeout(() => { vig.style.opacity = '0'; }, 160);
 
-                    if (player.hp <= 0) {                      if (roomState.allowCheats && cheats.autoRespawn) {
+                    if (player.hp <= 0) {
+                      if (roomState.allowCheats && cheats.autoRespawn) {
                         player.hp = 100;
                         player.armor = 50;
                         showRoundBanner('AUTO RESPAWN', 'RESPAWN CHEAT TRIGGERED');
@@ -3373,9 +3323,17 @@
         }
 
         for (let i = activeTracers.length - 1; i >= 0; i--) {
-          activeTracers[i].life -= dt;
-          if (activeTracers[i].life <= 0) {
-            scene.remove(activeTracers[i].line);
+          const tracer = activeTracers[i];
+          tracer.progress = Math.min(1, tracer.progress + dt / tracer.duration);
+          const travel = tracer.progress * tracer.distance;
+          const position = tracer.start.clone().addScaledVector(tracer.dir, travel);
+          tracer.flash.position.copy(position);
+          tracer.glow.position.copy(position);
+          tracer.flash.material.opacity = Math.min(1, (1 - tracer.progress) * 2.2);
+          tracer.glow.material.opacity = Math.min(0.82, (1 - tracer.progress) * 1.8);
+          if (tracer.progress >= 1) {
+            scene.remove(tracer.flash, tracer.glow);
+            tracer.flash.material.dispose(); tracer.glow.material.dispose();
             activeTracers.splice(i, 1);
           }
         }
@@ -3391,7 +3349,8 @@
       }
 
       window.MP.install({roomState,matchState,player,bots,scene,spikeMesh,barrierGroup,gunGroup,muzzleFlashMesh,sfx,
-        createTacticalBotMesh,cloneWeaponInstance,WEAPON_CATALOG,getActiveWeapon,startNewRound,
+        createTacticalBotMesh,setEnemyOutline,spawnBulletTracer,drawLocalShot,
+        cloneWeaponInstance,WEAPON_CATALOG,getActiveWeapon,startNewRound,
         updateHUD,showHitmarker,showRoundBanner,addKillFeed,syncCheatPermissionUI,
         launchAscentMatchImmediate,openWaitingLobby:window.openWaitingLobby,
         switchWeaponSlot:window.switchWeaponSlot,getSpikeHeld:()=>isSpikeKeyHeld});

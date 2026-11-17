@@ -38,10 +38,25 @@ test('Room creation/join, team capacity, start, synced player snapshots, damage'
   q.x=0;q.z=42;q.y=1.65;q.footY=0;q.yaw=0;
   r.phase='combat';r.until=Date.now()+50000;
   const hit=next(a,'hit');
+  const visibleShot=next(b,'shot');
   a.send(JSON.stringify({type:'shoot',yaw:Math.PI,pitch:0}));
-  const result=await hit;
+  const [result, tracer]=await Promise.all([hit,visibleShot]);
   assert.equal(result.headshot, true);
+  assert.equal(tracer.shooter,ja.id);
+  assert.equal(tracer.weapon,'classic');
+  assert.equal(tracer.from.length,3);
+  assert.equal(tracer.to.length,3);
+  assert(tracer.to[2]>tracer.from[2], 'remote tracer travels toward target');
   assert(q.hp<100);
+
+  // In open elevated space, unobstructed tracers use the full long-range limit.
+  p.x=0;p.y=35;p.z=0;p.footY=33.35;
+  q.x=50;q.z=50;q.y=35;q.footY=33.35;
+  p.lastShot=0;
+  const longShot=next(b,'shot');
+  a.send(JSON.stringify({type:'shoot',yaw:0,pitch:0}));
+  const far=await longShot;
+  assert(Math.abs(far.to[2]+220)<0.05, `expected full-range tracer, got ${far.to[2]}`);
   a.close();b.close();
   await new Promise(resolve=>setTimeout(resolve,100));
   assert.equal(rooms.size,0);

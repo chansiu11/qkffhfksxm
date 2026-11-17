@@ -101,6 +101,17 @@
             if (w.id === data.weapon) { w.mag = data.mag; w.reserve = data.reserve; }
           }
           a.player.reloading = false; a.updateHUD(); break;
+        case 'shot': {
+          if (data.shooter === this.myId || !this.started || !this.api.matchState.inMatch) break;
+          const xyz = v => Array.isArray(v) && v.length === 3 && v.every(Number.isFinite);
+          if (xyz(data.from) && xyz(data.to)) {
+            const start = new THREE.Vector3(...data.from);
+            const end = new THREE.Vector3(...data.to);
+            const gun = a.WEAPON_CATALOG[data.weapon];
+            a.spawnBulletTracer(start, end, gun?.color || 0xffd567);
+          }
+          break;
+        }
         case 'hit': a.showHitmarker(!!data.headshot); if (data.headshot) a.sfx.playHeadshotDing(); break;
         case 'kill': {
           const players = this.state?.players || [];
@@ -242,6 +253,7 @@
           a.bots.push(b);
         }
         b.team = isAlly ? 'ally' : 'enemy';
+        a.setEnemyOutline(b, !isAlly);
         b.name = rp.name; b.alive = rp.alive; b.hp = rp.hp; b.armor = rp.armor;
         b.footY = rp.footY; b.yaw = rp.yaw; b.pitch = rp.pitch;
         b.weapon = a.cloneWeaponInstance(rp.weapon in a.WEAPON_CATALOG ? rp.weapon : 'classic');
@@ -280,8 +292,10 @@
         setTimeout(()=>{a.muzzleFlashMesh.material.opacity=0;},45);
       }
       a.gunGroup.position.z=-0.32;
-      p.pitch=Math.min(1.48,p.pitch+w.recoilPitch);
+      // Visual prediction for the shooter; the server broadcasts the authoritative shot to other clients.
+      a.drawLocalShot(w);
       this.send({type:'shoot',yaw:p.yaw,pitch:p.pitch});
+      p.pitch=Math.min(1.48,p.pitch+w.recoilPitch);
       a.updateHUD();
     },
     buy(id) { this.send({type:'buy',item:id}); },

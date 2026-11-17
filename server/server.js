@@ -183,7 +183,7 @@ function raySphere(ox,oy,oz,dx,dy,dz,x,y,z,r) {
   return t>=0?t:Infinity;
 }
 function rayBox(ox,oy,oz,dx,dy,dz,b) {
-  let near=0,far=150;
+  let near=0,far=260;
   for(const [o,d,lo,hi] of [[ox,dx,b[0],b[1]],[oy,dy,b[2],b[3]],[oz,dz,b[4],b[5]]]) {
     if(Math.abs(d)<1e-9) { if(o<lo||o>hi)return Infinity; continue; }
     const a=(lo-o)/d, z=(hi-o)/d;
@@ -214,8 +214,19 @@ function fire(r, p, msg) {
     const t = Math.min(tH,tB);
     if (t < best && t < w.range) { best = t; hit=target; headshot = tH <= tB; }
   }
-  if (hit) {
-    for (const b of blockers) { if(rayBox(ox,oy,oz,dx,dy,dz,b) + 0.05 < best) { hit=null; break; } }
+  // Determine the visible ray endpoint even when no opponent is hit.
+  // The shooter already draws a predicted tracer; send the authoritative path to everyone else.
+  let impactDistance = w.range;
+  for (const b of blockers) {
+    const wallDistance = rayBox(ox,oy,oz,dx,dy,dz,b);
+    if (wallDistance > 0.06 && wallDistance < impactDistance) impactDistance = wallDistance;
+  }
+  if (hit && best > impactDistance + 0.02) hit = null;
+  if (hit) impactDistance = Math.min(impactDistance, best);
+  if (w.id !== 'knife') {
+    const bulletEvent = { type:'shot', shooter:p.id, weapon:p.weapon,
+      from:[ox,oy-0.1,oz], to:[ox+dx*impactDistance,oy+dy*impactDistance,oz+dz*impactDistance] };
+    for (const receiver of r.players.values()) if (receiver.id !== p.id) send(receiver.client, bulletEvent);
   }
   if (hit) {
     let damage = headshot ? w.headDmg : w.bodyDmg;
