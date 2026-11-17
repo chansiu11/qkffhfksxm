@@ -131,25 +131,54 @@
       if (codeEl) codeEl.textContent = room.code;
       const board = document.getElementById('online-roster');
       if (board) {
-        board.textContent = '';
+        board.replaceChildren();
         for (const side of ['attack', 'defense']) {
           const col = document.createElement('div');
-          col.className = 'bg-[#142230] border border-white/15 p-3 text-xs min-h-[100px]';
+          col.className = 'room-roster-list ' + side;
+          const people = room.players.filter(p => p.team === side);
           const heading = document.createElement('div');
-          heading.className = 'font-black mb-2 text-[#38e2c7]';
-          heading.textContent = `${side === 'attack' ? '공격팀' : '수비팀'} (${room.players.filter(p => p.team === side).length}/5)`;
+          heading.className = 'room-roster-top';
+          const title = document.createElement('strong');
+          title.textContent = side === 'attack' ? 'ATTACKERS' : 'DEFENDERS';
+          const count = document.createElement('span');
+          count.textContent = `${people.length} / 5`;
+          heading.append(title, count);
           col.appendChild(heading);
-          for (const p of room.players.filter(p => p.team === side)) {
+          for (let i = 0; i < 5; i++) {
+            const p = people[i];
             const row = document.createElement('div');
-            row.textContent = `${p.id === room.host ? '★ ' : ''}${p.name}${p.id === this.myId ? ' (나)' : ''}`;
-            row.className = 'py-1 text-white/80'; col.appendChild(row);
+            row.className = 'room-slot' + (p ? '' : ' empty');
+            const avatar = document.createElement('span');
+            avatar.className = 'room-slot-icon';
+            avatar.textContent = p ? String(i + 1).padStart(2, '0') : '+';
+            const name = document.createElement('span');
+            name.className = 'room-slot-name';
+            name.textContent = p ? p.name : 'EMPTY SLOT';
+            row.append(avatar, name);
+            if (p && (p.id === this.myId || p.id === room.host)) {
+              const badge = document.createElement('span');
+              badge.className = 'room-slot-badge';
+              badge.textContent = p.id === this.myId ? 'YOU' : 'HOST';
+              row.appendChild(badge);
+            }
+            col.appendChild(row);
           }
           board.appendChild(col);
         }
       }
+      for (const [side, id] of [['attack', 'btn-team-attack'], ['defense', 'btn-team-defense']]) {
+        const button = document.getElementById(id);
+        if (!button) continue;
+        const selected = a.roomState.playerSide === side;
+        button.classList.toggle('is-selected', selected);
+        button.textContent = selected ? '선택됨 ✓' : '팀 참가 ↗';
+        button.disabled = selected;
+      }
+      const rounds = document.getElementById('room-win-target');
+      if (rounds) rounds.textContent = `${room.winRounds || a.roomState.winRounds} ROUNDS`;
       const start = document.getElementById('online-start-btn');
-      if (start) { start.disabled = !a.roomState.isHost; start.style.opacity = a.roomState.isHost ? '1' : '0.5';
-        start.textContent = a.roomState.isHost ? 'START ONLINE MATCH (방장)' : '방장이 경기를 시작할 때까지 대기'; }
+      if (start) { start.disabled = !a.roomState.isHost; start.style.opacity = a.roomState.isHost ? '1' : '0.65';
+        start.textContent = a.roomState.isHost ? '경기 시작하기  →' : '방장의 시작을 기다리는 중'; }
       this.status(`온라인 ROOM #${room.code} · ${room.players.length}/10명`);
       a.updateHUD();
     },

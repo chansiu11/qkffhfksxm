@@ -12,6 +12,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=Rajdhani:wght@600;700&family=Teko:wght@600;700&display=swap" rel="stylesheet">
   <script src="config.js"></script>
   <script src="multiplayer-client.js"></script>
+  <link rel="stylesheet" href="menu.css" />
   <!-- Three.js r128 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
@@ -495,177 +496,70 @@
     </div>
   </div>
 
-  <!-- ==================== 1. CUSTOM GAME ENTRY SCREEN (2-DIGIT ROOM CODE) ==================== -->
-  <div id="entry-screen" class="modal-scroll fixed inset-0 z-40 flex items-center justify-center p-3 sm:p-6 bg-[#091017]/95 backdrop-blur-md overflow-y-auto">
-    <div class="val-cut val-panel max-w-5xl w-full p-5 sm:p-8 border-t-4 border-[#ff4655] shadow-2xl my-auto">
-      
-      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-white/15">
-        <div>
-          <div class="flex items-center gap-2">
-            <span class="px-2 py-0.5 bg-[#ff4655] text-[#0f1923] font-num font-black text-xs uppercase">PURE GUNPLAY // ASCENT 1:1</span>
-            <span class="text-xs text-[#38e2c7] font-bold">발로란트 모바일 표준 키 배치 • 스킬 없는 순수 총격전 • 사망 시 아군 1인칭 관전</span>
+  <!-- ==================== REBUILT MAIN MENU / ONLINE ROOM / LOBBY ==================== -->
+  <div id="entry-screen" class="menu-screen modal-scroll fixed inset-0 z-40 overflow-y-auto">
+    <div class="menu-backdrop" aria-hidden="true">
+      <div class="menu-orbit orbit-one"></div><div class="menu-orbit orbit-two"></div>
+      <span class="menu-backdrop-tag">01 / ASCENT</span><span class="menu-backdrop-index">BETA // 26</span>
+    </div>
+    <div class="menu-frame">
+      <header class="menu-topbar">
+        <div class="menu-brand"><span class="menu-brand-symbol">V<span>∕</span></span><span class="menu-brand-copy"><b>VALORANT<span class="menu-brand-mark"> // WEB</span></b><small>TACTICAL SHOOTER · PROJECT ASCENT</small></span></div>
+        <div class="menu-top-actions"><span class="menu-build">BUILD 0.1 · WEB CLIENT</span><div class="menu-network"><span class="menu-network-dot"></span><span id="online-status" role="status">온라인 서버 연결 상태 확인 중...</span></div></div>
+      </header>
+      <main class="menu-main">
+        <section class="menu-hero" aria-label="게임 소개">
+          <div class="menu-section-line"><span>EPISODE // 001</span><span>PC &amp; MOBILE</span></div>
+          <div class="menu-hero-copy"><div class="menu-hero-overline"><span class="menu-hero-dash"></span> WELCOME TO THE FIELD</div><h1 class="menu-hero-title">PLAY<br><em>ASCENT</em><span class="menu-title-stop">.</span></h1><p class="menu-hero-desc">하나의 선택이 승부를 바꾼다.<br>전략적인 5대5 전투에 참여하세요.</p></div>
+          <div class="menu-feature-row"><span>◈ &nbsp; REALTIME 5 VS 5</span><span>◈ &nbsp; CUSTOM ROOMS</span><span>◈ &nbsp; CROSS PLATFORM</span></div>
+          <button type="button" class="menu-practice-btn" onclick="window.quickStartMatch(event)"><span class="menu-practice-icon">↗</span><span><b>혼자 연습하기</b><small>OFFLINE · AI TRAINING</small></span><span class="menu-practice-arrow">→</span></button>
+          <div class="menu-hero-foot"><span>MAP 01&nbsp; / &nbsp;ASCENT</span><span>MOVE WITH PURPOSE.</span></div>
+        </section>
+        <section class="menu-hub" aria-label="온라인 게임 참여">
+          <div class="menu-hub-top"><div><div class="menu-kicker">01 <span>/</span> MATCH CONTROL</div><h2>게임에 참가하기</h2><p>방을 만들거나 코드로 친구의 경기에 합류하세요.</p></div><div class="menu-hub-mark">5<span>V</span>5</div></div>
+          <div class="menu-room-grid">
+            <section class="menu-room-card menu-create-card" aria-label="방 만들기">
+              <div class="menu-card-index"><span>01</span><span>HOST ROOM</span></div>
+              <div class="menu-card-title"><span class="menu-card-graphic">＋</span><div><h3>새로운 방 만들기</h3><p>최대 10명 · 온라인 사설전</p></div></div>
+              <label class="menu-field-label" for="create-code-input">ROOM CODE <span>00 — 99</span></label>
+              <div class="menu-code-group"><input id="create-code-input" class="menu-code-input" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="2" value="07" aria-label="생성할 두 자리 방 코드"><button type="button" class="menu-shuffle" onclick="window.randomizeCreateCode()" title="무작위 방 코드">↻ <span>랜덤</span></button></div>
+              <div class="menu-setting"><div><strong>승리 라운드</strong><small>MATCH LENGTH</small></div><div class="menu-segment"><button type="button" id="win-target-13" onclick="window.setCreateWinTarget(13)" class="menu-segment-active">13 R</button><button type="button" id="win-target-5" onclick="window.setCreateWinTarget(5)">5 R</button></div></div>
+              <div class="menu-setting menu-setting-last"><div><strong>연습 치트</strong><small>온라인 방에서는 사용 안 함</small></div><button type="button" id="create-cheat-toggle-btn" onclick="window.setCreateCheatPerm(!window.roomState.allowCheats)" class="menu-cheat-toggle">CHEATS: ON</button></div>
+              <button type="button" class="menu-action-btn menu-action-primary" onclick="window.createCustomRoom(event)"><span>방 생성하고 대기실 입장</span><span>↗</span></button>
+            </section>
+            <section class="menu-room-card menu-join-card" aria-label="코드로 입장하기">
+              <div class="menu-card-index"><span>02</span><span>JOIN ROOM</span></div>
+              <div class="menu-card-title"><span class="menu-card-graphic">↗</span><div><h3>코드로 참가하기</h3><p>친구에게 받은 두 자리 코드 입력</p></div></div>
+              <div class="menu-field-label">ENTER ACCESS CODE <span>2 DIGITS</span></div>
+              <div class="menu-digit-wrapper"><div id="join-digit-0" class="menu-join-digit">0</div><div id="join-digit-1" class="menu-join-digit">7</div><div class="menu-digit-suffix">#</div></div>
+              <div class="menu-keypad" aria-label="방 코드 숫자 키패드">
+                <button type="button" onclick="window.pressKeypad('1')">1</button><button type="button" onclick="window.pressKeypad('2')">2</button><button type="button" onclick="window.pressKeypad('3')">3</button>
+                <button type="button" onclick="window.pressKeypad('4')">4</button><button type="button" onclick="window.pressKeypad('5')">5</button><button type="button" onclick="window.pressKeypad('6')">6</button>
+                <button type="button" onclick="window.pressKeypad('7')">7</button><button type="button" onclick="window.pressKeypad('8')">8</button><button type="button" onclick="window.pressKeypad('9')">9</button>
+                <button type="button" class="menu-keypad-clear" onclick="window.pressKeypad('CLR')">지우기</button><button type="button" onclick="window.pressKeypad('0')">0</button><button type="button" class="menu-keypad-back" onclick="window.menuBackspaceCode()">⌫</button>
+              </div>
+              <button type="button" class="menu-action-btn menu-action-secondary" onclick="window.joinCustomRoom(event)"><span>온라인 방 참가하기</span><span>↗</span></button>
+            </section>
           </div>
-          <h1 class="font-val text-3xl sm:text-5xl font-bold text-[#ece8e1] tracking-wider uppercase mt-1">
-            VALORANT : ASCENT (MOBILE & PC EDITION)
-          </h1>
-        </div>
-        <button type="button" onclick="window.quickStartMatch(event)"
-                class="val-cut-sm px-6 py-3.5 bg-[#38e2c7] hover:bg-teal-300 text-[#0f1923] font-black text-sm sm:text-base shadow-xl cursor-pointer transition transform active:scale-95">
-          QUICK START MATCH (즉시 매치 시작)
-        </button>
-      </div>
-
-      <div id="online-status" class="mt-3 text-xs font-bold text-[#38e2c7]">온라인 서버 연결 상태 확인 중...</div>
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-5 mt-5">
-        <!-- LEFT: CREATE CUSTOM ROOM -->
-        <div class="val-cut-sm bg-[#0f1923] p-5 border border-white/15 flex flex-col justify-between">
-          <div>
-            <div class="flex items-center justify-between">
-              <span class="text-xs font-num font-black text-[#38e2c7] uppercase tracking-widest">HOST // CREATE ROOM</span>
-              <span class="px-2 py-0.5 bg-amber-400/20 text-amber-300 text-[11px] font-bold">HOST AUTHORITY</span>
-            </div>
-            <h2 class="text-xl font-black text-white mt-1">방 만들기 (2자리 코드 지정)</h2>
-
-            <div class="mt-4 p-3.5 bg-[#142230] border border-white/10 flex items-center justify-between">
-              <div>
-                <div class="text-[11px] text-slate-400">사설방 2자리 숫자 코드 (00~99)</div>
-                <div class="flex items-center gap-2 mt-1">
-                  <input id="create-code-input" type="text" maxlength="2" value="07"
-                         class="w-20 text-center font-num text-3xl font-black bg-[#0f1923] text-[#38e2c7] border-2 border-[#38e2c7] py-1 focus:outline-none" />
-                  <button type="button" onclick="window.randomizeCreateCode()"
-                          class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-200 border border-slate-600 cursor-pointer">
-                    RANDOM
-                  </button>
-                </div>
-              </div>
-              <div class="text-right">
-                <div class="text-[10px] text-slate-400">MAP</div>
-                <div class="font-val text-2xl font-bold text-[#ff4655]">ASCENT</div>
-              </div>
-            </div>
-
-            <div class="mt-3 p-3.5 bg-[#142230] border border-amber-400/40 flex items-center justify-between">
-              <div>
-                <div class="text-xs font-bold text-amber-300">사설방 치트 허용 여부 (방장 설정)</div>
-                <div class="text-[11px] text-slate-400">ON 설정 시 인게임 [CHEATS / F1] 사용 가능</div>
-              </div>
-              <button type="button" id="create-cheat-toggle-btn" onclick="window.setCreateCheatPerm(!window.roomState.allowCheats)"
-                      class="px-4 py-2 bg-emerald-500 text-slate-950 font-black text-xs cursor-pointer">
-                CHEATS: ON
-              </button>
-            </div>
-
-            <div class="mt-3 flex items-center justify-between p-3 bg-[#142230] border border-white/10">
-              <span class="text-xs font-bold text-slate-300">승리 조건 (일반전 룰)</span>
-              <div class="flex gap-1.5">
-                <button type="button" id="win-target-13" onclick="window.setCreateWinTarget(13)" class="px-3 py-1 bg-[#ff4655] text-white text-xs font-bold cursor-pointer">13 ROUNDS</button>
-                <button type="button" id="win-target-5" onclick="window.setCreateWinTarget(5)" class="px-3 py-1 bg-slate-800 text-slate-300 text-xs font-bold cursor-pointer">5 ROUNDS</button>
-              </div>
-            </div>
-          </div>
-
-          <button type="button" onclick="window.createCustomRoom(event)"
-                  class="val-cut-sm w-full mt-5 py-3.5 bg-[#ff4655] hover:bg-rose-600 text-white font-black text-sm uppercase tracking-wider shadow-lg cursor-pointer transition">
-            CREATE ROOM & ENTER LOBBY
-          </button>
-        </div>
-
-        <!-- RIGHT: JOIN CUSTOM ROOM -->
-        <div class="val-cut-sm bg-[#0f1923] p-5 border border-white/15 flex flex-col justify-between">
-          <div>
-            <div class="flex items-center justify-between">
-              <span class="text-xs font-num font-black text-[#ff4655] uppercase tracking-widest">JOIN // 2-DIGIT CODE</span>
-              <span class="text-[11px] text-slate-400">숫자 2자리 입력</span>
-            </div>
-            <h2 class="text-xl font-black text-white mt-1">방 코드 입력 참가 (JOIN ROOM)</h2>
-
-            <div class="mt-3 flex items-center justify-center gap-3 py-3 bg-[#142230] border border-white/10">
-              <div id="join-digit-0" class="w-14 h-16 bg-[#0f1923] border-2 border-[#38e2c7] flex items-center justify-center font-num text-4xl font-black text-[#38e2c7]">0</div>
-              <div id="join-digit-1" class="w-14 h-16 bg-[#0f1923] border-2 border-[#38e2c7] flex items-center justify-center font-num text-4xl font-black text-[#38e2c7]">7</div>
-            </div>
-
-            <div class="grid grid-cols-5 gap-1.5 mt-3">
-              <button type="button" onclick="window.pressKeypad('1')" class="py-2 bg-[#142230] hover:bg-slate-700 font-num font-bold text-lg text-white cursor-pointer">1</button>
-              <button type="button" onclick="window.pressKeypad('2')" class="py-2 bg-[#142230] hover:bg-slate-700 font-num font-bold text-lg text-white cursor-pointer">2</button>
-              <button type="button" onclick="window.pressKeypad('3')" class="py-2 bg-[#142230] hover:bg-slate-700 font-num font-bold text-lg text-white cursor-pointer">3</button>
-              <button type="button" onclick="window.pressKeypad('4')" class="py-2 bg-[#142230] hover:bg-slate-700 font-num font-bold text-lg text-white cursor-pointer">4</button>
-              <button type="button" onclick="window.pressKeypad('5')" class="py-2 bg-[#142230] hover:bg-slate-700 font-num font-bold text-lg text-white cursor-pointer">5</button>
-              <button type="button" onclick="window.pressKeypad('6')" class="py-2 bg-[#142230] hover:bg-slate-700 font-num font-bold text-lg text-white cursor-pointer">6</button>
-              <button type="button" onclick="window.pressKeypad('7')" class="py-2 bg-[#142230] hover:bg-slate-700 font-num font-bold text-lg text-white cursor-pointer">7</button>
-              <button type="button" onclick="window.pressKeypad('8')" class="py-2 bg-[#142230] hover:bg-slate-700 font-num font-bold text-lg text-white cursor-pointer">8</button>
-              <button type="button" onclick="window.pressKeypad('9')" class="py-2 bg-[#142230] hover:bg-slate-700 font-num font-bold text-lg text-white cursor-pointer">9</button>
-              <button type="button" onclick="window.pressKeypad('0')" class="py-2 bg-[#142230] hover:bg-slate-700 font-num font-bold text-lg text-white cursor-pointer">0</button>
-            </div>
-            <div class="flex justify-between items-center mt-2">
-              <span class="text-[11px] text-slate-400">참가할 2자리 숫자 방 코드를 누르세요.</span>
-              <button type="button" onclick="window.pressKeypad('CLR')" class="text-xs text-rose-400 font-bold cursor-pointer">CLEAR</button>
-            </div>
-          </div>
-
-          <button type="button" onclick="window.joinCustomRoom(event)"
-                  class="val-cut-sm w-full mt-4 py-3.5 bg-[#38e2c7] hover:bg-teal-300 text-[#0f1923] font-black text-sm uppercase tracking-wider shadow-lg cursor-pointer transition">
-            JOIN ROOM BY CODE
-          </button>
-        </div>
-      </div>
+          <p class="menu-hub-note"><span class="menu-note-indicator">●</span> 온라인 방 생성 및 참가는 Render 실시간 서버에 연결됩니다.</p>
+        </section>
+      </main>
+      <footer class="menu-footer"><span>© WEB FPS PROJECT</span><span>DESIGNED FOR PC &amp; MOBILE</span><span>ASCENT // 001</span></footer>
     </div>
   </div>
 
-  <!-- ==================== 2. CUSTOM ROOM WAITING LOBBY (NO AGENTS / NO SKILLS) ==================== -->
-  <div id="waiting-lobby" class="modal-scroll hidden fixed inset-0 z-40 flex items-center justify-center p-3 sm:p-6 bg-[#091017]/95 backdrop-blur-md overflow-y-auto">
-    <div class="val-cut val-panel max-w-4xl w-full p-5 sm:p-7 border-t-4 border-[#38e2c7] shadow-2xl my-auto">
-      <div class="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-white/15">
-        <div class="flex items-center gap-3">
-          <div class="px-3.5 py-1.5 bg-[#ff4655] text-[#0f1923] font-num font-black text-xl">
-            ROOM #<span id="lobby-code-display">07</span>
-          </div>
-          <div>
-            <div class="text-xs text-[#38e2c7] font-bold">MAP: ASCENT // 5v5 PURE GUNPLAY UNRATED</div>
-            <h2 class="text-xl font-black text-white">사설방 대기실 (Custom Game Lobby)</h2>
-          </div>
-        </div>
-        <div class="flex items-center gap-2">
-          <button type="button" id="lobby-cheat-perm-btn" onclick="window.toggleHostCheatPermission(event)"
-                  class="px-3.5 py-2 bg-amber-500/20 border border-amber-400 text-amber-300 font-bold text-xs cursor-pointer">
-            HOST CHEATS: ON
-          </button>
-          <button type="button" onclick="window.openEntryScreen(event)" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold cursor-pointer">
-            LEAVE LOBBY
-          </button>
-        </div>
-      </div>
-
-      <div id="online-lobby-status" class="mt-3 text-xs font-bold text-[#38e2c7]">대기실 상태</div>
-      <div id="online-roster" class="grid grid-cols-2 gap-3 mt-2"></div>
-      <!-- Team Selection (5v5 Pure Gunplay Roster) -->
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 my-5">
-        <div class="p-4 bg-[#0f1923] border-l-4 border-[#ff4655]">
-          <div class="flex justify-between items-center mb-2">
-            <span class="font-bold text-[#ff4655] text-sm">ATTACKERS (공격팀 • 5명)</span>
-            <button type="button" onclick="window.switchTeam('attack')" id="btn-team-attack" class="px-3 py-1 bg-[#ff4655] text-white text-xs font-bold cursor-pointer">JOINED</button>
-          </div>
-          <div class="text-xs text-slate-300 space-y-1">
-            <div>플레이어 + 아군 전술 오퍼레이터 4명 자동 배정</div>
-            <div class="text-[11px] text-slate-400">A 사이트 / B 사이트 돌파 및 스파이크 설치 • 사망 시 아군 1인칭 실시간 관전</div>
-          </div>
-        </div>
-
-        <div class="p-4 bg-[#0f1923] border-l-4 border-[#38e2c7]">
-          <div class="flex justify-between items-center mb-2">
-            <span class="font-bold text-[#38e2c7] text-sm">DEFENDERS (수비팀 • 5명)</span>
-            <button type="button" onclick="window.switchTeam('defense')" id="btn-team-defense" class="px-3 py-1 bg-slate-800 text-slate-300 text-xs font-bold cursor-pointer">SWITCH SIDE</button>
-          </div>
-          <div class="text-xs text-slate-300 space-y-1">
-            <div>수비 전술 오퍼레이터 5명 자동 배정</div>
-            <div class="text-[11px] text-slate-400">어센트 A 헤븐 / A 가든 / 미드 마켓 / B 2층 테라스 방어 및 스파이크 해체</div>
-          </div>
-        </div>
-      </div>
-
-      <button type="button" id="online-start-btn" onclick="window.startMatchFromLobby(event)"
-              class="val-cut-sm w-full py-4 bg-[#ff4655] hover:bg-rose-600 text-white font-black text-base uppercase tracking-wider shadow-xl cursor-pointer transition">
-        START ASCENT MATCH (어센트 매치 시작)
-      </button>
+  <div id="waiting-lobby" class="menu-screen room-screen modal-scroll hidden fixed inset-0 z-40 overflow-y-auto">
+    <div class="menu-backdrop lobby-backdrop" aria-hidden="true"><div class="menu-orbit orbit-one"></div></div>
+    <div class="menu-frame room-frame">
+      <header class="menu-topbar room-topbar"><div class="menu-brand"><span class="menu-brand-symbol">V<span>∕</span></span><span class="menu-brand-copy"><b>VALORANT<span class="menu-brand-mark"> // WEB</span></b><small>CUSTOM MATCH LOBBY</small></span></div><button type="button" class="menu-exit-btn" onclick="window.openEntryScreen(event)"><span>←</span> 메인 메뉴로</button></header>
+      <main class="room-main">
+        <div class="room-page-head"><div><div class="menu-kicker">02 <span>/</span> PRIVATE MATCH</div><h1>커스텀 <em>대기실</em></h1><p>참가자들이 준비되면 방장이 경기를 시작할 수 있습니다.</p></div><div class="room-ticket"><div class="room-ticket-label">ROOM ACCESS CODE</div><div class="room-ticket-num"><span>#</span><b id="lobby-code-display">07</b></div><button type="button" class="room-copy-btn" onclick="window.copyRoomCode()">방 코드 복사 ↗</button></div></div>
+        <div class="room-meta-bar"><div class="room-meta-left"><span class="room-pulse"></span><span id="online-lobby-status" role="status">서버 연결 상태 확인 중...</span></div><div class="room-meta-right"><span>MAP <b>ASCENT</b></span><span>MODE <b>5 VS 5</b></span><span>PLATFORM <b>WEB</b></span></div></div>
+        <div class="room-grid"><section class="room-teams" aria-label="참가자와 팀 선택"><div class="room-section-top"><div><span class="menu-kicker">TEAM ASSIGNMENT</span><h2>팀 선택</h2></div><span class="room-team-hint">버튼을 눌러 팀 변경</span></div>
+            <div class="room-team-controls"><div class="room-team-control attack"><div><span class="room-team-num">01 / ATTACK</span><strong>공격팀</strong></div><button type="button" onclick="window.switchTeam('attack')" id="btn-team-attack">공격팀 선택 ↗</button></div><div class="room-team-control defense"><div><span class="room-team-num">02 / DEFENSE</span><strong>수비팀</strong></div><button type="button" onclick="window.switchTeam('defense')" id="btn-team-defense">수비팀 선택 ↗</button></div></div>
+            <div id="online-roster" class="room-roster-grid" aria-live="polite"><div class="room-roster-list"><div class="room-roster-top">ATTACKERS <span>0/5</span></div><div class="room-slot empty">플레이어를 기다리는 중</div></div><div class="room-roster-list"><div class="room-roster-top">DEFENDERS <span>0/5</span></div><div class="room-slot empty">플레이어를 기다리는 중</div></div></div>
+          </section><aside class="room-info" aria-label="방 정보 및 게임 시작"><div class="room-map-card"><div class="room-map-card-head"><span>MAP SELECTED</span><span>01 / 01</span></div><div class="room-map-graphic" aria-hidden="true"><span class="room-map-a">A</span><span class="room-map-b">B</span><div class="room-map-lines"></div></div><h3>ASCENT</h3><p>전략적인 진입 · 스파이크 설치 · 폭파 저지</p></div><div class="room-match-rules"><div><small>MATCH TYPE</small><b>CUSTOM · UNRATED</b></div><div><small>TEAM SIZE</small><b>5 VS 5</b></div><div><small>WIN CONDITION</small><b id="room-win-target">13 ROUNDS</b></div><div><small>SERVER</small><b>RENDER · SINGAPORE</b></div></div><button type="button" id="lobby-cheat-perm-btn" onclick="window.toggleHostCheatPermission(event)" class="room-cheat-btn">HOST CHEATS: OFF</button><button type="button" id="online-start-btn" onclick="window.startMatchFromLobby(event)" class="menu-action-btn room-start-btn">경기 시작하기 <span>→</span></button><div class="room-start-help">방장만 경기를 시작할 수 있습니다.</div></aside></div>
+      </main><footer class="menu-footer"><span>TACTICAL FPS // CUSTOM MATCH</span><span>PLAY TOGETHER. STAY SHARP.</span></footer>
     </div>
   </div>
 
@@ -898,12 +792,12 @@
       const inputSystem = {
         touchModeEnabled: true // Enabled by default so Valorant Mobile controls are immediately usable
       };
+
       function refreshInputUI() {
         const mobLayer = document.getElementById('mobile-controls');
         const toggleBtn = document.getElementById('hud-touch-toggle-btn');
         if (toggleBtn) {
-          toggleBtn.textContent = inputSystem.touchModeEnabled ? 'TOUCH UI: ON' : 'TOUCH UI: OFF';
-          toggleBtn.className = inputSystem.touchModeEnabled
+          toggleBtn.textContent = inputSystem.touchModeEnabled ? 'TOUCH UI: ON' : 'TOUCH UI: OFF';          toggleBtn.className = inputSystem.touchModeEnabled
             ? 'val-cut-sm px-2.5 py-1 bg-[#38e2c7]/25 border border-[#38e2c7] text-[#38e2c7] font-num font-black text-[11px] cursor-pointer'
             : 'val-cut-sm px-2.5 py-1 bg-[#0f1923]/95 border border-white/25 text-white/60 font-num font-black text-[11px] cursor-pointer';
         }
@@ -1702,7 +1596,6 @@
         const group = new THREE.Group();
         const suitColor = isAlly ? 0x0d9488 : 0xe11d48;
         const headColor = isAlly ? 0x5eead4 : 0xfda4af;
-
         const body = new THREE.Mesh(
           new THREE.BoxGeometry(0.76, 1.24, 0.44),
           new THREE.MeshStandardMaterial({ color: suitColor, roughness: 0.5 })
@@ -1796,7 +1689,8 @@
         }
 
         const enemyCallsigns = ['ENEMY OMEGA #1', 'ENEMY SIGMA #2', 'ENEMY VECTOR #3', 'ENEMY COBRA #4', 'ENEMY VIPER #5'];
-        const enemyWeapons = ['vandal', 'phantom', 'operator', 'spectre', 'vandal'];        for (let i = 0; i < 5; i++) {
+        const enemyWeapons = ['vandal', 'phantom', 'operator', 'spectre', 'vandal'];
+        for (let i = 0; i < 5; i++) {
           const m = createTacticalBotMesh(false);
           const route = isAtk ? DEF_PATROL_ROUTES[i % DEF_PATROL_ROUTES.length] : ATK_PATROL_ROUTES[i % ATK_PATROL_ROUTES.length];
           const sx = isAtk ? route[0].x : (-10 + i * 5);
@@ -2031,16 +1925,14 @@
         const createBtn = document.getElementById('create-cheat-toggle-btn');
         if (createBtn) {
           createBtn.textContent = allowed ? 'CHEATS: ON' : 'CHEATS: OFF';
-          createBtn.className = allowed
-            ? 'px-4 py-2 bg-emerald-500 text-slate-950 font-black text-xs cursor-pointer'
-            : 'px-4 py-2 bg-slate-800 text-slate-400 font-black text-xs cursor-pointer';
+          createBtn.className = 'menu-cheat-toggle';
+          createBtn.style.opacity = allowed ? '1' : '0.55';
         }
         const lobbyBtn = document.getElementById('lobby-cheat-perm-btn');
         if (lobbyBtn) {
           lobbyBtn.textContent = allowed ? 'HOST CHEATS: ON' : 'HOST CHEATS: OFF';
-          lobbyBtn.className = allowed
-            ? 'px-3.5 py-2 bg-amber-500/20 border border-amber-400 text-amber-300 font-bold text-xs cursor-pointer'
-            : 'px-3.5 py-2 bg-slate-800 border border-slate-600 text-slate-400 font-bold text-xs cursor-pointer';
+          lobbyBtn.className = 'room-cheat-btn';
+          lobbyBtn.style.opacity = allowed ? '1' : '0.65';
         }
         const modalBtn = document.getElementById('modal-host-cheat-btn');
         if (modalBtn) {
@@ -2091,10 +1983,27 @@
         const b13 = document.getElementById('win-target-13');
         const b5 = document.getElementById('win-target-5');
         if (b13 && b5) {
-          b13.className = rounds === 13 ? 'px-3 py-1 bg-[#ff4655] text-white text-xs font-bold cursor-pointer' : 'px-3 py-1 bg-slate-800 text-slate-300 text-xs font-bold cursor-pointer';
-          b5.className = rounds === 5 ? 'px-3 py-1 bg-[#ff4655] text-white text-xs font-bold cursor-pointer' : 'px-3 py-1 bg-slate-800 text-slate-300 text-xs font-bold cursor-pointer';
+          b13.classList.toggle('menu-segment-active', rounds === 13);
+          b5.classList.toggle('menu-segment-active', rounds === 5);
         }
         sfx.playUI();
+      };
+
+      window.menuBackspaceCode = function () {
+        roomState.joinBuffer = roomState.joinBuffer.slice(0, -1);
+        document.getElementById('join-digit-0').textContent = roomState.joinBuffer[0] || '-';
+        document.getElementById('join-digit-1').textContent = roomState.joinBuffer[1] || '-';
+        sfx.playUI();
+      };
+      window.copyRoomCode = async function () {
+        const code = roomState.code;
+        try { await navigator.clipboard.writeText(code); }
+        catch (_) {
+          const el = document.createElement('textarea'); el.value = code;
+          document.body.appendChild(el); el.select(); document.execCommand('copy'); el.remove();
+        }
+        const btn = document.querySelector('.room-copy-btn');
+        if (btn) { btn.textContent = '복사 완료 ✓'; setTimeout(() => { btn.textContent = '방 코드 복사 ↗'; }, 1700); }
       };
 
       window.pressKeypad = function (key) {
@@ -2486,8 +2395,7 @@
         const allTargets = enemyMeshes.concat(mapTargetMeshes);
         const maxDist = w.range || 110;
 
-        for (let p = 0; p < w.pellets; p++) {
-          const rx = (Math.random() - 0.5) * spread;
+        for (let p = 0; p < w.pellets; p++) {          const rx = (Math.random() - 0.5) * spread;
           const ry = (Math.random() - 0.5) * spread;
           raycaster.setFromCamera(new THREE.Vector2(rx, ry), camera);
           raycaster.far = maxDist;
@@ -2695,7 +2603,8 @@
         if (!matchState.inMatch) return;
         const isTouchEnv = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
         if (!isTouchEnv && !inputSystem.touchModeEnabled && document.pointerLockElement !== canvas) {
-          tryLockPointerSafe();        }
+          tryLockPointerSafe();
+        }
         if (!player.alive) {
           window.cycleSpectator(e.button === 2 ? -1 : 1);
           return;
@@ -3285,8 +3194,7 @@
                     vig.style.opacity = '1';
                     setTimeout(() => { vig.style.opacity = '0'; }, 160);
 
-                    if (player.hp <= 0) {
-                      if (roomState.allowCheats && cheats.autoRespawn) {
+                    if (player.hp <= 0) {                      if (roomState.allowCheats && cheats.autoRespawn) {
                         player.hp = 100;
                         player.armor = 50;
                         showRoundBanner('AUTO RESPAWN', 'RESPAWN CHEAT TRIGGERED');
