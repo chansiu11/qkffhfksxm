@@ -5,7 +5,8 @@
     active: false, started: false, myId: null, socket: null, api: null,
     state: null, room: null, lastRound: 0, lastSent: 0, lastSpike: null,
     peers: new Map(),
-    install(api) { this.api = api; this.status('온라인 서버에 연결하지 않았습니다.'); },
+    install(api) { this.api = api; this.status('온라인 서버에 연결하지 않았습니다.');
+      setInterval(()=>{if(this.active)this.send({type:'ping'});},30000); },
     status(message, error = false) {
       for (const id of ['online-status', 'online-lobby-status']) {
         const el = document.getElementById(id);

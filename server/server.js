@@ -234,6 +234,7 @@ function receive(c,m) {
   if (!m || typeof m !== 'object' || Array.isArray(m) || typeof m.type !== 'string') return;
   const now=Date.now();
   c.lastMessage=now;
+  if (m.type === 'ping') { send(c,{type:'pong'}); return; }
   if (m.type === 'create' || m.type === 'join') { createRoom(c,m); return; }
   const r=c.room, p=r?.players.get(c.id);
   if (!r || !p) return;
@@ -312,7 +313,11 @@ function step(r,now){
         r.started=false;r.phase='waiting';emitRoom(r,{type:'match_end',scores:r.scores});broadcastLobby(r);return;
       }
       r.round++;
-      if(r.round === r.winRounds) for(const p of r.players.values()) {p.team=otherTeam(p.team);p.credits=800;}
+      if(r.round === r.winRounds) {
+        for(const p of r.players.values()) {p.team=otherTeam(p.team);p.credits=800;}
+        const previousAttackScore=r.scores.attack;
+        r.scores.attack=r.scores.defense; r.scores.defense=previousAttackScore;
+      }
       resetRound(r);
     }
   }
