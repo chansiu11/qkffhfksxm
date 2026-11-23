@@ -54,7 +54,7 @@ test('crosshair controls and hit flash remain wired into multiplayer and standal
   assert.match(html,/function flashDamage\(/);
   assert.match(multiplayer,/a\.flashDamage\(\)/);
 });
-test('tilted gun projects toward player center with a barrel-to-stock perspective and no arms',()=>{
+test('side-profile gun keeps almost flat barrel-to-stock pose and no arms',()=>{
   const src=fs.readFileSync(path.join(root,'weapon-viewmodels.js'),'utf8');
   const css=fs.readFileSync(path.join(root,'index.html'),'utf8');
   assert.match(src,/perspective\(1250px\)/);
@@ -73,7 +73,10 @@ test('UI view endpoints anchor the barrel-front below crosshair and near edge ou
       const pose=API.viewEndpoints(id,w,h);
       assert(pose.front.x>w*.35&&pose.front.x<w*.86,id+' front must stay on screen');
       assert(pose.front.y>h*.55&&pose.front.y<h*.80,id+' front not lower-center');
-      assert(pose.edge.x>w&&pose.edge.y>h,id+' rear should exit lower-right');
+      assert(pose.edge.x>w,id+' rear should exit off-screen right');
+      assert(Math.abs(pose.edge.y-pose.front.y)<h*.035,id+' gun must stay close to horizontal');
+      assert(pose.edge.y<h*.84,id+' stock must not point down toward camera');
+      assert(Math.abs(pose.yaw)<=8,id+' should show the gun side, not the buttstock');
     }
   }
 });
@@ -88,4 +91,20 @@ test('A display-only hit effect follows the front of the sprite, without changin
   assert(Math.abs(parseFloat(layer.lastChild.style.top)-front.y)<35,'effect must be near the displayed front height');
   clock+=200;view.update(.016,{alive:true,vel:{x:0,z:0},isScoped:false},{inMatch:true});
   assert.equal(layer.lastChild.style.opacity,'0');
+});
+
+
+test('standing still is nearly level, with negligible pitch and yaw depth',()=>{
+  const vm=API.create({Group});
+  vm.setWeapon('vandal');clock+=450;
+  vm.update(.016,{alive:true,vel:{x:0,z:0},isScoped:false},{inMatch:true});
+  const transform=layer.querySelector('svg')?.style?.transform || '';
+  // The fake element returned by this fixture is rebuilt on each query;
+  // check the calculation itself and invariant source expressions as well.
+  const pose=API.viewEndpoints('vandal',1440,900);
+  assert(Math.abs(Math.atan2(pose.edge.y-pose.front.y,pose.edge.x-pose.front.x)*180/Math.PI)<3);
+  const src=fs.readFileSync(path.join(root,'weapon-viewmodels.js'),'utf8');
+  assert(src.includes('const pitch=.7+'));
+  assert(src.includes('const yaw=pose.yaw+breathing*.10'));
+  assert(!src.includes('reloadDrop*11'));
 });

@@ -64,33 +64,33 @@
       `x="${p.x}" y="${p.y}" width="${p.width}" height="${p.height}" `+
       `preserveAspectRatio="xMidYMid meet"/></g></svg>`;
   }
-  // Relative muzzle/front and screen-edge endpoints calibrated against normal
-  // right-handed FPS gameplay screenshots. Coordinates are fractions of viewport.
-  // The weapon is a 2D photo: only the presentation plane moves, never the hit ray.
+  // User-selected side-on FPS pose: show the full weapon flank, not the
+  // buttstock pointing at the camera. Muzzle and stock stay almost level.
+  // The front/muzzle remains under the crosshair; the stock exits the right.
   const VIEW_ENDPOINTS = Object.freeze({
-    rifle:   {front:[.535,.610], edge:[1.115,1.132], plane:-32},
-    smg:     {front:[.598,.658], edge:[1.097,1.105], plane:-30},
-    shotgun: {front:[.545,.638], edge:[1.115,1.140], plane:-30},
-    sniper:  {front:[.490,.606], edge:[1.150,1.140], plane:-31},
-    pistol:  {front:[.750,.716], edge:[1.062,1.127], plane:-23},
-    revolver:{front:[.730,.710], edge:[1.092,1.146], plane:-25},
-    machine: {front:[.731,.717], edge:[1.084,1.125], plane:-24},
-    short:   {front:[.703,.718], edge:[1.092,1.124], plane:-25},
-    blade:   {front:[.611,.691], edge:[1.113,1.123], plane:-24}
+    rifle:   {front:[.535,.675], edge:[1.205,.691], plane:-7},
+    smg:     {front:[.598,.709], edge:[1.215,.724], plane:-6},
+    shotgun: {front:[.545,.688], edge:[1.215,.705], plane:-7},
+    sniper:  {front:[.490,.666], edge:[1.190,.682], plane:-8},
+    pistol:  {front:[.750,.755], edge:[1.188,.768], plane:-4},
+    revolver:{front:[.730,.758], edge:[1.194,.770], plane:-5},
+    machine: {front:[.731,.760], edge:[1.193,.773], plane:-4},
+    short:   {front:[.703,.757], edge:[1.193,.771], plane:-5},
+    blade:   {front:[.611,.735], edge:[1.190,.750], plane:-4}
   });
   function viewEndpoints(id, width, height){
     const kind=styles[id]?.kind||'rifle';
     const ref=VIEW_ENDPOINTS[kind]||VIEW_ENDPOINTS.rifle;
-    // Portrait/mobile layouts lean farther to the bottom-right to leave the
-    // crosshair clear and keep the visible portion inside the narrow screen.
     const portrait=width<=820&&height>width;
+    // On tall screens the right edge is further beyond the viewport so the
+    // nearly-horizontal weapon stays large without pitching toward the player.
     const front=portrait ? [
       kind==='blade'?.56:kind==='pistol'||kind==='revolver'||kind==='machine'?.67:.43,
-      kind==='blade'?.70:kind==='pistol'||kind==='revolver'||kind==='machine'?.76:.685
+      kind==='blade'?.740:kind==='pistol'||kind==='revolver'||kind==='machine'?.790:.745
     ] : ref.front;
     const edge=portrait ? [
-      kind==='pistol'||kind==='revolver'||kind==='machine'?1.13:1.24,
-      kind==='blade'?1.09:1.16
+      kind==='pistol'||kind==='revolver'||kind==='machine'?1.52:1.62,
+      front[1]+.012
     ] : ref.edge;
     return {front:{x:width*front[0],y:height*front[1]},
       edge:{x:width*edge[0],y:height*edge[1]},yaw:ref.plane};
@@ -170,7 +170,8 @@
         lastLayoutKey=key;lastTransform='';
       }
       const swing= sword?(heavy?28:-30):0;
-      const roll=pose.angle+breathing*.35+kick*(sword?swing:3.4)+reloadDrop*11;
+      // Idle pose stays almost horizontal; action-only recoil/reload adds movement.
+      const roll=pose.angle+breathing*.09+kick*(sword?swing:1.4)+reloadDrop*6;
       const portrait=screenWidth<=820&&screenHeight>screenWidth;
       // Visual-only offset compensates for perspective distortion, placing the
       // *actual displayed* front near the target screenshot anchor.
@@ -178,8 +179,8 @@
       const anchorShiftY=-screenHeight*(portrait?.10:.145);
       const x=anchorShiftX+bobX+kick*(sword?-21:8);
       const y=anchorShiftY+bobY+kick*(sword?-15:21)+reloadDrop*100+draw*90+(p.isScoped?205:0);
-      const yaw=pose.yaw+breathing*.4;
-      const pitch=4.6+breathing*.45+moving*.6;
+      const yaw=pose.yaw+breathing*.10;
+      const pitch=.7+breathing*.15+moving*.18;
       const transform=`translate3d(${x.toFixed(2)}px,${y.toFixed(2)}px,0) `+
         `perspective(1250px) rotateZ(${roll.toFixed(2)}deg) `+
         `rotateX(${pitch.toFixed(2)}deg) rotateY(${yaw.toFixed(2)}deg)`;
