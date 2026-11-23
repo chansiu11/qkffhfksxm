@@ -204,7 +204,8 @@ function fire(r, p, msg) {
   if (p.ammo?.[p.weapon]) p.ammo[p.weapon].mag = p.mag;
   const yaw = finite(msg.yaw, -100000, 100000, p.yaw);
   const pitch = finite(msg.pitch, -1.48, 1.48, p.pitch);
-  const dx = -Math.sin(yaw) * Math.cos(pitch), dy = -Math.sin(pitch), dz = -Math.cos(yaw) * Math.cos(pitch);
+  // Three.js YXZ FPS camera: positive pitch looks upward. Never invert dy here.
+  const dx = -Math.sin(yaw) * Math.cos(pitch), dy = Math.sin(pitch), dz = -Math.cos(yaw) * Math.cos(pitch);
   const oy = p.y, ox = p.x, oz = p.z;
   let best = Infinity, hit = null, headshot = false;
   for (const target of r.players.values()) {
@@ -225,7 +226,8 @@ function fire(r, p, msg) {
   if (hit) impactDistance = Math.min(impactDistance, best);
   if (w.id !== 'knife') {
     const bulletEvent = { type:'shot', shooter:p.id, weapon:p.weapon,
-      from:[ox,oy-0.1,oz], to:[ox+dx*impactDistance,oy+dy*impactDistance,oz+dz*impactDistance] };
+      from:[ox+dx*0.28,oy+dy*0.28,oz+dz*0.28],
+      to:[ox+dx*impactDistance,oy+dy*impactDistance,oz+dz*impactDistance] };
     for (const receiver of r.players.values()) if (receiver.id !== p.id) send(receiver.client, bulletEvent);
   }
   if (hit) {

@@ -57,6 +57,22 @@ test('Room creation/join, team capacity, start, synced player snapshots, damage'
   a.send(JSON.stringify({type:'shoot',yaw:0,pitch:0}));
   const far=await longShot;
   assert(Math.abs(far.to[2]+220)<0.05, `expected full-range tracer, got ${far.to[2]}`);
+
+  // Positive pitch looks UP in the Three.js YXZ camera. Test both elevations
+  // so server hit rays and visible tracers cannot drift from the crosshair.
+  p.lastShot=0;
+  const upward=next(b,'shot');
+  a.send(JSON.stringify({type:'shoot',yaw:0,pitch:Math.PI/6}));
+  const up=await upward;
+  assert(up.to[1]>up.from[1], 'positive camera pitch must shoot upward');
+  assert(Math.abs((up.to[1]-up.from[1]) / (up.from[2]-up.to[2]) - Math.tan(Math.PI/6))<0.001,
+    'positive-pitch tracer slope must agree with the camera');
+
+  p.lastShot=0;
+  const downward=next(b,'shot');
+  a.send(JSON.stringify({type:'shoot',yaw:0,pitch:-Math.PI/6}));
+  const down=await downward;
+  assert(down.to[1]<down.from[1], 'negative camera pitch must shoot downward');
   a.close();b.close();
   await new Promise(resolve=>setTimeout(resolve,100));
   assert.equal(rooms.size,0);

@@ -797,8 +797,7 @@
 
       const cheats = {
         ghost: false,
-        pauseTimer: false,
-        infiniteCreds: false,
+        pauseTimer: false,        infiniteCreds: false,
         infiniteAmmo: false,
         buyAnywhere: false,
         invincible: false,
@@ -847,7 +846,8 @@
               const AC = window.AudioContext || window.webkitAudioContext;
               if (AC) this.ctx = new AC();
             }
-            if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();          } catch (err) {}
+            if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
+          } catch (err) {}
         },
         playGunshot(freq = 160, dur = 0.11) {
           try {
@@ -1596,8 +1596,7 @@
         inMatch: false,
         round: 1,
         allyScore: 0,
-        enemyScore: 0,
-        phase: 'buy',
+        enemyScore: 0,        phase: 'buy',
         timer: 20,
         spikePlanted: false,
         spikeSite: null,
@@ -1696,7 +1695,8 @@
         });
 
         const allyCallsigns = ['ALLY ALPHA #1', 'ALLY BRAVO #2', 'ALLY CHARLIE #3', 'ALLY DELTA #4'];
-        const allyWeapons = ['vandal', 'phantom', 'spectre', 'guardian'];        for (let i = 0; i < 4; i++) {
+        const allyWeapons = ['vandal', 'phantom', 'spectre', 'guardian'];
+        for (let i = 0; i < 4; i++) {
           const m = createTacticalBotMesh(true);
           const route = isAtk ? ATK_PATROL_ROUTES[i % ATK_PATROL_ROUTES.length] : DEF_PATROL_ROUTES[i % DEF_PATROL_ROUTES.length];
           const sx = isAtk ? (-9 + i * 6) : route[0].x;
@@ -2395,24 +2395,31 @@
         const flash = new THREE.Mesh(tracerGeometry, material);
         flash.quaternion.setFromUnitVectors(tracerForward, dir);
         const glow = new THREE.Mesh(tracerGlowGeometry, new THREE.MeshBasicMaterial({
-          color: 0xfff4ab, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending,
-          depthWrite: false, depthTest: true }));
+          color: 0xfff4ab, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending,          depthWrite: false, depthTest: true }));
         scene.add(flash, glow);
         activeTracers.push({ flash, glow, start, dir, distance, progress: 0,
           duration: Math.max(0.12, Math.min(0.42, distance / 480)), life: 1 });
       }
 
+      // Must match Three.js camera.rotation.order='YXZ' and the server's firing direction.
+      // Positive camera pitch looks UP; previously a negative sign inverted vertical shots.
+      function getAimDirection(yaw = player.yaw, pitch = player.pitch) {
+        const cp = Math.cos(pitch);
+        return new THREE.Vector3(-Math.sin(yaw) * cp, Math.sin(pitch), -Math.cos(yaw) * cp).normalize();
+      }
+
+      // The visible tracer starts on the CROSSHAIR ray, not on an offset viewmodel muzzle ray.
+      // A separate muzzle flash remains attached to the weapon for visual feedback.
       function drawLocalShot(weapon) {
         if (weapon.slot === 'knife') return;
         const maxDist = weapon.range || 200;
-        const direction = new THREE.Vector3(-Math.sin(player.yaw) * Math.cos(player.pitch),
-          -Math.sin(player.pitch), -Math.cos(player.yaw) * Math.cos(player.pitch));
-        const cast = new THREE.Raycaster(player.pos.clone(), direction, 0, maxDist);
+        const direction = getAimDirection();
+        const origin = player.pos.clone();
+        const cast = new THREE.Raycaster(origin, direction, 0, maxDist);
+        scene.updateMatrixWorld(true);
         const hits = cast.intersectObjects(mapTargetMeshes, false);
-        const end = hits.length ? hits[0].point : player.pos.clone().addScaledVector(direction, maxDist);
-        const right = new THREE.Vector3(Math.cos(player.yaw), 0, -Math.sin(player.yaw));
-        const start = player.pos.clone().addScaledVector(direction, 0.46)
-          .addScaledVector(right, 0.17).add(new THREE.Vector3(0, -0.13, 0));
+        const end = hits.length ? hits[0].point : origin.clone().addScaledVector(direction, maxDist);
+        const start = origin.clone().addScaledVector(direction, 0.28);
         spawnBulletTracer(start, end, weapon.color || 0xffd567);
       }
 
@@ -2445,9 +2452,14 @@
 
         gunGroup.position.z = -0.32;
 
-        const moveSpeed = Math.hypot(player.vel.x, player.vel.z);
-        const spread = player.isScoped ? 0.0003 : (w.spreadBase * 0.65 +
-          (moveSpeed > 0.8 ? w.spreadMove * 0.22 : 0));
+        // Single-projectile shots follow the centre of the crosshair exactly.
+        // Multi-pellet shotguns keep only a modest pellet cone around that centre.
+        const spread = w.pellets > 1 ? w.spreadBase * 0.45 : 0;
+        const aimDirection = getAimDirection();
+        const aimRight = new THREE.Vector3().crossVectors(aimDirection, new THREE.Vector3(0, 1, 0)).normalize();
+        const aimUp = new THREE.Vector3().crossVectors(aimRight, aimDirection).normalize();
+        // Update mesh world transforms so ray collision matches the visible geometry.
+        scene.updateMatrixWorld(true);
 
         const enemyMeshes = [];
         bots.forEach(b => {
@@ -2462,14 +2474,18 @@
         const maxDist = w.range || 110;
 
         for (let p = 0; p < w.pellets; p++) {
-          const rx = (Math.random() - 0.5) * spread;
-          const ry = (Math.random() - 0.5) * spread;
-          raycaster.setFromCamera(new THREE.Vector2(rx, ry), camera);
+          // First pellet (and every non-shotgun round) is exactly centred.
+          // Shotgun scatter is defined in the camera's right/up basis, never world X/Y.
+          const rx = p === 0 ? 0 : (Math.random() - 0.5) * spread;
+          const ry = p === 0 ? 0 : (Math.random() - 0.5) * spread;
+          const bulletDirection = aimDirection.clone().addScaledVector(aimRight, rx)
+            .addScaledVector(aimUp, ry).normalize();
+          raycaster.set(player.pos.clone(), bulletDirection);
+          raycaster.near = 0;
           raycaster.far = maxDist;
           const hits = raycaster.intersectObjects(allTargets, false);
 
-          const muzzleWorld = new THREE.Vector3(0.18, -0.14, -0.6).applyMatrix4(camera.matrixWorld);
-          let endPt = raycaster.ray.origin.clone().addScaledVector(raycaster.ray.direction, maxDist);
+          let endPt = player.pos.clone().addScaledVector(bulletDirection, maxDist);
 
           if (hits.length > 0) {
             const firstHit = hits[0];
@@ -2492,7 +2508,7 @@
           }
           if (w.slot !== 'knife' && p === 0) {
             // One clearly visible tracer per shot; shotgun pellets still hit individually.
-            spawnBulletTracer(muzzleWorld, endPt, w.color);
+            spawnBulletTracer(player.pos.clone().addScaledVector(bulletDirection, 0.28), endPt, w.color);
           }
         }
 
@@ -2545,7 +2561,8 @@
         }
         const w = getActiveWeapon();
         if (!w.canScope) return;
-        player.isScoped = !player.isScoped;        const sc = document.getElementById('scope-overlay');
+        player.isScoped = !player.isScoped;
+        const sc = document.getElementById('scope-overlay');
         const adsBtn = document.getElementById('mob-ads-btn');
         if (player.isScoped) {
           sc.classList.remove('hidden');
@@ -2613,6 +2630,7 @@
        * ========================================================================= */
       const keys = {};
       let isMouseFiring = false;
+      let isKeyboardFiring = false;
       let isLeftTouchFiring = false;
       let isRightTouchFiring = false;
       let isSpikeKeyHeld = false;
@@ -2643,6 +2661,18 @@
           return;
         }
 
+        // C fires at key-down for semi-auto, or continuously while held for automatic weapons.
+        // Existing mouse/touch release-to-fire controls and F (spike) remain unchanged.
+        if (e.code === 'KeyC') {
+          if (e.target?.matches?.('input, textarea, select, [contenteditable]')) return;
+          e.preventDefault();
+          if (!isKeyboardFiring) {
+            isKeyboardFiring = true;
+            attemptFire();
+          }
+          return;
+        }
+
         if (e.code === 'KeyV' && roomState.allowCheats) window.toggleCheatOption('ghost');
         if (e.code === 'Space') window.triggerJump();
         if (e.code === 'KeyR') window.triggerReload();
@@ -2655,6 +2685,7 @@
 
       window.addEventListener('keyup', (e) => {
         keys[e.code] = false;
+        if (e.code === 'KeyC') isKeyboardFiring = false;
         if (e.code === 'Digit4' || e.code === 'KeyF') isSpikeKeyHeld = false;
       });
 
@@ -2792,7 +2823,7 @@
       bindFiringButton(lFireBtn, 'left', false);
       window.addEventListener('blur', () => {
         clearJoyState(); lookPointerId = null;
-        isMouseFiring = isRightTouchFiring = isLeftTouchFiring = false;
+        isMouseFiring = isKeyboardFiring = isRightTouchFiring = isLeftTouchFiring = false;
         rFireBtn.classList.remove('active-hold');
         lFireBtn.classList.remove('active-hold');
       });
@@ -3163,8 +3194,7 @@
                   }
                 } else if (nearestAllyBot) {
                   const startP = b.group.position.clone().add(new THREE.Vector3(0, 1.45, 0));
-                  const endP = nearestAllyBot.group.position.clone().add(new THREE.Vector3(0, 1.35, 0));
-                  spawnBulletTracer(startP, endP, 0xff4655);
+                  const endP = nearestAllyBot.group.position.clone().add(new THREE.Vector3(0, 1.35, 0));                  spawnBulletTracer(startP, endP, 0xff4655);
                   nearestAllyBot.hp -= 34;
                   if (nearestAllyBot.hp <= 0 && nearestAllyBot.alive) {
                     nearestAllyBot.alive = false;
@@ -3309,7 +3339,7 @@
         prevTime = now;
 
         if (matchState.inMatch) {
-          const holdingAnyFire = isMouseFiring || isLeftTouchFiring || isRightTouchFiring;
+          const holdingAnyFire = isMouseFiring || isKeyboardFiring || isLeftTouchFiring || isRightTouchFiring;
           if (holdingAnyFire && player.alive && getActiveWeapon().auto) attemptFire();
           updatePlayerAndSpectatorCamera(dt);
           updateBotsAndTeamCombat(dt);
