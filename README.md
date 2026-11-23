@@ -61,3 +61,8 @@ node server/server.js
 - Browser rendering uses reduced shadow-map resolution, lower initial render pixel ratio on touchscreen devices, adaptive resolution, less frequent radar redraws, and fewer unnecessary DOM and geometry allocations. The game still uses the display's refresh rate via requestAnimationFrame.
 - **Neither under-100 ms latency nor over-120 FPS can be guaranteed**: latency depends on the player's route to Render's Singapore region, and FPS depends on the device, refresh rate, graphics driver, load and browser. A 60-Hz screen generally cannot display 120 distinct frames per second. On Render Free, idle spin-downs and service restarts can interrupt matches; these erase memory-only rooms. A true always-on service and persistent room storage would be required to eliminate those cases.
 - Validation: `node --test tests/*.test.js`, `python tests/keyboard_smoke.py`, `python tests/gesture_smoke.py`.
+
+## 2D 무기 / 조준 / 피격 화면
+- **X**: 조준 가능한 무기에서 확대 조준(토글). 기존 마우스 오른쪽 버튼·모바일 ADS 버튼도 사용 가능.
+- 우측에 보이는 무기는 3D 모델 대신 프로젝트 자체 제작 2D SVG 스프라이트로 표시합니다. 개별 무기의 외형 및 달리기·발사·장전·조준·칼 휘두르기 애니메이션이 적용됩니다. 타 게임의 저작권 보호 텍스처는 포함하지 않습니다.
+- AI와 온라인 상대에게 피격되면 화면 가장자리가 잠깐 붉게 변합니다.

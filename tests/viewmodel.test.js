@@ -4,38 +4,49 @@ const assert=require('node:assert/strict');
 const vm=require('node:vm');
 const fs=require('node:fs');
 const path=require('node:path');
-class V3 { constructor(x=0,y=0,z=0){this.x=x;this.y=y;this.z=z;}set(x,y,z){this.x=x;this.y=y;this.z=z;} }
-class Group { constructor(){this.children=[];this.position=new V3();this.rotation=new V3();this.scale={setScalar:(n)=>{this.scaled=n;}};this.visible=true;this.userData={};} add(...objects){this.children.push(...objects);} }
-class Mesh extends Group {constructor(geometry,material){super();this.type='Mesh';this.geometry=geometry;this.material=material;}}
-function geom(n){return class{constructor(...a){this.shape=n;this.args=a;}};}
-const T={Group,Mesh,BoxGeometry:geom('box'),CylinderGeometry:geom('cylinder'),SphereGeometry:geom('sphere'),TorusGeometry:geom('torus'),ExtrudeGeometry:geom('extrude'),PlaneGeometry:geom('plane'),
-  MeshStandardMaterial:class{constructor(x){Object.assign(this,x)}}, MeshBasicMaterial:class{constructor(x){Object.assign(this,x)}}, CanvasTexture:class{constructor(cv){this.cv=cv}},DoubleSide:2,
-  Shape:class{moveTo(){}lineTo(){}quadraticCurveTo(){}closePath(){}}};
-const sandbox={window:{},document:{createElement:()=>({width:0,height:0,getContext:()=>({fillRect(){},fillText(){}})})},performance:{now:()=>clock},Math};
+class G {constructor(){this.children=[];this.position={set(){}};this.rotation={};} add(x){this.children.push(x);}}
+const T={Group:G};
 let clock=0;
-vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../weapon-viewmodels.js'),'utf8'),sandbox);
-test('Every weapon has an independent 3D model and the knife has no gun receiver',()=>{
-  const o=sandbox.window.WeaponViewmodels.create(T,{});
-  const styles=o.styles;
-  assert.equal(Object.keys(styles).length,17);
-  const models=[];
-  for(const id of Object.keys(styles)){
-    o.setWeapon(id);
-    const obj=o.group.children.find(x=>x.visible && x!==o.flash);
-    assert(obj,`missing visible model for ${id}`);
-    assert(obj.children.length>=11,`not enough 3D parts on ${id}: ${obj.children.length}`);
-    models.push(obj);
-    assert.equal(o.flash.visible,id!=='knife',`muzzle flash must be off for knife ${id}`);
-    if(id==='knife')assert(obj.children.every(x=>x.geometry?.shape!=='cylinder'), 'knife cannot reuse gun barrel cylinders');
+const layer={content:'',classList:{toggle(){}},set innerHTML(html){this.content=html;},get innerHTML(){return this.content;},querySelector(s){const elementId=s==="svg"?"<svg":`id="${s.slice(1)}"`;if(!this.content.includes(elementId))return null;return {style:{},setAttribute(){},removeAttribute(){}};}};
+const context={window:{},performance:{now:()=>clock},document:{getElementById:id=>id==='fps-weapon-sprite-layer'?layer:null}};
+vm.runInNewContext(fs.readFileSync(path.join(__dirname,'..','weapon-viewmodels.js'),'utf8'),context);
+const api=context.window.WeaponViewmodels;
+
+test('17 distinct original 2D weapon images, no 3D weapon meshes',()=>{
+  assert.equal(Object.keys(api.styles).length,17);
+  const images=Object.keys(api.styles).map(id=>api.makeSvg(id));
+  assert.equal(new Set(images).size,17,'each gun must have a recognizably unique graphic');
+  for(const [i,id] of Object.keys(api.styles).entries()) {
+    assert(images[i].startsWith('<svg'),id);
+    assert(images[i].includes('<title>'),id);
+    assert(images[i].includes(api.styles[id].mark),`missing weapon identifier: ${id}`);
+    assert(!images[i].includes('<script'),`script within image ${id}`);
   }
-  assert.equal(new Set(models).size,17,'weapon models must be independent');
-  for(const id of Object.keys(styles)){
-    o.setWeapon(id);
-    o.beginReload();
-    o.fire();
-    clock+=550;
-    o.update(.016,{reloading:true,vel:{x:0,z:0},isScoped:false});
-    o.update(.016,{reloading:false,vel:{x:0,z:0},isScoped:false});
-    assert(Number.isFinite(o.group.rotation.x));
+  const knife=api.makeSvg('knife');
+  assert(knife.includes('id="art-blade"'));
+  assert(!knife.includes('id="art-mag"'));
+  const view=api.create(T,{});
+  for(const id of Object.keys(api.styles)) {
+    view.setWeapon(id);
+    assert.equal(view.current,id);
+    assert.equal(view.group.children.length,0,'first-person 3D viewmodel must be removed');
+    assert(layer.innerHTML.includes(api.styles[id].mark));
+    view.beginReload(); clock+=380;
+    view.fire();clock+=65;
+    view.update(1/60,{alive:true,vel:{x:3,z:0},isScoped:false},{inMatch:true});
+    view.stopReload();
+    view.update(1/60,{alive:true,vel:{x:0,z:0},isScoped:false},{inMatch:true});
   }
+});
+
+test('crosshair zoom key, shared online and offline hit flash wiring',()=>{
+  const html=fs.readFileSync(path.join(__dirname,'..','index.html'),'utf8');
+  const multiplayer=fs.readFileSync(path.join(__dirname,'..','multiplayer-client.js'),'utf8');
+  assert.match(html,/e\.code === 'KeyX'/);
+  assert.match(html,/window\.toggleScope\(\)/);
+  assert.match(html,/function flashDamage\(/);
+  assert.match(html,/classList\.add\('damage-on'\)/);
+  assert.match(html,/\bflashDamage\(\);/);
+  assert.match(multiplayer,/me\.hp < a\.player\.hp \|\| me\.armor < a\.player\.armor/);
+  assert.match(multiplayer,/a\.flashDamage\(\)/);
 });

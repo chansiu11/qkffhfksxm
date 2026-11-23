@@ -8,13 +8,13 @@ handlers = src[start:end]
 script = '''(() => {
   let keys={}, isKeyboardFiring=false, isSpikeKeyHeld=false;
   let player={alive:true}, matchState={inMatch:true}, roomState={allowCheats:false};
-  let shots=0; function attemptFire(){shots++};
+  let shots=0, zooms=0; function attemptFire(){shots++};
   const getActiveWeapon=()=>({auto:false});
-  window.__keyboardTest=()=>({shots,held:isKeyboardFiring,spike:isSpikeKeyHeld});
+  window.__keyboardTest=()=>({shots,held:isKeyboardFiring,spike:isSpikeKeyHeld,zooms});
   window.triggerJump=()=>{}; window.triggerReload=()=>{};
   window.switchWeaponSlot=()=>{}; window.toggleAscentDoor=()=>{};
   window.toggleShop=()=>{}; window.toggleCheatPanel=()=>{};
-  window.cycleSpectator=()=>{};
+  window.cycleSpectator=()=>{}; window.toggleScope=()=>{zooms++};
 ''' + handlers + '\n})();'
 with sync_playwright() as p:
     b=p.chromium.launch(executable_path='/usr/bin/chromium',headless=True,args=['--no-sandbox'])
@@ -22,7 +22,7 @@ with sync_playwright() as p:
     page.goto('about:blank')
     page.evaluate(script)
     page.keyboard.down('c')
-    assert page.evaluate('window.__keyboardTest()') == {'shots':1,'held':True,'spike':False}
+    assert page.evaluate('window.__keyboardTest()') == {'shots':1,'held':True,'spike':False,'zooms':0}
     page.keyboard.down('c')
     assert page.evaluate('window.__keyboardTest().shots') == 1, 'holding C must not double fire single shots'
     page.keyboard.up('c')
@@ -35,5 +35,13 @@ with sync_playwright() as p:
     assert page.evaluate('window.__keyboardTest().shots') == 2
     page.keyboard.up('f')
     assert page.evaluate('window.__keyboardTest().spike') is False
-    print('keyboard C / F regression OK')
+    page.keyboard.down('x')
+    assert page.evaluate('window.__keyboardTest().zooms') == 1, 'X should toggle zoom once'
+    page.keyboard.down('x')
+    assert page.evaluate('window.__keyboardTest().zooms') == 1, 'holding X must not repeatedly toggle zoom'
+    page.keyboard.up('x')
+    page.keyboard.down('x')
+    assert page.evaluate('window.__keyboardTest().zooms') == 2
+    page.keyboard.up('x')
+    print('keyboard X zoom / C fire / F spike regression OK')
     b.close()

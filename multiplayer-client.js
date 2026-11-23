@@ -337,6 +337,10 @@
       if (cheat) cheat.classList.add('hidden');
       const badge = document.getElementById('hud-phase-badge');
       if (badge) badge.textContent = state.phase === 'buy' ? 'BUY PHASE — B 키로 무기 구매' : state.phase === 'combat' ? 'COMBAT PHASE — ONLINE' : state.phase === 'planted' ? 'SPIKE PLANTED — ONLINE' : 'ROUND COMPLETE';
+      // Snapshot HP/armor may change before a hit event arrives. Flash only
+      // for live damage (not the initial round reset or spectator transitions).
+      if (a.matchState.inMatch && a.player.alive && me.alive && state.phase !== 'buy' &&
+          (me.hp < a.player.hp || me.armor < a.player.armor)) a.flashDamage();
       a.player.hp = me.hp;
       a.player.armor = me.armor;
       a.player.alive = me.alive;
