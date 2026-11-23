@@ -100,7 +100,9 @@
             const w = a.getActiveWeapon();
             if (w.id === data.weapon) { w.mag = data.mag; w.reserve = data.reserve; }
           }
-          a.player.reloading = false; a.updateHUD(); break;
+          a.player.reloading = false;
+          a.viewmodel.stopReload();
+          a.updateHUD(); break;
         case 'shot': {
           if (data.shooter === this.myId || !this.started || !this.api.matchState.inMatch) break;
           const xyz = v => Array.isArray(v) && v.length === 3 && v.every(Number.isFinite);
@@ -201,6 +203,7 @@
       if (!me) return;
       if (this.lastRound !== state.round) {
         this.lastRound = state.round;
+        this.lastSpike = false;
         a.startNewRound();
         a.bots.splice(0).forEach(b => a.scene.remove(b.group));
         this.peers.clear();
@@ -286,16 +289,19 @@
       if(now-p.lastShotTime < w.fireRate || (w.slot !== 'knife' && w.mag<=0)) return;
       p.lastShotTime=now;
       if(w.slot!=='knife')w.mag--;
-      a.sfx.playGunshot(w.id==='operator'?92:165,0.11);
-      if(w.slot!=='knife') {
+      a.viewmodel.fire();
+      if(w.slot==='knife') {
+        a.sfx.playKnifeSlash();
+      } else {
+        a.sfx.playGunshot(w.id==='operator'?92:165,0.11);
         a.muzzleFlashMesh.material.opacity=1;
         setTimeout(()=>{a.muzzleFlashMesh.material.opacity=0;},45);
+        a.gunGroup.position.z=-0.32;
+        // Visual prediction for the shooter; the server broadcasts the authoritative shot to other clients.
+        a.drawLocalShot(w);
       }
-      a.gunGroup.position.z=-0.32;
-      // Visual prediction for the shooter; the server broadcasts the authoritative shot to other clients.
-      a.drawLocalShot(w);
       this.send({type:'shoot',yaw:p.yaw,pitch:p.pitch});
-      p.pitch=Math.min(1.48,p.pitch+w.recoilPitch);
+      if(w.slot!=='knife')p.pitch=Math.min(1.48,p.pitch+w.recoilPitch);
       a.updateHUD();
     },
     buy(id) { this.send({type:'buy',item:id}); },
@@ -323,14 +329,27 @@
       const held=!!this.api.getSpikeHeld();
       if(held!==this.lastSpike) {this.send({type:'spike',held});this.lastSpike=held;}
       const el=document.getElementById('hud-context-prompt');
-      if (el && this.state) {
-        const s=this.state;
-        const a=Math.hypot(p.pos.x-29,p.pos.z+8)<8.5,
-              b=Math.hypot(p.pos.x+32,p.pos.z+23)<8.5;
-        const plant=p.alive && s.phase==='combat' && this.api.roomState.playerSide==='attack' && (a||b) && p.footY<0.5;
-        const defuse=p.alive && s.phase==='planted' && this.api.roomState.playerSide==='defense' && s.spike && Math.hypot(p.pos.x-s.spike.x,p.pos.z-s.spike.z)<4.5;
-        el.classList.toggle('hidden',!plant&&!defuse);
-        if(plant||defuse)el.textContent=plant?'[4/F] 길게 눌러 스파이크 설치':'[4/F] 길게 눌러 스파이크 해체';
+      const box=document.getElementById('spike-action-box');
+      const bar=document.getElementById('spike-action-bar');
+      const pct=document.getElementById('spike-action-pct');
+      const label=document.getElementById('spike-action-label');
+      if (el && box && this.state) {
+        const s=this.state, side=this.api.roomState.playerSide;
+        const site=this.api.gameSpikeSiteAt(p.pos.x,p.pos.z,p.footY);
+        const plant=p.alive&&s.phase==='combat'&&side==='attack'&&!!site;
+        const defuse=p.alive&&s.phase==='planted'&&side==='defense'&&s.spike&&
+          Math.hypot(p.pos.x-s.spike.x,p.pos.z-s.spike.z)<4.5;
+        const action=this.state.players.find(q=>q.id===this.myId)?.spikeAction;
+        const eligible=plant||defuse;
+        el.classList.toggle('hidden',!eligible);
+        if(eligible)el.textContent=plant?`[4/F] 길게 눌러 ${site} 사이트에 설치 (4초)`:'[4/F] 길게 눌러 해체 (7초)';
+        const moving=eligible&&held&&action&&action.progress>0;
+        box.classList.toggle('hidden',!moving);
+        if(moving){
+          const progress=Math.min(100,Math.max(0,Math.round(action.progress*100)));
+          bar.style.width=progress+'%';pct.textContent=progress+'%';
+          label.textContent=plant?'SPIKE PLANTING...':'SPIKE DEFUSING...';
+        }
       }
     }
   };

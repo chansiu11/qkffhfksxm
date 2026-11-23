@@ -73,6 +73,27 @@ test('Room creation/join, team capacity, start, synced player snapshots, damage'
   a.send(JSON.stringify({type:'shoot',yaw:0,pitch:-Math.PI/6}));
   const down=await downward;
   assert(down.to[1]<down.from[1], 'negative camera pitch must shoot downward');
+
+  // SPIKE: raised B MAIN should be a valid plant site, and progress is server-authoritative.
+  p.x=-32;p.z=10;p.footY=1.6;p.y=3.25;p.heldSpike=true;
+  p.actionFrom=Date.now()-4200;
+  r.phase='combat';r.until=Date.now()+25000;
+  await new Promise(resolve=>setTimeout(resolve,190));
+  assert.equal(r.phase,'planted','B MAIN plant must complete after four seconds');
+  assert.equal(r.spike?.site,'B');
+  assert.equal(p.heldSpike,false,'server must clear held input after successful plant');
+  // Defuse has a 3.5 second halfway checkpoint but still needs 7 seconds total.
+  q.x=r.spike.x;q.z=r.spike.z;q.footY=r.spike.y;q.y=q.footY+1.65;
+  q.heldSpike=true;q.actionFrom=Date.now()-3750;q.actionBase=0;
+  await new Promise(resolve=>setTimeout(resolve,180));
+  assert.equal(r.halfDefused,true);
+  assert.equal(r.phase,'planted','continuous defuse must NOT finish at 3.5s');
+  q.heldSpike=false;q.actionFrom=0;q.actionBase=0;
+  await new Promise(resolve=>setTimeout(resolve,135));
+  q.heldSpike=true;q.actionFrom=Date.now()-3500;q.actionBase=0.5;
+  await new Promise(resolve=>setTimeout(resolve,155));
+  assert.equal(r.phase,'round_end','resumed half-defuse should finish after 3.5 more seconds');
+
   a.close();b.close();
   await new Promise(resolve=>setTimeout(resolve,100));
   assert.equal(rooms.size,0);

@@ -37,3 +37,18 @@ node server/server.js
 - 적 캐릭터에 노란색 외곽선을 추가하되 벽 뒤에서는 보이지 않도록 깊이 테스트를 유지합니다. 이동 시 탄퍼짐이 완화됩니다.
 
 검증: `node --test tests/smoke.test.js` (서버에서 발사 경로가 다른 참가자에게 전달되는지 포함). 선택적 UI 검증: Playwright 설치 후 `python tests/gesture_smoke.py`.
+
+### Weapon viewmodels, reload animations and Spike fix
+
+- `weapon-viewmodels.js` generates **17 distinct procedurally modeled** first-person
+  weapon/knife meshes with unique silhouettes, accents and animated moving parts.
+  All assets are made in code and require no external asset file downloads.
+- Each firearm has its own reload motion for its moving magazine, slide, bolt,
+  revolver cylinder, break-open breech or shotgun pump. The knife has an actual
+  separate blade and a short swiping animation with **no gunshot, muzzle flash or tracer**.
+- Attackers can plant at **A site, B PIT or elevated B MAIN**. Use **4 / F** or
+  the on-screen SPIKE button, hold for 4 seconds. Defenders hold for 7 seconds;
+  after 3.5 seconds, interruption preserves a halfway checkpoint.
+- The online HUD displays server-confirmed plant/defuse progress. Reload completion
+  still uses the existing 1.1-second inventory authority on Render.
+- Test with `node --test tests/*.test.js`.

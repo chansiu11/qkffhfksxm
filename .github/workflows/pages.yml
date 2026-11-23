@@ -22,7 +22,7 @@ jobs:
       - name: Prepare public files
         run: |
           mkdir -p public
-          cp index.html menu.css config.js multiplayer-client.js public/
+          cp index.html menu.css config.js multiplayer-client.js weapon-viewmodels.js public/
           touch public/.nojekyll
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5

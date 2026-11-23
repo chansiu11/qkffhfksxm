@@ -118,6 +118,7 @@ function spawn(p, idx) {
   p.reloading = false;
   p.heldSpike = false;
   p.actionFrom = 0;
+  p.actionBase = 0;
   p.lastPosAt = 0;
   p.lastShot = 0;
 }
@@ -305,14 +306,33 @@ function receive(c,m) {
     },1100);
   } else if (m.type==='spike' && r.started) {
     p.heldSpike=!!m.held;
-    if(!p.heldSpike) p.actionFrom=0;
+    if(!p.heldSpike) {p.actionFrom=0;p.actionBase=0;}
   }
+}
+function spikeSite(x,z,footY) {
+  if(footY < -0.4 || footY > 2.2) return null;
+  if(Math.hypot(x-29,z+8)<9.0 && footY<1.2) return 'A';
+  if(Math.hypot(x+32,z+23)<9.0 || Math.hypot(x+32,z-10)<10.0) return 'B';
+  return null;
+}
+function spikeAction(r,p,now) {
+  if(!p.alive) return null;
+  if(r.phase==='combat' && p.team==='attack') {
+    const site=spikeSite(p.x,p.z,p.footY);
+    return site?{site,mode:'plant',progress:p.heldSpike&&p.actionFrom?clamp((now-p.actionFrom)/4000,0,1):0}:null;
+  }
+  if(r.phase==='planted' && p.team==='defense' && r.spike && Math.hypot(p.x-r.spike.x,p.z-r.spike.z)<4.5) {
+    const progress=p.heldSpike&&p.actionFrom?
+      clamp(p.actionBase+(now-p.actionFrom)/7000,0,1):(r.halfDefused?0.5:0);
+    return {site:r.spike.site,mode:'defuse',progress};
+  }
+  return null;
 }
 function snapshot(r) {
   const now=Date.now();
   return {type:'state',code:r.code,round:r.round,phase:r.phase,timer:Math.max(0,(r.until-now)/1000),
     scores:r.scores,host:r.host,winRounds:r.winRounds,spike:r.spike,
-    players:roomUsers(r).map(p=>({id:p.id,name:p.name,team:p.team,x:p.x,y:p.y,z:p.z,footY:p.footY,yaw:p.yaw,pitch:p.pitch,hp:p.hp,armor:p.armor,alive:p.alive,credits:p.credits,weapon:p.weapon,mag:p.mag,reserve:p.reserve}))};
+    players:roomUsers(r).map(p=>({id:p.id,name:p.name,team:p.team,x:p.x,y:p.y,z:p.z,footY:p.footY,yaw:p.yaw,pitch:p.pitch,hp:p.hp,armor:p.armor,alive:p.alive,credits:p.credits,weapon:p.weapon,mag:p.mag,reserve:p.reserve,spikeAction:spikeAction(r,p,now)}))};
 }
 function broadcastState(r) { if(r.started)emitRoom(r,snapshot(r)); }
 function step(r,now){
@@ -343,16 +363,22 @@ function step(r,now){
         continue;
       }
       if(p.team==='attack' && r.phase==='combat') {
-        const a=Math.hypot(p.x-29,p.z+8)<8.5, b=Math.hypot(p.x+32,p.z+23)<8.5;
-        if(!a&&!b||p.footY>.65){p.actionFrom=0;continue;}
+        const site=spikeSite(p.x,p.z,p.footY);
+        if(!site){p.actionFrom=0;continue;}
         if(!p.actionFrom)p.actionFrom=now;
-        if(now-p.actionFrom>=4000){r.spike={x:p.x,y:p.footY,z:p.z,site:a?'A':'B'};r.phase='planted';r.until=now+45000;
-          p.actionFrom=0;p.credits=clamp(p.credits+300,0,9000);emitRoom(r,{type:'spike_planted',spike:r.spike});}
+        if(now-p.actionFrom>=4000){
+          r.spike={x:p.x,y:p.footY,z:p.z,site};r.phase='planted';r.until=now+45000;
+          p.actionFrom=0;p.heldSpike=false;p.credits=clamp(p.credits+300,0,9000);
+          emitRoom(r,{type:'spike_planted',spike:r.spike});
+        }
       } else if(p.team==='defense' && r.phase==='planted' && r.spike){
         if(Math.hypot(p.x-r.spike.x,p.z-r.spike.z)>4.5){p.actionFrom=0;continue;}
-        if(!p.actionFrom)p.actionFrom=now;
-        if(now-p.actionFrom>= (r.halfDefused?3500:7000)){endRound(r,'defense','SPIKE DEFUSED');break;}
-        if(now-p.actionFrom>=3500)r.halfDefused=true;
+        if(!p.actionFrom){p.actionFrom=now;p.actionBase=r.halfDefused?0.5:0;}
+        const progress=p.actionBase+(now-p.actionFrom)/7000;
+        if(progress>=0.5)r.halfDefused=true;
+        // A continuous defuse always takes 7s. On interrupted defuse, the saved
+        // halfway checkpoint resumes with 3.5s remaining, not an instant completion.
+        if(progress>=1.0){endRound(r,'defense','SPIKE DEFUSED');break;}
       }
     }
     if(attackers.length&&defenders.length){
