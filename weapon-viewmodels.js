@@ -22,7 +22,7 @@
     outlaw:   {kind:'break',   body:'#594763',accent:'#c292ed',detail:'#dad0e4',mark:'OUTLAW',scale:1.07},
     operator: {kind:'heavy',   body:'#4f503e',accent:'#e8cc65',detail:'#dbd8b3',mark:'OPERATOR',scale:1.09}
   };
-  const svgOpen = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 370" role="img" aria-label="2D first-person weapon sprite" preserveAspectRatio="xMidYMid meet">`;
+  const svgOpen = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 420" role="img" aria-label="Perspective 2D first-person weapon illustration" preserveAspectRatio="xMidYMid meet">`;
   function shape(points, fill, stroke='#14202a', sw=5) {return `<polygon points="${points}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}" stroke-linejoin="round"/>`;}
   function path(d,fill,stroke='#14202a',sw=5){return `<path d="${d}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round"/>`;}
   function rect(x,y,w,h,fill,rx=3,stroke='none',sw=0){return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${rx}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}"/>`;}
@@ -125,10 +125,77 @@
     out+=circle(694,202,5,s.accent);
     return out;
   }
+  // A deliberately thin, offset silhouette: the weapon is a 2D cut-out with a visible
+  // dark paper edge. It is NOT a 3D scene mesh or an external copyrighted texture.
+  function cutoutDepth(s) {
+    let depth = '';
+    if (s.kind==='blade') {
+      depth += path('M108 143L700 91L798 50L765 94L722 147L286 180Z','#0c151c','#0b1019',9);
+      depth += path('M704 150L893 149L951 181L932 222L709 220Z','#16212b','#090f17',11);
+    } else if (['pistol','machine','double','revolver'].includes(s.kind)) {
+      depth += shape('357,144 724,132 775,177 750,231 607,253 441,242 389,226','#111d28','#07111a',12);
+      depth += shape('650,221 732,208 795,327 750,378 660,367 623,284','#131f29','#07121b',12);
+    } else {
+      depth += rect(75,161,385,44,'#101e28',12,'#0b121d',9);
+      depth += shape('404,145 738,152 785,188 758,254 617,260 429,243','#13202b','#060f19',12);
+      depth += shape('678,166 821,142 954,170 978,193 938,249 837,247 794,217 707,224','#121d26','#070e16',10);
+      depth += shape('553,246 675,243 675,372 566,377','#121e28','#08121b',11);
+    }
+    return `<g class="paper-cutout-depth" transform="translate(13 15)">${depth}</g>`;
+  }
+
+  // A low-cost, vector-only set of hands with thumb/finger planes and jacket cuffs.
+  // They sit in FRONT of the gun drawing and slide with the 2D sprite as it animates.
+  function holdingHands(s) {
+    const knife=s.kind==='blade';
+    const handColor='#394d60', gloveLight='#667b8c', seam='#162530';
+    if(knife) return `<g class="paper-hand paper-knife-hand">`+
+      path('M1024 409L925 356L881 280L850 255L802 277L811 336L853 419Z','#263644','#111923',10)+
+      path('M809 273Q780 262 774 278L767 332Q770 354 790 352L829 322L846 287Z',handColor,seam,8)+
+      path('M780 280Q765 282 771 296L778 314Q785 322 800 316L826 292Z',gloveLight,seam,6)+
+      path('M794 341L831 355L890 422L974 436','#172535',seam,9)+
+      line(818,329,838,342,'#92adba',3)+
+      '</g>';
+    return `<g class="paper-hand paper-gun-hand">`+
+      // Forearm and sleeve extend to the screen's bottom-right edge.
+      path('M1040 438L940 419L848 378L811 339L749 321L712 341L749 390L834 441Z','#233443','#0c1722',12)+
+      path('M934 420L853 384L829 355L806 366L838 420L892 447','#3a4f61','#152633',6)+
+      shape('830,346 849,326 895,340 930,370 914,398 867,389',gloveLight,seam,6)+
+      // Thumb wraps around the near-side pistol grip.
+      path('M719 261Q736 251 750 267L768 295Q776 311 766 323L737 344Q719 352 708 339L696 326Q691 313 699 305L710 292L707 275Z',handColor,seam,9)+
+      path('M713 271Q728 264 739 274L755 294L743 308L714 299Z',gloveLight,seam,5)+
+      // Index finger and knuckle silhouette near trigger guard.
+      path('M673 254Q653 248 643 257L629 274Q621 286 632 295L650 302Q662 307 671 294L686 276Q693 263 673 254Z','#52677b',seam,7)+
+      path('M645 262L664 261L680 271','#90a4b4',seam,4)+
+      path('M698 307L739 316L760 301','none','#8da1b0',3)+
+      // Glove construction details.
+      line(729,328,743,337,'#91aabb',3)+line(746,318,756,326,'#91aabb',3)+
+      path('M808 340L845 370L873 380','none','#b3c5cb',5)+
+      `<path d="M831 364L845 375L866 380" fill="none" stroke="${s.accent}" stroke-width="5" opacity=".85"/>`+
+      '</g>';
+  }
+
+  // Additional highlight/edge planes give the illustration a faceted, readable
+  // first-person look even when viewed nearly edge-on by the CSS 3D transform.
+  function metallicFacets(s) {
+    const isKnife=s.kind==='blade',pistol=['pistol','machine','revolver','double'].includes(s.kind);
+    if(isKnife)return path('M131 144L686 115L747 87L705 127L306 157Z',
+      'rgba(238,247,248,.16)','none',0)+line(180,139,620,117,'#d4e7e7',2);
+    if(pistol)return shape('397,141 709,136 698,146 407,149',
+      'rgba(252,255,255,.24)','none',0)+path('M716 214L755 292L742 298L702 216Z','rgba(0,0,0,.26)','none',0);
+    let f=shape('412,143 738,146 743,159 439,155','rgba(241,249,250,.17)','none',0);
+    f+=shape('440,224 603,235 707,231 718,237 600,247 432,234','rgba(0,0,0,.28)','none',0);
+    f+=shape('698,157 818,138 906,150 834,151 714,169','rgba(255,255,255,.13)','none',0);
+    if(s.kind==='rifle'||s.kind==='smg')f+=`<g opacity=".77">`+Array.from({length:11},(_,i)=>rect(255+i*13,191,6,14,i%2?s.detail:s.accent,1)).join('')+`</g>`;
+    if(s.kind==='heavy'||s.kind==='sniper')f+=Array.from({length:7},(_,i)=>line(253+i*17,155,246+i*17,184,s.detail,3)).join('');
+    return f;
+  }
+
   function makeSvg(id){
     const s=styles[id]||styles.classic;
-    return svgOpen+`<g class="weapon-art" style="filter:drop-shadow(0px 12px 8px rgba(0,0,0,.42))">`+gunParts(id,s)+`</g>`+
-      `<title>${s.mark} — original 2D weapon illustration</title></svg>`;
+    const art = cutoutDepth(s)+`<g class="weapon-art">`+gunParts(id,s)+metallicFacets(s)+`</g>`+holdingHands(s);
+    return svgOpen+`<title>${s.mark} — detailed original illustrated first-person weapon</title>`+
+      `<g class="paper-weapon" data-weapon-id="${id}">${art}</g></svg>`;
   }
   function create(T){
     const group = new T.Group(); // Compatibility-only; intentionally empty (no first-person 3D meshes).
@@ -165,12 +232,21 @@
       const reloadPulse=reloadPlaying?Math.sin(Math.PI*r):0;
       const sword=shown==='knife';
       // The barrel is tilted upward, along the right side of the screen, not a 3D world object.
-      const sway=sword?Math.sin(now*.0018)*1.3:Math.sin(now*.0014)*0.7;
-      const x=bobX+fireT*18+(sword?fireT*-35:0);
-      const y=bobY+fireT*14+reloadPulse*85+(p.isScoped?185:0);
-      const degrees=(sword?49:54)+sway+fireT*(sword?-32:5)+reloadPulse*12;
+      const sway=sword?Math.sin(now*.0018)*1.2:Math.sin(now*.0014)*0.65;
+      const breath=Math.sin(now*.00092)*1.1;
+      const x=bobX+fireT*16+(sword?fireT*-35:0);
+      const y=bobY+fireT*15+reloadPulse*85+(p.isScoped?185:0);
+      const kind=styles[shown]?.kind;
+      const baseTilt=sword?46: ['pistol','revolver','double','machine'].includes(kind)?42:kind==='smg'?36:33;
+      const degrees=baseTilt+sway+fireT*(sword?-32:5)+reloadPulse*11;
       const zoom=styles[shown]?.scale||1;
-      const transform=`translate3d(${x.toFixed(2)}px,${y.toFixed(2)}px,0) rotate(${degrees.toFixed(2)}deg) scale(${zoom})`;
+      // A perspective-transformed single SVG plane: a tilted sheet of paper, not
+      // a rendered 3D weapon model. The right/near end is larger than the muzzle.
+      const planeYaw=(-34 + sway*.75 + fireT*4).toFixed(2);
+      const planePitch=(sword?16:21)+breath+(moving*1.1)-reloadPulse*4;
+      const transform=`translate3d(${x.toFixed(2)}px,${y.toFixed(2)}px,0) `+
+        `perspective(870px) rotateY(${planeYaw}deg) rotateX(${planePitch.toFixed(2)}deg) `+
+        `rotateZ(${degrees.toFixed(2)}deg) scale(${zoom})`;
       if(transform!==prevTransform){elements.svg.style.transform=transform;prevTransform=transform;}
       layer.classList.toggle('weapon-aiming',!!p.isScoped);
       const up=Math.sin(Math.PI*r);

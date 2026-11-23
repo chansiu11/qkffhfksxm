@@ -50,3 +50,21 @@ test('crosshair zoom key, shared online and offline hit flash wiring',()=>{
   assert.match(multiplayer,/me\.hp < a\.player\.hp \|\| me\.armor < a\.player\.armor/);
   assert.match(multiplayer,/a\.flashDamage\(\)/);
 });
+
+
+test('perspective gun cutouts preserve individual silhouettes and respond to movement',()=>{
+  for (const id of Object.keys(api.styles)) {
+    const svg=api.makeSvg(id);
+    assert.match(svg,/paper-cutout-depth/,id+' must have a physical thin edge');
+    assert.match(svg,/paper-hand/,id+' must show a supporting glove/arm');
+    assert.match(svg,/data-weapon-id="[a-z]+"/,id+' must preserve identity');
+    assert(!svg.includes('<image '),id+' must not embed third-party game textures');
+  }
+  const js=fs.readFileSync(path.join(__dirname,'..','weapon-viewmodels.js'),'utf8');
+  const html=fs.readFileSync(path.join(__dirname,'..','index.html'),'utf8');
+  assert.match(js,/perspective\(870px\)/);
+  assert.match(js,/rotateY\(/);
+  assert.match(js,/rotateX\(/);
+  assert.match(js,/rotateZ\(/);
+  assert.match(html,/transform-style: preserve-3d;/);
+});
