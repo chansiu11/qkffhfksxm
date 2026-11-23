@@ -90,3 +90,10 @@ node server/server.js
 ### 무기 이미지 출처와 사용 제한
 
 참조 이미지 `1602.jpg`(사용자가 채팅으로 제공)를 개별 크롭, 배경 제거 후 WEBP로 변환했습니다. 이 그림은 사용자 제공 이미지에 기반하며 출처 게임의 원본 파일을 별도로 수집하지 않았습니다.
+
+### 2026-11-23 Instant line tracer update
+
+- All guns, shotguns (each pellet), AI, and online players use the same instant visual tracer.
+- Tracers render as thin straight `THREE.Line` segments from shot origin to hit endpoint; there is no flying bullet geometry or travel-time animation.
+- Lines fade over 0.13s. Real hit detection was already immediate and remains unchanged.
+- Run `node --test tests/*.test.js` to verify effects and multiplayer regressions.

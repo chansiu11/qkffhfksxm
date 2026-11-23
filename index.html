@@ -697,8 +697,7 @@
             <div><div class="text-sm font-bold text-[#ece8e1]">CLASSIC</div><div class="text-[10px] text-slate-400">HEAD 78 / BODY 26</div></div>
             <span class="font-num text-xs font-black text-[#38e2c7]">FREE</span>
           </button>
-          <button type="button" onclick="window.buyItem('shorty')" class="val-cut-sm w-full p-2.5 bg-[#0f1923] hover:bg-[#1f3144] border border-white/15 hover:border-[#38e2c7] text-left flex justify-between items-center cursor-pointer">
-            <div><div class="text-sm font-bold text-[#ece8e1]">SHORTY</div><div class="text-[10px] text-slate-400">SAWED-OFF // 2 RDS</div></div>
+          <button type="button" onclick="window.buyItem('shorty')" class="val-cut-sm w-full p-2.5 bg-[#0f1923] hover:bg-[#1f3144] border border-white/15 hover:border-[#38e2c7] text-left flex justify-between items-center cursor-pointer">            <div><div class="text-sm font-bold text-[#ece8e1]">SHORTY</div><div class="text-[10px] text-slate-400">SAWED-OFF // 2 RDS</div></div>
             <span class="font-num text-xs font-black text-[#f5c542]">300</span>
           </button>
           <button type="button" onclick="window.buyItem('frenzy')" class="val-cut-sm w-full p-2.5 bg-[#0f1923] hover:bg-[#1f3144] border border-white/15 hover:border-[#38e2c7] text-left flex justify-between items-center cursor-pointer">
@@ -797,7 +796,8 @@
       <div class="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-white/15">
         <div>
           <span class="px-2 py-0.5 bg-amber-400 text-slate-950 font-num font-black text-xs">CUSTOM GAME CHEATS // F1</span>
-          <h2 class="text-xl font-black text-white mt-1">발로란트 사설방 치트 제어판 (방장 통제)</h2>        </div>
+          <h2 class="text-xl font-black text-white mt-1">발로란트 사설방 치트 제어판 (방장 통제)</h2>
+        </div>
         <div class="flex items-center gap-2">
           <button type="button" id="modal-host-cheat-btn" onclick="window.toggleHostCheatPermission(event)"
                   class="px-3.5 py-2 bg-emerald-500 text-slate-950 font-black text-xs cursor-pointer">
@@ -1396,8 +1396,7 @@
         addSolidBox3D(27, -8, 2.8, 4.4, 2.65, 3.15, matDarkMetal, 'A GENERATOR TOP');
         addSolidBox3D(35.5, -4, 3.2, 3.2, 0, 1.75, matRadianite, 'A DICE');
         addSolidBox3D(35.5, -4, 2.1, 2.1, 1.75, 3.1, matRadianite, 'A DICE STACK');
-        addSolidBox3D(35.5, -1.4, 2.0, 1.6, 0, 0.85, matWoodFloor, 'A DICE STEP');
-        addSolidBox3D(20.5, -4.5, 2.2, 2.2, 0, 1.65, matRadianite, 'A GREEN BOX');
+        addSolidBox3D(35.5, -1.4, 2.0, 1.6, 0, 0.85, matWoodFloor, 'A DICE STEP');        addSolidBox3D(20.5, -4.5, 2.2, 2.2, 0, 1.65, matRadianite, 'A GREEN BOX');
 
         /* --- A GARDEN / A TREE --- */
         addWalkableSlab(6, 16, -6, 6, 1.4, 1.4, 'A TREE UPPER', matUpperFloor, true);
@@ -1596,7 +1595,8 @@
           if (pMaxY <= b.minY || pMinY >= b.maxY) continue;
           if (b.maxY <= footY + STEP_HEIGHT) continue;
           const cx = Math.max(b.minX, Math.min(pos.x, b.maxX));
-          const cz = Math.max(b.minZ, Math.min(pos.z, b.maxZ));          const dx = pos.x - cx, dz = pos.z - cz;
+          const cz = Math.max(b.minZ, Math.min(pos.z, b.maxZ));
+          const dx = pos.x - cx, dz = pos.z - cz;
           const distSq = dx * dx + dz * dz;
           if (distSq < radius * radius) {
             const dist = Math.sqrt(distSq) || 0.001;
@@ -2095,8 +2095,7 @@
         }
         const modalBtn = document.getElementById('modal-host-cheat-btn');
         if (modalBtn) {
-          modalBtn.textContent = allowed ? 'HOST CHEATS: ON' : 'HOST CHEATS: OFF';
-          modalBtn.className = allowed
+          modalBtn.textContent = allowed ? 'HOST CHEATS: ON' : 'HOST CHEATS: OFF';          modalBtn.className = allowed
             ? 'px-3.5 py-2 bg-emerald-500 text-slate-950 font-black text-xs cursor-pointer'
             : 'px-3.5 py-2 bg-rose-600 text-white font-black text-xs cursor-pointer';
         }
@@ -2395,7 +2394,8 @@
           }
           syncCheatPermissionUI();
           modal.classList.remove('hidden');
-        } else {          modal.classList.add('hidden');
+        } else {
+          modal.classList.add('hidden');
           if (matchState.inMatch) tryLockPointerSafe();
         }
         sfx.playUI();
@@ -2501,27 +2501,23 @@
         setTimeout(() => { hm.style.opacity = '0'; }, 120);
       }
 
-      // Visible moving tracer, separate from instant hitscan damage calculations.
-      // The same particle is used for AI shots and server-broadcast remote shots.
-      const tracerGeometry = new THREE.CylinderGeometry(0.055, 0.075, 1.6, 7);
-      const tracerGlowGeometry = new THREE.SphereGeometry(0.18, 8, 8);
-      const tracerForward = new THREE.Vector3(0, 1, 0);
+      // Instant hitscan tracer: render a thin line along the full ray immediately.
+      // No traveling mesh, ball, cylinder, or distance-dependent bullet speed.
+      // Used by local shots, AI and network-replicated shots alike.
+      const TRACER_LIFETIME = 0.13;
       function spawnBulletTracer(startPos, endPos, colorHex = 0xffd567) {
         const start = startPos.clone(), end = endPos.clone();
-        const delta = end.sub(start);
-        const distance = delta.length();
+        const distance = start.distanceTo(end);
         if (!(distance > 0.05) || !Number.isFinite(distance)) return;
-        const dir = delta.multiplyScalar(1 / distance);
-        const material = new THREE.MeshBasicMaterial({ color: colorHex, transparent: true, opacity: 1,
-          blending: THREE.AdditiveBlending, depthWrite: false, depthTest: true });
-        const flash = new THREE.Mesh(tracerGeometry, material);
-        flash.quaternion.setFromUnitVectors(tracerForward, dir);
-        const glow = new THREE.Mesh(tracerGlowGeometry, new THREE.MeshBasicMaterial({
-          color: 0xfff4ab, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending,
-          depthWrite: false, depthTest: true }));
-        scene.add(flash, glow);
-        activeTracers.push({ flash, glow, start, dir, distance, progress: 0,
-          duration: Math.max(0.12, Math.min(0.42, distance / 480)), life: 1 });
+        const geometry = new THREE.BufferGeometry().setFromPoints([start, end]);
+        const material = new THREE.LineBasicMaterial({
+          color: colorHex, transparent: true, opacity: 0.95,
+          blending: THREE.AdditiveBlending, depthWrite: false, depthTest: true
+        });
+        const line = new THREE.Line(geometry, material);
+        line.frustumCulled = false;
+        scene.add(line);
+        activeTracers.push({ line, age: 0, lifetime: TRACER_LIFETIME });
       }
 
       // Must match Three.js camera.rotation.order='YXZ' and the server's firing direction.
@@ -2798,8 +2794,7 @@
         if (editing) return;
         keys[e.code] = true;
 
-        if (e.code === 'F1') {
-          e.preventDefault();
+        if (e.code === 'F1') {          e.preventDefault();
           window.toggleCheatPanel();
           return;
         }
@@ -3194,7 +3189,8 @@
 
           document.getElementById('hud-callout-name').textContent = player.callout;
           const elevSign = player.footY >= 0 ? '+' : '';
-          document.getElementById('hud-elevation-badge').textContent = `${elevSign}${player.footY.toFixed(1)}m`;        } else {
+          document.getElementById('hud-elevation-badge').textContent = `${elevSign}${player.footY.toFixed(1)}m`;
+        } else {
           // PLAYER IS DEAD -> LIVE 1ST-PERSON TEAMMATE SPECTATOR CAMERA!
           const specAlly = getCurrentSpectatedAlly();
           if (specAlly) {
@@ -3498,7 +3494,6 @@
           }
         }
       }
-
       window.addEventListener('resize', () => {
         camera.aspect = window.innerWidth / window.innerHeight;
         camera.updateProjectionMatrix();
@@ -3569,16 +3564,13 @@
 
         for (let i = activeTracers.length - 1; i >= 0; i--) {
           const tracer = activeTracers[i];
-          tracer.progress = Math.min(1, tracer.progress + dt / tracer.duration);
-          const travel = tracer.progress * tracer.distance;
-          // Reuse an existing Vector3 to avoid garbage collection on 120 Hz devices.
-          tracer.flash.position.copy(tracer.start).addScaledVector(tracer.dir, travel);
-          tracer.glow.position.copy(tracer.flash.position);
-          tracer.flash.material.opacity = Math.min(1, (1 - tracer.progress) * 2.2);
-          tracer.glow.material.opacity = Math.min(0.82, (1 - tracer.progress) * 1.8);
-          if (tracer.progress >= 1) {
-            scene.remove(tracer.flash, tracer.glow);
-            tracer.flash.material.dispose(); tracer.glow.material.dispose();
+          tracer.age += dt;
+          const remaining = Math.max(0, 1 - tracer.age / tracer.lifetime);
+          tracer.line.material.opacity = remaining * 0.95;
+          if (remaining <= 0) {
+            scene.remove(tracer.line);
+            tracer.line.geometry.dispose();
+            tracer.line.material.dispose();
             activeTracers.splice(i, 1);
           }
         }
