@@ -53,7 +53,7 @@ test('first-person paper is PROJECTED as near-large/far-small rectangle, not rot
   const nearHeight=Math.hypot(p.corners[2].x-p.corners[1].x,p.corners[2].y-p.corners[1].y);
   assert(nearHeight>farHeight*2.7,`rear paper edge should be visibly larger (far=${farHeight},near=${nearHeight})`);
   assert(p.frontDepth>p.rearDepth*3);
-  assert(p.muzzle.x>w*.5 && p.muzzle.x<w*.7);
+  assert(Math.abs((p.rear.x-p.muzzle.x) - w*(1.105-.527)*.5) < .01);
   assert(p.muzzle.y>h*.5 && p.muzzle.y<h*.73);
   assert.equal(api.muzzleEdgeY.vandal,.226);
 });
