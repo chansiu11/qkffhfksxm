@@ -6,8 +6,8 @@ const fs=require('node:fs');
 const path=require('node:path');
 const root=path.join(__dirname,'..');
 let clock=0;
-const layer={content:'',style:{},classes:new Set(),classList:{toggle(name,on){if(on)layer.classes.add(name);else layer.classes.delete(name)}},set innerHTML(html){this.content=html;},get innerHTML(){return this.content;},querySelector(selector){if(selector==='svg'&&this.content.includes('<svg'))return {style:{}};return null;}};
-const ctx={window:{innerWidth:1440},performance:{now:()=>clock},document:{getElementById:id=>id==='fps-weapon-sprite-layer'?layer:null}};
+const layer={content:'',style:{},classes:new Set(),classList:{toggle(name,on){if(on)layer.classes.add(name);else layer.classes.delete(name)}},set innerHTML(html){this.content=html;},get innerHTML(){return this.content;},querySelector(selector){if(selector==='svg'&&this.content.includes('<svg'))return {style:{}};return null;},appendChild(child){this.lastChild=child}};
+const ctx={window:{innerWidth:1440,innerHeight:900},performance:{now:()=>clock},document:{getElementById:id=>id==='fps-weapon-sprite-layer'?layer:null,createElement:()=>({className:'',style:{}})}};
 vm.runInNewContext(fs.readFileSync(path.join(root,'weapon-viewmodels.js'),'utf8'),ctx);
 const API=ctx.window.WeaponViewmodels;
 class Group{constructor(){this.children=[]}}
@@ -57,11 +57,35 @@ test('crosshair controls and hit flash remain wired into multiplayer and standal
 test('tilted gun projects toward player center with a barrel-to-stock perspective and no arms',()=>{
   const src=fs.readFileSync(path.join(root,'weapon-viewmodels.js'),'utf8');
   const css=fs.readFileSync(path.join(root,'index.html'),'utf8');
-  assert.match(src,/perspective\(930px\)/);
+  assert.match(src,/perspective\(1250px\)/);
   assert.match(src,/rotateY\(/);
   assert.match(src,/rotateX\(/);
   assert.match(src,/rotateZ\(/);
-  assert.match(src,/screenWidth<=820/);
+  assert.match(src,/width<=820&&height>width/);
   assert.match(css,/transform-style: preserve-3d;/);
   assert(!src.includes('paper-hand'));
+});
+
+
+test('UI view endpoints anchor the barrel-front below crosshair and near edge outside viewport',()=>{
+  for(const id of Object.keys(API.styles)){
+    for(const [w,h] of [[1440,900],[390,844],[1280,720]]){
+      const pose=API.viewEndpoints(id,w,h);
+      assert(pose.front.x>w*.35&&pose.front.x<w*.86,id+' front must stay on screen');
+      assert(pose.front.y>h*.55&&pose.front.y<h*.80,id+' front not lower-center');
+      assert(pose.edge.x>w&&pose.edge.y>h,id+' rear should exit lower-right');
+    }
+  }
+});
+
+test('A display-only hit effect follows the front of the sprite, without changing the shot ray',()=>{
+  const view=API.create({Group});
+  view.setWeapon('vandal'); clock+=400;view.update(.016,{alive:true,vel:{x:0,z:0},isScoped:false},{inMatch:true});
+  view.fire('light');clock+=40;view.update(.016,{alive:true,vel:{x:0,z:0},isScoped:false},{inMatch:true});
+  assert(layer.lastChild.style.opacity>0,'brief muzzle glow should be visible');
+  const front=API.viewEndpoints('vandal',1440,900).front;
+  assert(Math.abs(parseFloat(layer.lastChild.style.left)-front.x)<35,'effect must stay attached to displayed front');
+  assert(Math.abs(parseFloat(layer.lastChild.style.top)-front.y)<35,'effect must be near the displayed front height');
+  clock+=200;view.update(.016,{alive:true,vel:{x:0,z:0},isScoped:false},{inMatch:true});
+  assert.equal(layer.lastChild.style.opacity,'0');
 });

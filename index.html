@@ -16,10 +16,9 @@
   <!-- Three.js r128 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="shotgun-pellets.js"></script>
-  <script src="melee-rules.js"></script>
   <script src="crosshair-profile.js"></script>
   <script src="crosshair-ui.js" defer></script>
-  <script src="weapon-viewmodels.js?v=20261123-weapononly"></script>
+  <script src="weapon-viewmodels.js?v=20261123-viewpose"></script>
 
   <style>
     :root {
@@ -75,47 +74,48 @@
       z-index: 1;
     }
 
-    /* One transparent photo per equipped weapon; no arms, hands or old vector guns. */
+    /* Anchored first-person weapon plane: the near edge exits at the lower-right,
+       while the front of the sprite converges toward the lower center. */
     #fps-weapon-sprite-layer {
       position: fixed;
-      bottom: -9%;
-      right: 18%;
-      width: clamp(590px, 80vw, 1100px);
-      height: clamp(280px, 37vw, 530px);
+      inset: 0;
+      width: 100%;
+      height: 100%;
       z-index: 14;
       opacity: 0;
       visibility: hidden;
       pointer-events: none;
-      overflow: visible;
+      overflow: hidden;
       transition: opacity .11s ease-out, visibility .11s ease-out;
       contain: layout style;
     }
     #fps-weapon-sprite-layer.weapon-visible { opacity: 1; visibility: visible; }
-    #fps-weapon-sprite-layer.weapon-aiming { opacity: .22; }
+    #fps-weapon-sprite-layer.weapon-aiming { opacity: .12; }
     #fps-weapon-sprite-layer > svg {
       position: absolute;
-      width: 100%;
-      height: auto;
-      bottom: 0;
-      right: 0;
+      display: block;
       overflow: visible;
-      transform-origin: 83% 68%;
       transform-style: preserve-3d;
       backface-visibility: hidden;
       will-change: transform;
-      filter: drop-shadow(8px 15px 9px rgba(0,0,0,.55));
+      filter: drop-shadow(8px 16px 8px rgba(0,0,0,.48));
     }
-    #fps-weapon-sprite-layer.weapon-knife > svg { transform-origin: 86% 66%; }
-    @media (max-width: 820px) {
-      #fps-weapon-sprite-layer {
-        width: clamp(540px, 148vw, 790px);
-        bottom: -7%;
-        right: -12%;
-      }
+    #fps-weapon-sprite-layer .weapon-shot-flash {
+      position: absolute;
+      display: block;
+      width: 70px;
+      height: 38px;
+      pointer-events: none;
+      opacity: 0;
+      background: radial-gradient(ellipse at 16% 50%, #fff9d3 0%, #ffe585 30%, #ffa528 59%, transparent 75%);
+      clip-path: polygon(0 43%, 35% 20%, 73% 0, 57% 35%, 100% 50%, 57% 63%, 73% 100%, 29% 77%, 0 58%);
+      filter: drop-shadow(0 0 6px #ffbf43);
+      transform-origin: 10% 50%;
     }
     @media (prefers-reduced-motion: reduce) {
       #fps-weapon-sprite-layer { transition: none; }
-    }    /* Red peripheral hit feedback for both AI and live opponents. */
+    }
+    /* Red peripheral hit feedback for both AI and live opponents. */
     #damage-vignette {
       z-index: 18;
       opacity: 0;
@@ -795,9 +795,9 @@
     <div class="val-cut val-panel max-w-3xl w-full p-5 sm:p-6 border-2 border-amber-400 shadow-2xl my-auto">
       <div class="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-white/15">
         <div>
-          <span class="px-2 py-0.5 bg-amber-400 text-slate-950 font-num font-black text-xs">CUSTOM GAME CHEATS // F1</span>          <h2 class="text-xl font-black text-white mt-1">발로란트 사설방 치트 제어판 (방장 통제)</h2>
-        </div>
-        <div class="flex items-center gap-2">
+          <span class="px-2 py-0.5 bg-amber-400 text-slate-950 font-num font-black text-xs">CUSTOM GAME CHEATS // F1</span>
+          <h2 class="text-xl font-black text-white mt-1">발로란트 사설방 치트 제어판 (방장 통제)</h2>
+        </div>        <div class="flex items-center gap-2">
           <button type="button" id="modal-host-cheat-btn" onclick="window.toggleHostCheatPermission(event)"
                   class="px-3.5 py-2 bg-emerald-500 text-slate-950 font-black text-xs cursor-pointer">
             HOST CHEATS: ON
@@ -1594,9 +1594,9 @@
           const b = wallBoxes3D[i];
           if (pMaxY <= b.minY || pMinY >= b.maxY) continue;
           if (b.maxY <= footY + STEP_HEIGHT) continue;
-          const cx = Math.max(b.minX, Math.min(pos.x, b.maxX));          const cz = Math.max(b.minZ, Math.min(pos.z, b.maxZ));
-          const dx = pos.x - cx, dz = pos.z - cz;
-          const distSq = dx * dx + dz * dz;
+          const cx = Math.max(b.minX, Math.min(pos.x, b.maxX));
+          const cz = Math.max(b.minZ, Math.min(pos.z, b.maxZ));
+          const dx = pos.x - cx, dz = pos.z - cz;          const distSq = dx * dx + dz * dz;
           if (distSq < radius * radius) {
             const dist = Math.sqrt(distSq) || 0.001;
             const overlap = radius - dist;
@@ -1610,7 +1610,7 @@
        * 5. FULL VALORANT WEAPON ROSTER & 4-SLOT PURE GUNPLAY LOADOUT
        * ========================================================================= */
       const WEAPON_CATALOG = {
-        knife:    { id: 'knife', slot: 'knife', name: 'MELEE KNIFE', cost: 0, headDmg: 50, bodyDmg: 50, fireRate: 0.42, magSize: 1, resSize: 0, spreadBase: 0, spreadMove: 0, recoilPitch: 0, auto: false, canScope: false, pellets: 1, range: 2.9, color: 0xf5c542 },
+        knife:    { id: 'knife', slot: 'knife', name: 'MELEE KNIFE', cost: 0, headDmg: 150, bodyDmg: 50, fireRate: 0.42, magSize: 1, resSize: 0, spreadBase: 0, spreadMove: 0, recoilPitch: 0.01, auto: false, canScope: false, pellets: 1, range: 3.4, color: 0xf5c542 },
         classic:  { id: 'classic', slot: 'secondary', name: 'CLASSIC', cost: 0, headDmg: 78, bodyDmg: 26, fireRate: 0.16, magSize: 12, resSize: 36, spreadBase: 0.004, spreadMove: 0.045, recoilPitch: 0.016, auto: false, canScope: false, pellets: 1, range: 220, color: 0x94a3b8 },
         shorty:   { id: 'shorty', slot: 'secondary', name: 'SHORTY', cost: 300, headDmg: 36, bodyDmg: 18, fireRate: 0.28, magSize: 2, resSize: 6, spreadBase: 0.075, spreadMove: 0.09, recoilPitch: 0.045, auto: false, canScope: false, pellets: 8, range: 42, color: 0xf97316 },
         frenzy:   { id: 'frenzy', slot: 'secondary', name: 'FRENZY', cost: 450, headDmg: 78, bodyDmg: 26, fireRate: 0.095, magSize: 13, resSize: 39, spreadBase: 0.012, spreadMove: 0.05, recoilPitch: 0.018, auto: true, canScope: false, pellets: 1, range: 220, color: 0xfacc15 },
@@ -2034,7 +2034,6 @@
         player.reloadId = (player.reloadId || 0) + 1;
         player.reloading = false;
         player.pendingReloadWeapon = null;
-        player.reloadServerConfirmed = false;
         viewmodel.stopReload();
         isSpikeMobileToggleLock = false;
         isSpikeKeyHeld = false;
@@ -2393,10 +2392,10 @@
         if (modal.classList.contains('hidden')) {
           if (document.pointerLockElement) {
             try { document.exitPointerLock(); } catch (err) {}
-          }          syncCheatPermissionUI();
+          }
+          syncCheatPermissionUI();
           modal.classList.remove('hidden');
-        } else {
-          modal.classList.add('hidden');
+        } else {          modal.classList.add('hidden');
           if (matchState.inMatch) tryLockPointerSafe();
         }
         sfx.playUI();
@@ -2575,9 +2574,9 @@
         }
       }
 
-      function attemptFire(knifeMode = 'light') {
+      function attemptFire() {
         if (!matchState.inMatch) return;
-        if (window.MP.active) { window.MP.fire(knifeMode); return; }
+        if (window.MP.active) { window.MP.fire(); return; }
         if (!player.alive) {
           window.cycleSpectator(1);
           return;
@@ -2586,7 +2585,7 @@
 
         const w = getActiveWeapon();
         const now = performance.now() / 1000;
-        if (now - player.lastShotTime < (w.slot === 'knife' ? MeleeRules.MODES[MeleeRules.modeFor(knifeMode)].cooldown : w.fireRate)) return;
+        if (now - player.lastShotTime < w.fireRate) return;
 
         const infAmmo = (roomState.allowCheats && cheats.infiniteAmmo) || w.slot === 'knife';
         if (!infAmmo && w.mag <= 0) {
@@ -2597,7 +2596,7 @@
         window.markCrosshairFiring?.();
         if (!infAmmo) w.mag--;
 
-        viewmodel.fire(knifeMode);
+        viewmodel.fire();
         if (w.slot === 'knife') {
           sfx.playKnifeSlash();
         } else {
@@ -2605,34 +2604,6 @@
           muzzleFlashMesh.material.opacity = 1;
           setTimeout(() => { muzzleFlashMesh.material.opacity = 0; }, 45);
           gunGroup.position.z = -0.32;
-        }
-
-        if (w.slot === 'knife') {
-          const target = MeleeRules.selectTarget(player.pos, player.yaw, player.pitch, knifeMode,
-            bots.filter(b => b.alive && b.team === 'enemy').map(b => ({
-              x: b.group.position.x, z: b.group.position.z, footY: b.footY,
-              yaw: b.yaw, alive: b.alive, bot: b
-            })), (enemy, info) => {
-              const origin = player.pos;
-              const aim = new THREE.Vector3(info.dx, info.bodyY - origin.y, info.dz);
-              const distance = aim.length();
-              if (distance <= .01) return false;
-              const walls = new THREE.Raycaster(origin, aim.normalize(), 0, distance - .2);
-              return !walls.intersectObjects(mapTargetMeshes, false).length;
-            });
-          if (target) {
-            const victim = target.target.bot;
-            victim.hp -= target.damage;
-            showHitmarker(false);
-            if (victim.hp <= 0 && victim.alive) {
-              victim.alive = false;
-              victim.group.visible = false;
-              player.credits = Math.min(9000, player.credits + 200);
-              addKillFeed('YOU', victim.name, w.name, false);
-            }
-          }
-          updateHUD();
-          return;
         }
 
         // One fixed fan per trigger pull: real pellets and visible streaks use the same rays.
@@ -2698,31 +2669,25 @@
         if (w.slot === 'knife' || w.mag >= w.magSize || w.reserve <= 0) return;
         player.reloading = true;
         player.pendingReloadWeapon = w.id;
-        player.reloadRequestedAt = performance.now();
-        player.reloadServerConfirmed = false;
         const reloadId = (player.reloadId = (player.reloadId || 0) + 1);
         const reloadWeaponId = w.id;
         viewmodel.beginReload();
         sfx.playUI();
         if (window.MP.active) {
-          if (!window.MP.send({type:'reload',weapon:reloadWeaponId,requestId:reloadId})) {
+          if (!window.MP.send({type:'reload',weapon:reloadWeaponId})) {
             player.reloading = false;
             player.pendingReloadWeapon = null;
-            player.reloadServerConfirmed = false;
             viewmodel.stopReload();
-            updateHUD();
             return;
           }
-          // A lost ack is recovered from server snapshots, or this generous
-          // deadman timer releases the input lock so the player can retry.
+          // A server acknowledgment updates ammo; a delayed/lost acknowledgment must
+          // not leave the reload lock engaged forever or change another weapon.
           setTimeout(() => {
-            if (player.reloading && player.reloadId === reloadId &&
-                player.pendingReloadWeapon === reloadWeaponId) {
+            if (player.reloading && player.reloadId === reloadId) {
               player.reloading = false; player.pendingReloadWeapon = null;
-              player.reloadServerConfirmed = false;
               viewmodel.stopReload(); updateHUD();
             }
-          }, 5000);
+          }, 4000);
           return;
         }
         setTimeout(() => {
@@ -2744,7 +2709,6 @@
           player.reloadId = (player.reloadId || 0) + 1;
           player.reloading = false;
           player.pendingReloadWeapon = null;
-          player.reloadServerConfirmed = false;
           viewmodel.stopReload();
         }
         if (window.MP.active && window.MP.started) window.MP.send({type:'equip',slot});
@@ -2942,8 +2906,7 @@
           isMouseFiring = true;
           if (getActiveWeapon().auto) attemptFire();
         } else if (e.button === 2) {
-          if (getActiveWeapon().slot === 'knife') attemptFire('heavy');
-          else window.toggleScope();
+          window.toggleScope();
         }
       });
 
@@ -3034,9 +2997,7 @@
           activePointer = e.pointerId; lastX = e.clientX; lastY = e.clientY;
           active(true);
           try { button.setPointerCapture(e.pointerId); } catch (_) {}
-          if (getActiveWeapon().slot === 'knife') {
-            if (side === 'right') attemptFire('heavy');
-          } else if (getActiveWeapon().auto) attemptFire();
+          if (getActiveWeapon().auto) attemptFire();
         });
         button.addEventListener('pointermove', e => {
           if (activePointer !== e.pointerId) return;
@@ -3047,8 +3008,7 @@
         function release(e, shoot) {
           if (activePointer !== e.pointerId) return;
           activePointer = null; active(false);
-          if (shoot && !getActiveWeapon().auto &&
-              !(getActiveWeapon().slot === 'knife' && side === 'right')) attemptFire('light');
+          if (shoot && !getActiveWeapon().auto) attemptFire();
         }
         button.addEventListener('pointerup', e => release(e, true));
         button.addEventListener('pointercancel', e => release(e, false));
@@ -3193,6 +3153,7 @@
         rCtx.arc(px, pz, 4.4, 0, Math.PI * 2);
         rCtx.fill();
       }
+
       function updatePlayerAndSpectatorCamera(dt) {
         const isBuy = matchState.phase === 'buy';
         bots.forEach(b => {
@@ -3233,8 +3194,7 @@
             const baseSpeed = (isCrouching || isWalkingSlow) ? 4.3 : 7.6;
             const walkSpeed = baseSpeed * knifeBonus;
 
-            player.vel.x = wishDir.x * walkSpeed;
-            player.vel.z = wishDir.z * walkSpeed;
+            player.vel.x = wishDir.x * walkSpeed;            player.vel.z = wishDir.z * walkSpeed;
             player.pos.x += player.vel.x * dt;
             player.pos.z += player.vel.z * dt;
 

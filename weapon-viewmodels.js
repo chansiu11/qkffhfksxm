@@ -64,6 +64,37 @@
       `x="${p.x}" y="${p.y}" width="${p.width}" height="${p.height}" `+
       `preserveAspectRatio="xMidYMid meet"/></g></svg>`;
   }
+  // Relative muzzle/front and screen-edge endpoints calibrated against normal
+  // right-handed FPS gameplay screenshots. Coordinates are fractions of viewport.
+  // The weapon is a 2D photo: only the presentation plane moves, never the hit ray.
+  const VIEW_ENDPOINTS = Object.freeze({
+    rifle:   {front:[.535,.610], edge:[1.115,1.132], plane:-32},
+    smg:     {front:[.598,.658], edge:[1.097,1.105], plane:-30},
+    shotgun: {front:[.545,.638], edge:[1.115,1.140], plane:-30},
+    sniper:  {front:[.490,.606], edge:[1.150,1.140], plane:-31},
+    pistol:  {front:[.750,.716], edge:[1.062,1.127], plane:-23},
+    revolver:{front:[.730,.710], edge:[1.092,1.146], plane:-25},
+    machine: {front:[.731,.717], edge:[1.084,1.125], plane:-24},
+    short:   {front:[.703,.718], edge:[1.092,1.124], plane:-25},
+    blade:   {front:[.611,.691], edge:[1.113,1.123], plane:-24}
+  });
+  function viewEndpoints(id, width, height){
+    const kind=styles[id]?.kind||'rifle';
+    const ref=VIEW_ENDPOINTS[kind]||VIEW_ENDPOINTS.rifle;
+    // Portrait/mobile layouts lean farther to the bottom-right to leave the
+    // crosshair clear and keep the visible portion inside the narrow screen.
+    const portrait=width<=820&&height>width;
+    const front=portrait ? [
+      kind==='blade'?.56:kind==='pistol'||kind==='revolver'||kind==='machine'?.67:.43,
+      kind==='blade'?.70:kind==='pistol'||kind==='revolver'||kind==='machine'?.76:.685
+    ] : ref.front;
+    const edge=portrait ? [
+      kind==='pistol'||kind==='revolver'||kind==='machine'?1.13:1.24,
+      kind==='blade'?1.09:1.16
+    ] : ref.edge;
+    return {front:{x:width*front[0],y:height*front[1]},
+      edge:{x:width*edge[0],y:height*edge[1]},yaw:ref.plane};
+  }
   function create(THREE){
     // No weapon mesh is attached to the camera; kept only for legacy gameplay API.
     const group=new THREE.Group();
@@ -72,7 +103,8 @@
     if(!layer)throw Error('Missing weapon sprite layer');
     const cache=new Map(),elements={};
     let shown='',fireAt=-1e6,fireMode='light',reloadAt=-1e6,reloadPlaying=false;
-    let switchAt=-1e6,lastVisible=false,lastTransform='';
+    let switchAt=-1e6,lastVisible=false,lastTransform='',lastLayoutKey='';
+    let pose=null,flashNode=null;
     function setWeapon(id){
       const next=Object.hasOwn(styles,id)?id:'classic';
       if(next===shown)return;
@@ -82,8 +114,11 @@
       if(!cache.has(next))cache.set(next,makeSvg(next));
       layer.innerHTML=cache.get(next);
       elements.svg=layer.querySelector('svg');
+      flashNode=document.createElement('span');
+      flashNode.className='weapon-shot-flash';
+      layer.appendChild(flashNode);
       layer.classList.toggle('weapon-knife',next==='knife');
-      lastTransform='';
+      lastLayoutKey='';lastTransform='';
     }
     function fire(mode='light'){
       fireMode=mode==='heavy'?'heavy':'light';
@@ -106,26 +141,60 @@
       const reloadProgress=reloadPlaying?Math.min(1,Math.max(0,(now-reloadAt)/1170)):0;
       const reloadDrop=reloadPlaying?Math.sin(Math.PI*reloadProgress):0;
       const heavy=sword&&fireMode==='heavy';
-      // Keep the right/near end closest to camera and muzzle facing away/toward center.
+      // Two viewport anchors define the first-person pose: front of the sprite
+      // near lower center, near side disappearing past the lower-right edge.
+      // This avoids simply rotating an undersized, floating picture in place.
       const screenWidth=Number.isFinite(window.innerWidth)?window.innerWidth:1440;
-      const mobile=screenWidth<=820;
-      const angle=sword?33:kind==='pistol'||kind==='machine'||kind==='revolver'?28:
-        kind==='short'?25:kind==='smg'?23:20;
-      const yaw=-49 + breathing*.6 + kick*3;
-      const pitch=(sword?9:15)+breathing*1.1+moving*1.4-reloadDrop*5;
-      const z=angle+breathing*.75 + kick*(sword?(heavy?32:-32):7) + reloadDrop*13;
-      const x=bobX+kick*(sword?(heavy?-40:-24):11)+(mobile?4:0);
-      const y=bobY+kick*(sword?-18:22)+reloadDrop*106+draw*92+(p.isScoped?180:0);
-      const scale=(styles[shown].scale||1)*(mobile?.9:1);
+      const screenHeight=Number.isFinite(window.innerHeight)?window.innerHeight:900;
+      const key=`${shown}:${screenWidth}:${screenHeight}`;
+      if(lastLayoutKey!==key){
+        const pImg=referencePlacement(shown);
+        const pivotX=pImg.x+pImg.width;
+        const pivotY=pImg.y+pImg.height*.5;
+        const endpoints=viewEndpoints(shown,screenWidth,screenHeight);
+        const dx=endpoints.edge.x-endpoints.front.x;
+        const dy=endpoints.edge.y-endpoints.front.y;
+        const distance=Math.hypot(dx,dy);
+        const radians=Math.atan2(dy,dx);
+        const yawRadians=endpoints.yaw*Math.PI/180;
+        // View-plane width chosen from the two on-screen points. A mild 3D
+        // foreshortening is compensated so the front remains clearly visible.
+        const svgWidth=distance/(pImg.width/1000*Math.cos(yawRadians)*.96);
+        const svgHeight=svgWidth*.45;
+        elements.svg.style.width=`${svgWidth.toFixed(1)}px`;
+        elements.svg.style.height=`${svgHeight.toFixed(1)}px`;
+        elements.svg.style.left=`${(endpoints.edge.x-svgWidth*pivotX/1000).toFixed(1)}px`;
+        elements.svg.style.top=`${(endpoints.edge.y-svgHeight*pivotY/450).toFixed(1)}px`;
+        elements.svg.style.transformOrigin=`${(pivotX/10).toFixed(2)}% ${(pivotY/4.5).toFixed(2)}%`;
+        pose={angle:radians*180/Math.PI,yaw:endpoints.yaw,front:endpoints.front,edge:endpoints.edge};
+        lastLayoutKey=key;lastTransform='';
+      }
+      const swing= sword?(heavy?28:-30):0;
+      const roll=pose.angle+breathing*.35+kick*(sword?swing:3.4)+reloadDrop*11;
+      const portrait=screenWidth<=820&&screenHeight>screenWidth;
+      // Visual-only offset compensates for perspective distortion, placing the
+      // *actual displayed* front near the target screenshot anchor.
+      const anchorShiftX=-screenWidth*(portrait?.15:.20);
+      const anchorShiftY=-screenHeight*(portrait?.10:.145);
+      const x=anchorShiftX+bobX+kick*(sword?-21:8);
+      const y=anchorShiftY+bobY+kick*(sword?-15:21)+reloadDrop*100+draw*90+(p.isScoped?205:0);
+      const yaw=pose.yaw+breathing*.4;
+      const pitch=4.6+breathing*.45+moving*.6;
       const transform=`translate3d(${x.toFixed(2)}px,${y.toFixed(2)}px,0) `+
-        `perspective(930px) rotateY(${yaw.toFixed(2)}deg) `+
-        `rotateX(${pitch.toFixed(2)}deg) rotateZ(${z.toFixed(2)}deg) scale(${scale.toFixed(3)})`;
+        `perspective(1250px) rotateZ(${roll.toFixed(2)}deg) `+
+        `rotateX(${pitch.toFixed(2)}deg) rotateY(${yaw.toFixed(2)}deg)`;
       if(transform!==lastTransform){elements.svg.style.transform=transform;lastTransform=transform;}
+      if(flashNode){
+        flashNode.style.left=`${(pose.front.x+x-anchorShiftX+9).toFixed(1)}px`;
+        flashNode.style.top=`${(pose.front.y+y-anchorShiftY-15).toFixed(1)}px`;
+        flashNode.style.transform=`translate(-70%, -50%) rotate(${(roll+180).toFixed(1)}deg)`;
+        flashNode.style.opacity=(!sword&&!p.isScoped&&kick>.55)?String(Math.min(1,(kick-.55)*2.2)):'0';
+      }
       layer.classList.toggle('weapon-aiming',!!p.isScoped);
     }
     setWeapon('classic');
     return {group,flash,setWeapon,fire,beginReload,stopReload,update,
       get isReloading(){return reloadPlaying;},get current(){return shown;},styles};
   }
-  window.WeaponViewmodels={create,styles,makeSvg,referenceImages,referencePlacement};
+  window.WeaponViewmodels={create,styles,makeSvg,referenceImages,referencePlacement,viewEndpoints};
 })();
