@@ -52,3 +52,12 @@ node server/server.js
 - The online HUD displays server-confirmed plant/defuse progress. Reload completion
   still uses the existing 1.1-second inventory authority on Render.
 - Test with `node --test tests/*.test.js`.
+
+## Network stability and performance (2026-11-23)
+
+- WebSocket ping/pong measures actual browser-to-server round-trip latency every 2.5 seconds; the in-game status shows **measured** PING (ms) and FPS, not a fixed target value.
+- After a temporary disconnection the client retries automatically and can resume the same player identity, team, health and inventory in the existing room for **45 seconds**, as long as the server process is still running. Choosing to leave deliberately removes the player immediately.
+- Player position updates are rate-limited and rounded; the server drops **outdated snapshots** for slow receivers instead of allowing an indefinitely growing TCP backlog. TCP keep-alives remain enabled.
+- Browser rendering uses reduced shadow-map resolution, lower initial render pixel ratio on touchscreen devices, adaptive resolution, less frequent radar redraws, and fewer unnecessary DOM and geometry allocations. The game still uses the display's refresh rate via requestAnimationFrame.
+- **Neither under-100 ms latency nor over-120 FPS can be guaranteed**: latency depends on the player's route to Render's Singapore region, and FPS depends on the device, refresh rate, graphics driver, load and browser. A 60-Hz screen generally cannot display 120 distinct frames per second. On Render Free, idle spin-downs and service restarts can interrupt matches; these erase memory-only rooms. A true always-on service and persistent room storage would be required to eliminate those cases.
+- Validation: `node --test tests/*.test.js`, `python tests/keyboard_smoke.py`, `python tests/gesture_smoke.py`.

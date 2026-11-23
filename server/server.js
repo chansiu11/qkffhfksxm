@@ -4,10 +4,12 @@ const crypto = require('node:crypto');
 const { URL } = require('node:url');
 const catalog = require('./weapons.json');
 const blockers = require('./blockers.json');
-const PORT = Number(process.env.PORT) || 10000;
+const PORT = process.env.PORT == null ? 10000 : Number(process.env.PORT);
 const rooms = new Map();
 const clients = new Set();
-const TICK_MS = 100;
+const TICK_MS = 100; // 10 Hz server snapshots; render/aim stays local for low latency.
+const REJOIN_GRACE_MS = 45000;
+const MAX_BACKLOG_BYTES = 96 * 1024;
 const MAX_MSG = 8192;
 const LIMIT = 55;
 
@@ -17,25 +19,46 @@ function writeFrame(socket, opcode, data = Buffer.alloc(0)) {
   const payload = Buffer.isBuffer(data) ? data : Buffer.from(data);
   const head = payload.length < 126 ? Buffer.from([0x80 | opcode, payload.length]) :
     Buffer.from([0x80 | opcode, 126, (payload.length >>> 8) & 255, payload.length & 255]);
-  socket.write(Buffer.concat([head, payload]));
+  // Never let a slow peer queue unlimited traffic and stall the whole room.
+  if (!socket.destroyed && socket.writableLength < MAX_BACKLOG_BYTES) socket.write(Buffer.concat([head, payload]));
 }
 function send(c, msg) {
-  if (!c.closed && c.socket.writable) writeFrame(c.socket, 1, JSON.stringify(msg));
+  if (!c || c.closed || !c.socket.writable || c.socket.destroyed) return false;
+  // Movement snapshots are disposable. Drop outdated states rather than building
+  // up seconds of buffering over a slow phone or unstable mobile network.
+  if (msg.type === 'state' && c.socket.writableLength > 24 * 1024) return false;
+  writeFrame(c.socket, 1, JSON.stringify(msg));
+  return true;
 }
-function close(c, reason = 'Disconnected') {
+function removePlayer(r, id) {
+  const p = r.players.get(id);
+  if (!p) return;
+  r.players.delete(id);
+  if (p.rejoinTimer) clearTimeout(p.rejoinTimer);
+  if (r.host === id) r.host = r.players.keys().next().value || null;
+  if (!r.players.size) rooms.delete(r.code);
+  else { broadcastLobby(r); broadcastState(r); }
+}
+function close(c, immediate = false) {
   if (c.closed) return;
   c.closed = true;
-  try { writeFrame(c.socket, 8, Buffer.from([0x03, 0xe8])); } catch (_) {}
-  c.socket.destroy();
+  try { c.socket.destroy(); } catch (_) {}
   clients.delete(c);
-  if (c.room) {
-    const r = c.room;
-    r.players.delete(c.id);
-    if (r.host === c.id) r.host = r.players.keys().next().value || null;
-    c.room = null;
-    if (!r.players.size) rooms.delete(r.code);
-    else { broadcastLobby(r); broadcastState(r); }
-  }
+  const r = c.room;
+  c.room = null;
+  if (!r) return;
+  const p = r.players.get(c.id);
+  if (!p || p.client !== c) return; // superseded by a resumed connection
+  p.client = null;
+  if (immediate) { removePlayer(r, c.id); return; }
+  p.disconnectedAt = Date.now();
+  // Preserve the player identity, team, round and inventory during short outages.
+  // A room on a restarted free-tier instance cannot be recovered without DB storage.
+  p.rejoinTimer = setTimeout(() => {
+    if (!p.client && r.players.get(p.id) === p) removePlayer(r, p.id);
+  }, REJOIN_GRACE_MS);
+  p.rejoinTimer.unref?.();
+  broadcastLobby(r);
 }
 function consume(c, chunk) {
   c.buffer = Buffer.concat([c.buffer, chunk]);
@@ -83,6 +106,8 @@ server.on('upgrade', (req, socket, head) => {
   socket.write('HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ' + key + '\r\n\r\n');
   const c = { socket, id: crypto.randomUUID(), buffer: Buffer.alloc(0), room: null, closed: false, lastMessage: 0 };
   clients.add(c);
+  socket.setNoDelay(true);
+  socket.setKeepAlive(true, 12000);
   socket.on('data', chunk => consume(c, chunk));
   socket.on('error', () => close(c));
   socket.on('close', () => close(c));
@@ -96,7 +121,7 @@ function otherTeam(t) { return t === 'attack' ? 'defense' : 'attack'; }
 function roomUsers(r) { return [...r.players.values()]; }
 function emitRoom(r, m) { for (const p of r.players.values()) send(p.client, m); }
 function lobbyInfo(r) { return { code: r.code, host: r.host, winRounds: r.winRounds, started: r.started, phase: r.phase,
-  players: roomUsers(r).map(p => ({ id: p.id, name: p.name, team: p.team })) }; }
+  players: roomUsers(r).map(p => ({ id: p.id, name: p.name, team: p.team, online: !!p.client })) }; }
 function broadcastLobby(r) { emitRoom(r, { type: 'lobby', room: lobbyInfo(r) }); }
 function notify(c, message) { send(c, { type: 'error', message }); }
 function spawn(p, idx) {
@@ -139,11 +164,33 @@ function createRoom(c, msg) {
     rooms.set(code, r);
   }
   const team = roomUsers(r).filter(p => p.team === 'attack').length <= roomUsers(r).filter(p => p.team === 'defense').length ? 'attack' : 'defense';
-  const p = { id: c.id, client: c, name: `PLAYER ${r.players.size + 1}`, team, credits: 800 };
+  const p = { id: c.id, client: c, name: `PLAYER ${r.players.size + 1}`, team, credits: 800,
+    sessionToken: crypto.randomBytes(24).toString('hex'), disconnectedAt: 0, rejoinTimer: null };
   spawn(p, r.players.size);
   r.players.set(c.id, p);
   c.room = r;
-  send(c, { type: 'joined', id: c.id, team, room: lobbyInfo(r) });
+  send(c, { type: 'joined', id: c.id, token: p.sessionToken, team, room: lobbyInfo(r) });
+  broadcastLobby(r);
+}
+function resumeRoom(c, msg) {
+  if (c.room) return notify(c, 'Already connected');
+  const r = rooms.get(String(msg.code || ''));
+  const token = String(msg.token || '');
+  const p = r && token.length === 48 ? roomUsers(r).find(u => u.sessionToken === token) : null;
+  if (!p) {
+    send(c, { type: 'resume_failed', message: '재접속할 방이 없습니다. 방을 다시 만드세요.' });
+    return;
+  }
+  if (p.rejoinTimer) { clearTimeout(p.rejoinTimer); p.rejoinTimer = null; }
+  const old = p.client;
+  p.client = c;
+  p.disconnectedAt = 0;
+  c.id = p.id;
+  c.room = r;
+  if (old && old !== c) close(old, true);
+  send(c, {type:'resumed',id:p.id,token:p.sessionToken,team:p.team,
+    started:r.started,room:lobbyInfo(r)});
+  if (r.started) send(c, snapshot(r));
   broadcastLobby(r);
 }
 function resetRound(r) {
@@ -248,7 +295,9 @@ function receive(c,m) {
   if (!m || typeof m !== 'object' || Array.isArray(m) || typeof m.type !== 'string') return;
   const now=Date.now();
   c.lastMessage=now;
-  if (m.type === 'ping') { send(c,{type:'pong'}); return; }
+  if (m.type === 'ping') { send(c,{type:'pong',seq:m.seq}); return; }
+  if (m.type === 'leave') { close(c, true); return; }
+  if (m.type === 'resume') { resumeRoom(c,m); return; }
   if (m.type === 'create' || m.type === 'join') { createRoom(c,m); return; }
   const r=c.room, p=r?.players.get(c.id);
   if (!r || !p) return;
@@ -330,9 +379,11 @@ function spikeAction(r,p,now) {
 }
 function snapshot(r) {
   const now=Date.now();
-  return {type:'state',code:r.code,round:r.round,phase:r.phase,timer:Math.max(0,(r.until-now)/1000),
+  // Quantize positions to centimetres, enough for FPS interpolation and smaller packets.
+  const q=n=>Math.round(n*100)/100;
+  return {type:'state',code:r.code,round:r.round,phase:r.phase,timer:q(Math.max(0,(r.until-now)/1000)),
     scores:r.scores,host:r.host,winRounds:r.winRounds,spike:r.spike,
-    players:roomUsers(r).map(p=>({id:p.id,name:p.name,team:p.team,x:p.x,y:p.y,z:p.z,footY:p.footY,yaw:p.yaw,pitch:p.pitch,hp:p.hp,armor:p.armor,alive:p.alive,credits:p.credits,weapon:p.weapon,mag:p.mag,reserve:p.reserve,spikeAction:spikeAction(r,p,now)}))};
+    players:roomUsers(r).map(p=>({id:p.id,name:p.name,team:p.team,x:q(p.x),y:q(p.y),z:q(p.z),footY:q(p.footY),yaw:q(p.yaw),pitch:q(p.pitch),hp:p.hp,armor:p.armor,alive:p.alive,credits:p.credits,weapon:p.weapon,mag:p.mag,reserve:p.reserve,spikeAction:spikeAction(r,p,now)}))};
 }
 function broadcastState(r) { if(r.started)emitRoom(r,snapshot(r)); }
 function step(r,now){

@@ -377,6 +377,8 @@
           <span class="px-2 py-1 bg-[#ff4655] text-[#0f1923] font-num font-black text-[10px]">
             CODE #<span id="hud-room-code">07</span>
           </span>
+          <span id="hud-network-stats" role="status" aria-live="off"
+                class="px-2 py-1 bg-[#0f1923]/90 border border-white/20 text-[#38e2c7] font-num text-[10px] font-black whitespace-nowrap">FPS -- · PING --</span>
           <button type="button" onclick="window.skipBuyPhase(event)" id="hud-skip-buy-btn"
                   class="val-cut-sm px-2.5 py-1 bg-[#f5c542] hover:bg-amber-300 text-[#0f1923] font-num font-black text-[11px] cursor-pointer">
             SKIP BUY
@@ -795,9 +797,9 @@
         joinBuffer: '07'
       };
       window.roomState = roomState;
-
       const cheats = {
-        ghost: false,        pauseTimer: false,
+        ghost: false,
+        pauseTimer: false,
         infiniteCreds: false,
         infiniteAmmo: false,
         buyAnywhere: false,
@@ -924,11 +926,19 @@
        * 3. THREE.JS SCENE, CAMERA & PROCEDURAL VENETIAN TEXTURES
        * ========================================================================= */
       const canvas = document.getElementById('game-canvas');
-      const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+      const coarseDevice = matchMedia('(pointer: coarse)').matches;
+      const renderer = new THREE.WebGLRenderer({ canvas, antialias: !coarseDevice, powerPreference: 'high-performance' });
+      const renderQuality = {
+        dpr: Math.min(window.devicePixelRatio || 1, coarseDevice ? 1.0 : 1.25),
+        max: Math.min(window.devicePixelRatio || 1, coarseDevice ? 1.2 : 1.5),
+        min: coarseDevice ? 0.65 : 0.75,
+        frames: 0, lastAt: performance.now(), fastestFrame: 100, warmup: 0, goodPeriods: 0
+      };
       renderer.setSize(window.innerWidth, window.innerHeight);
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-      renderer.shadowMap.enabled = true;
-      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      renderer.setPixelRatio(renderQuality.dpr);
+      // High resolution cascaded shadows cost more than the whole map on low-power phones.
+      renderer.shadowMap.enabled = !coarseDevice;
+      renderer.shadowMap.type = THREE.PCFShadowMap;
 
       const scene = new THREE.Scene();
       scene.background = new THREE.Color(0x88b9e8);
@@ -944,8 +954,8 @@
       const sunLight = new THREE.DirectionalLight(0xfffbeb, 0.96);
       sunLight.position.set(45, 82, 35);
       sunLight.castShadow = true;
-      sunLight.shadow.mapSize.width = 2048;
-      sunLight.shadow.mapSize.height = 2048;
+      sunLight.shadow.mapSize.width = coarseDevice ? 512 : 1024;
+      sunLight.shadow.mapSize.height = coarseDevice ? 512 : 1024;
       sunLight.shadow.camera.near = 10;
       sunLight.shadow.camera.far = 190;
       const d = 64;
@@ -1586,8 +1596,7 @@
       const spikeMesh = new THREE.Group();
       const spikeCore = new THREE.Mesh(
         new THREE.CylinderGeometry(0.28, 0.34, 0.68, 8),
-        new THREE.MeshStandardMaterial({ color: 0x0f1923, emissive: 0xf5c542, emissiveIntensity: 0.8 })
-      );
+        new THREE.MeshStandardMaterial({ color: 0x0f1923, emissive: 0xf5c542, emissiveIntensity: 0.8 })      );
       spikeCore.position.y = 0.34;
       spikeMesh.add(spikeCore);
       spikeMesh.visible = false;
@@ -1596,7 +1605,8 @@
       const matchState = {
         inMatch: false,
         round: 1,
-        allyScore: 0,        enemyScore: 0,
+        allyScore: 0,
+        enemyScore: 0,
         phase: 'buy',
         timer: 20,
         spikePlanted: false,
@@ -1835,7 +1845,11 @@
         if (killer.includes('YOU')) triggerValorantKillEmblem(isHead);
       }
 
+      let lastAlivePortraitSignature = '';
       function renderTopAlivePortraits() {
+        const key = [player.alive,Math.ceil(player.hp),...bots.map(b=>`${b.team}:${b.alive}:${Math.ceil(b.hp)}`)].join('|');
+        if (key === lastAlivePortraitSignature) return;
+        lastAlivePortraitSignature = key;
         const allyBox = document.getElementById('hud-allies-alive');
         const enemyBox = document.getElementById('hud-enemies-alive');
         if (!allyBox || !enemyBox) return;
@@ -2381,8 +2395,7 @@
         if (!hm) return;
         l1.className = `absolute inset-0 m-auto w-7 h-0.5 rotate-45 ${isHead ? 'bg-[#ff4655]' : 'bg-white'}`;
         l2.className = `absolute inset-0 m-auto w-7 h-0.5 -rotate-45 ${isHead ? 'bg-[#ff4655]' : 'bg-white'}`;
-        hm.style.opacity = '1';
-        setTimeout(() => { hm.style.opacity = '0'; }, 120);
+        hm.style.opacity = '1';        setTimeout(() => { hm.style.opacity = '0'; }, 120);
       }
 
       // Visible moving tracer, separate from instant hitscan damage calculations.
@@ -2395,7 +2408,8 @@
         const delta = end.sub(start);
         const distance = delta.length();
         if (!(distance > 0.05) || !Number.isFinite(distance)) return;
-        const dir = delta.multiplyScalar(1 / distance);        const material = new THREE.MeshBasicMaterial({ color: colorHex, transparent: true, opacity: 1,
+        const dir = delta.multiplyScalar(1 / distance);
+        const material = new THREE.MeshBasicMaterial({ color: colorHex, transparent: true, opacity: 1,
           blending: THREE.AdditiveBlending, depthWrite: false, depthTest: true });
         const flash = new THREE.Mesh(tracerGeometry, material);
         flash.quaternion.setFromUnitVectors(tracerForward, dir);
@@ -3180,8 +3194,7 @@
                   spawnBulletTracer(startP, player.pos.clone().add(new THREE.Vector3(0, -0.2, 0)), 0xff4655);
 
                   if (!(roomState.allowCheats && cheats.invincible)) {
-                    const dmg = 16;
-                    if (player.armor > 0) {
+                    const dmg = 16;                    if (player.armor > 0) {
                       const absorb = Math.min(player.armor, Math.ceil(dmg * 0.66));
                       player.armor -= absorb;
                       player.hp -= (dmg - absorb);
@@ -3194,7 +3207,8 @@
 
                     if (player.hp <= 0) {
                       if (roomState.allowCheats && cheats.autoRespawn) {
-                        player.hp = 100;                        player.armor = 50;
+                        player.hp = 100;
+                        player.armor = 50;
                         showRoundBanner('AUTO RESPAWN', 'RESPAWN CHEAT TRIGGERED');
                       } else {
                         player.hp = 0;
@@ -3357,11 +3371,51 @@
         renderer.setSize(window.innerWidth, window.innerHeight);
       });
 
+      // FPS is displayed as a measured value. Rendering cannot exceed the display's
+      // refresh rate, so this prioritizes stable frame pacing over fake "120 FPS".
+      let lastRadarAt = 0;
+      const perfStats = document.getElementById('hud-network-stats');
+      function updateRenderQuality(now, frameMs) {
+        renderQuality.frames++;
+        if (frameMs > 0) renderQuality.fastestFrame = Math.min(renderQuality.fastestFrame, frameMs);
+        const elapsed = now - renderQuality.lastAt;
+        if (elapsed < 1400) return;
+        const fps = Math.round(renderQuality.frames * 1000 / elapsed);
+        renderQuality.warmup++;
+        if (perfStats) {
+          const ping = window.MP?.active ? (window.MP.rtt == null ? '--' : Math.round(window.MP.rtt) + 'ms') : '오프라인';
+          perfStats.textContent = `FPS ${fps} · PING ${ping}`;
+          perfStats.style.color = window.MP?.reconnecting ? '#ffd166'
+            : (window.MP?.rtt != null && window.MP.rtt > 100) ? '#ff8585' : '#38e2c7';
+        }
+        // The fastest recent rAF interval is a rough indication of panel refresh.
+        const highRefresh = renderQuality.fastestFrame < 11.0;
+        const target = highRefresh ? 120 : 60;
+        if (matchState.inMatch && renderQuality.warmup > 2) {
+          const before = renderQuality.dpr;
+          if (fps < target * 0.79) {
+            renderQuality.dpr = Math.max(renderQuality.min, before - 0.11);
+            renderQuality.goodPeriods = 0;
+          } else if (fps >= target * 0.96) {
+            renderQuality.goodPeriods++;
+            if (renderQuality.goodPeriods > 3)
+              renderQuality.dpr = Math.min(renderQuality.max, before + 0.05);
+          } else renderQuality.goodPeriods = 0;
+          if (Math.abs(renderQuality.dpr - before) > 0.005)
+            renderer.setPixelRatio(renderQuality.dpr);
+        }
+        renderQuality.frames = 0;
+        renderQuality.lastAt = now;
+        renderQuality.fastestFrame = 100;
+      }
+
       let prevTime = performance.now();
       function animate(now) {
         requestAnimationFrame(animate);
-        const dt = Math.min(0.05, (now - prevTime) / 1000);
+        const frameMs = now - prevTime;
+        const dt = Math.min(0.05, frameMs / 1000);
         prevTime = now;
+        updateRenderQuality(now, frameMs);
 
         if (matchState.inMatch) {
           const holdingAnyFire = isMouseFiring || isKeyboardFiring || isLeftTouchFiring || isRightTouchFiring;
@@ -3370,7 +3424,7 @@
           updateBotsAndTeamCombat(dt);
           updateSpikeAndMatchRules(dt);
           window.MP.tick(dt);
-          drawAscentRadar();
+          if (now - lastRadarAt > 75) {drawAscentRadar();lastRadarAt = now;}
         } else {
           const t = now * 0.00022;
           camera.position.set(Math.cos(t) * 38, 17, Math.sin(t) * 38);
@@ -3381,9 +3435,9 @@
           const tracer = activeTracers[i];
           tracer.progress = Math.min(1, tracer.progress + dt / tracer.duration);
           const travel = tracer.progress * tracer.distance;
-          const position = tracer.start.clone().addScaledVector(tracer.dir, travel);
-          tracer.flash.position.copy(position);
-          tracer.glow.position.copy(position);
+          // Reuse an existing Vector3 to avoid garbage collection on 120 Hz devices.
+          tracer.flash.position.copy(tracer.start).addScaledVector(tracer.dir, travel);
+          tracer.glow.position.copy(tracer.flash.position);
           tracer.flash.material.opacity = Math.min(1, (1 - tracer.progress) * 2.2);
           tracer.glow.material.opacity = Math.min(0.82, (1 - tracer.progress) * 1.8);
           if (tracer.progress >= 1) {
@@ -3407,7 +3461,7 @@
         createTacticalBotMesh,setEnemyOutline,spawnBulletTracer,drawLocalShot,
         cloneWeaponInstance,WEAPON_CATALOG,getActiveWeapon,startNewRound,
         updateHUD,showHitmarker,showRoundBanner,addKillFeed,syncCheatPermissionUI,
-        launchAscentMatchImmediate,openWaitingLobby:window.openWaitingLobby,
+        launchAscentMatchImmediate,openWaitingLobby:window.openWaitingLobby,openEntryScreen:window.openEntryScreen,
         switchWeaponSlot:window.switchWeaponSlot,getSpikeHeld:()=>isSpikeKeyHeld});
       window.onload = function () {
         refreshInputUI();

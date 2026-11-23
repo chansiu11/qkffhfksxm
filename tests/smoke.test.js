@@ -94,8 +94,39 @@ test('Room creation/join, team capacity, start, synced player snapshots, damage'
   await new Promise(resolve=>setTimeout(resolve,155));
   assert.equal(r.phase,'round_end','resumed half-defuse should finish after 3.5 more seconds');
 
+  a.send(JSON.stringify({type:'leave'}));b.send(JSON.stringify({type:'leave'}));
+  await new Promise(resolve=>setTimeout(resolve,120));
   a.close();b.close();
-  await new Promise(resolve=>setTimeout(resolve,100));
   assert.equal(rooms.size,0);
 });
+
+test('Network resilience: ping timing, temporary disconnection, resume session and room recovery', async () => {
+  if (!server.listening) await once(server,'listening');
+  const port=server.address().port;
+  const ws=await connect(port);
+  const joinedPromise=next(ws,'joined');ws.send(JSON.stringify({type:'create',code:'81',winRounds:5}));
+  const joined=await joinedPromise;
+  assert.match(joined.token,/^[0-9a-f]{48}$/);
+  const p=rooms.get('81').players.get(joined.id);
+  assert.equal(p.team,joined.team);
+  const pong=next(ws,'pong');ws.send(JSON.stringify({type:'ping',seq:12345}));
+  assert.equal((await pong).seq,12345);
+  const left=once(ws,'close');ws.close();await left;
+  await new Promise(r=>setTimeout(r,50));
+  assert(rooms.get('81')?.players.has(joined.id),'session must survive transient disconnection');
+  assert.equal(p.client,null);
+  const newSocket=await connect(port);
+  const resumed=next(newSocket,'resumed');
+  newSocket.send(JSON.stringify({type:'resume',code:'81',token:joined.token}));
+  const rejoin=await resumed;
+  assert.equal(rejoin.id,joined.id);
+  assert.equal(rejoin.team,joined.team);
+  assert.equal(p.client?.socket?.destroyed,false);
+  assert.equal(rooms.get('81').players.size,1,'resume must not create a duplicate player');
+  newSocket.send(JSON.stringify({type:'leave'}));
+  await new Promise(r=>setTimeout(r,100));
+  assert.equal(rooms.has('81'),false);
+  newSocket.close();
+});
+
 test.after(async()=>{await new Promise(r=>server.close(r));});

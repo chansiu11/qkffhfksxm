@@ -4,72 +4,182 @@
   const MP = {
     active: false, started: false, myId: null, socket: null, api: null,
     state: null, room: null, lastRound: 0, lastSent: 0, lastSpike: null,
+    token: null, roomCode: null, retries: 0, reconnecting: false, reconnectTimer: null,
+    disconnecting: false, pingSeq: 0, pingSent: new Map(), rtt: null, jitter: 0,
+    lastPing: 0, connectRequest: null, reconnectStarted: 0,
     peers: new Map(),
-    install(api) { this.api = api; this.status('온라인 서버에 연결하지 않았습니다.');
-      setInterval(()=>{if(this.active)this.send({type:'ping'});},30000); },
+    install(api) {
+      this.api = api;
+      this.status('온라인 서버에 연결하지 않았습니다.');
+      // Fast heartbeat and measured network RTT; never label a prediction as real ping.
+      this.heartbeat = setInterval(() => {
+        if (this.socket?.readyState !== WebSocket.OPEN) return;
+        const seq = ++this.pingSeq;
+        this.pingSent.set(seq, performance.now());
+        if (this.pingSent.size > 8) this.pingSent.delete(this.pingSent.keys().next().value);
+        this.send({type:'ping',seq});
+      }, 2500);
+      window.addEventListener('online', () => {
+        if (this.reconnecting) this.scheduleReconnect(100);
+      });
+    },
     status(message, error = false) {
       for (const id of ['online-status', 'online-lobby-status']) {
         const el = document.getElementById(id);
         if (el) { el.textContent = message; el.style.color = error ? '#ff7785' : '#38e2c7'; }
       }
+      const net = document.getElementById('hud-network-stats');
+      if (net && this.reconnecting) { net.textContent = '연결 복구 중...'; net.style.color = '#ffd166'; }
     },
     send(value) {
-      if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-        this.socket.send(JSON.stringify(value)); return true;
+      if (this.socket?.readyState === WebSocket.OPEN) {
+        // Position packets are replaceable. Never overload a clogged connection.
+        if (value.type === 'move' && this.socket.bufferedAmount > 16000) return false;
+        try { this.socket.send(JSON.stringify(value)); return true; } catch (_) { return false; }
       }
       return false;
     },
     disconnect() {
+      this.disconnecting = true;
+      clearTimeout(this.reconnectTimer); this.reconnectTimer = null;
+      this.reconnecting = false;
+      if (this.socket?.readyState === WebSocket.OPEN) this.send({type:'leave'});
+      if (this.socket) {
+        const ws = this.socket; this.socket = null;
+        ws.onclose = null; try { ws.close(); } catch (_) {}
+      }
       this.active = false; this.started = false; this.myId = null;
       this.state = null; this.lastRound = 0; this.lastSpike = null;
-      if (this.socket) { const ws = this.socket; this.socket = null; ws.onclose = null; ws.close(); }
+      this.token = null; this.roomCode = null; this.rtt = null;
+      this.pingSent.clear(); this.retries = 0;
       this.removePeers();
       this.status('온라인 서버에 연결하지 않았습니다.');
     },
     connect(type, code, winRounds) {
       const url = String(window.GAME_SERVER_URL || '').replace(/\/$/, '');
       if (!/^https?:\/\//.test(url) && !/^wss?:\/\//.test(url)) {
-        this.status('서버 URL이 설정되지 않았습니다. config.js를 확인하세요.', true);
-        return;
+        this.status('서버 URL을 확인해 주세요.', true); return;
       }
       this.disconnect();
+      this.disconnecting = false;
       this.active = true;
-      this.status('Render 서버에 연결 중...');
-      const wsURL = url.replace(/^http:/, 'ws:').replace(/^https:/, 'wss:') + '/ws';
+      this.connectRequest = {type,code,winRounds};
+      this.roomCode = code;
+      this.status('서버 연결 중... (최초 접속은 시간이 걸릴 수 있습니다)');
+      this.openSocket(this.connectRequest, false);
+    },
+    openSocket(request, recovering) {
+      const url = String(window.GAME_SERVER_URL || '').replace(/\/$/, '');
+      const wsURL = url.replace(/^http:/,'ws:').replace(/^https:/,'wss:') + '/ws';
       let ws;
       try { ws = new WebSocket(wsURL); }
-      catch (err) { this.active = false; this.status('서버 주소 오류: ' + err.message, true); return; }
+      catch (err) { this.handleDisconnect('연결을 열 수 없습니다.'); return; }
       this.socket = ws;
-      const timeout = setTimeout(() => { if (ws.readyState !== WebSocket.OPEN) ws.close(); }, 15000);
+      let opened = false;
+      const timeout = setTimeout(() => {
+        if (this.socket === ws && ws.readyState !== WebSocket.OPEN) ws.close();
+      }, recovering ? 13000 : 55000);
       ws.onopen = () => {
+        opened = true;
         clearTimeout(timeout);
-        this.status('연결 성공 · 방 정보를 확인 중...');
-        this.send({ type, code, winRounds });
+        this.lastSent = 0;
+        // On reconnect, preserve the exact player identity, team and equipment.
+        this.send(recovering ? {type:'resume',code:this.roomCode,token:this.token} : request);
+        this.status(recovering ? '서버 연결 복구 확인 중...' : '연결 성공 · 방 정보 확인 중...');
       };
-      ws.onmessage = (event) => {
-        let data; try { data = JSON.parse(event.data); } catch (_) { return; }
+      ws.onmessage = ev => {
+        let data;
+        try { data = JSON.parse(ev.data); } catch (_) { return; }
+        if (this.socket !== ws) return;
         this.receive(data);
       };
-      ws.onerror = () => { this.status('연결에 실패했습니다. Render 서비스 상태를 확인하세요.', true); };
+      ws.onerror = () => {
+        if (!opened && !recovering) this.status('서버 응답이 없습니다. 다시 연결을 시도합니다...', true);
+      };
       ws.onclose = () => {
         clearTimeout(timeout);
         if (this.socket !== ws) return;
-        this.socket = null; this.active = false; this.started = false;
-        this.status('서버 연결이 끊어졌습니다. 다시 방에 참가하세요.', true);
-        if (this.api.matchState.inMatch) {
-          this.api.matchState.inMatch = false;
-          document.getElementById('ingame-hud').classList.add('hidden');
-          document.getElementById('mobile-controls').classList.add('hidden');
-          document.getElementById('entry-screen').classList.remove('hidden');
-        }
+        this.socket = null;
+        this.handleDisconnect('서버 연결이 일시적으로 끊겼습니다.');
       };
+    },
+    handleDisconnect(message) {
+      if (this.disconnecting || !this.active) return;
+      // Keep current scene, health and room instead of kicking a player to menu.
+      if (this.token && this.roomCode) {
+        if (!this.reconnecting) this.reconnectStarted = performance.now();
+        this.reconnecting = true;
+        this.status(message + ' 자동 재접속 중...', true);
+        this.scheduleReconnect();
+      } else {
+        // Connect failures before joining a room can be retried by the user.
+        this.active = false;
+        this.started = false;
+        this.status(message + ' 방 참가를 다시 시도하세요.', true);
+      }
+    },
+    scheduleReconnect(delay) {
+      clearTimeout(this.reconnectTimer);
+      if (!this.reconnecting || this.disconnecting) return;
+      if (performance.now()-this.reconnectStarted > 40000) {
+        this.reconnecting = false; this.active = false;
+        this.status('재접속 실패 · 방 정보를 확인해 주세요.', true);
+        if (this.api.matchState.inMatch) this.api.openEntryScreen();
+        return;
+      }
+      const retryDelay = delay ?? Math.min(6000, 800 * (1.65 ** Math.min(this.retries++,5)));
+      this.reconnectTimer = setTimeout(() => {
+        if (this.reconnecting && !this.disconnecting && this.socket?.readyState !== WebSocket.OPEN)
+          this.openSocket({type:'resume',code:this.roomCode,token:this.token},true);
+      }, retryDelay);
     },
     receive(data) {
       const a = this.api;
       switch (data.type) {
-        case 'hello': this.myId = data.id; break;
+        case 'hello': if (!this.reconnecting) this.myId = data.id; break;
+        case 'pong': {
+          const start = this.pingSent.get(data.seq);
+          if (start !== undefined) {
+            this.pingSent.delete(data.seq);
+            const elapsed = performance.now()-start;
+            if (elapsed > 0 && elapsed < 30000) {
+              if (this.rtt == null) this.rtt = elapsed;
+              else {
+                this.jitter = this.jitter*0.8 + Math.abs(elapsed-this.rtt)*0.2;
+                this.rtt = this.rtt*0.78 + elapsed*0.22;
+              }
+            }
+          }
+          break;
+        }
+        case 'resume_failed': {
+          const reason = data.message || '기존 방이 초기화되었습니다.';
+          this.disconnect();
+          this.status(reason, true);
+          if (a.matchState.inMatch) a.openEntryScreen();
+          break;
+        }
+        case 'resumed': {
+          this.token = data.token; this.roomCode = data.room.code;
+          this.reconnecting = false; this.retries = 0;
+          clearTimeout(this.reconnectTimer);
+          this.myId = data.id;
+          const returnToMatch = !!data.started;
+          if (returnToMatch && (!this.started || !a.matchState.inMatch)) {
+            this.started = true;
+            a.launchAscentMatchImmediate();
+            this.removePeers();
+            a.bots.splice(0).forEach(b => a.scene.remove(b.group));
+            this.lastRound = 0;
+          } else if (!returnToMatch) {this.started = false; a.openWaitingLobby();}
+          this.renderLobby(data.room);
+          this.status('다시 연결되었습니다 · ROOM #' + data.room.code);
+          break;
+        }
         case 'error': this.status(data.message || '서버 요청 실패', true); break;
         case 'joined':
+          this.token = data.token || null;
+          this.roomCode = data.room.code;
           this.myId = data.id;
           a.roomState.code = data.room.code;
           a.roomState.playerSide = data.team;
@@ -259,9 +369,11 @@
         a.setEnemyOutline(b, !isAlly);
         b.name = rp.name; b.alive = rp.alive; b.hp = rp.hp; b.armor = rp.armor;
         b.footY = rp.footY; b.yaw = rp.yaw; b.pitch = rp.pitch;
-        b.weapon = a.cloneWeaponInstance(rp.weapon in a.WEAPON_CATALOG ? rp.weapon : 'classic');
+        const weaponId = rp.weapon in a.WEAPON_CATALOG ? rp.weapon : 'classic';
+        if (!b.weapon || b.weapon.id !== weaponId) b.weapon = a.cloneWeaponInstance(weaponId);
         b.spotted = state.phase !== 'buy' && (isAlly || Math.hypot(rp.x - a.player.pos.x, rp.z - a.player.pos.z) < 20);
-        b.targetPosition = new THREE.Vector3(rp.x, rp.footY, rp.z);
+        if (!b.targetPosition) b.targetPosition = new THREE.Vector3();
+        b.targetPosition.set(rp.x, rp.footY, rp.z);
         if (!b.hasServerPosition) { b.group.position.copy(b.targetPosition); b.hasServerPosition=true; }
         b.group.rotation.y = rp.yaw;
         b.group.visible = rp.alive && state.phase !== 'buy';
@@ -322,10 +434,12 @@
       for (const b of this.peers.values()) { if (b.targetPosition) b.group.position.lerp(b.targetPosition, Math.min(1, (dt || 0.016)*13)); }
       if (!this.active || !this.started || !this.api?.matchState.inMatch) return;
       const now=performance.now();
-      if(now-this.lastSent < 50)return;
+      if(now-this.lastSent < (this.rtt != null && this.rtt>140 ? 80 : 65))return;
       this.lastSent=now;
       const p=this.api.player;
-      this.send({type:'move',x:p.pos.x,y:p.pos.y,z:p.pos.z,footY:p.footY,yaw:p.yaw,pitch:p.pitch});
+      // Smaller packets, fewer allocations and no stalled networking backlog.
+      const q=n=>Math.round(n*1000)/1000;
+      this.send({type:'move',x:q(p.pos.x),y:q(p.pos.y),z:q(p.pos.z),footY:q(p.footY),yaw:q(p.yaw),pitch:q(p.pitch)});
       const held=!!this.api.getSpikeHeld();
       if(held!==this.lastSpike) {this.send({type:'spike',held});this.lastSpike=held;}
       const el=document.getElementById('hud-context-prompt');
