@@ -92,15 +92,25 @@
   function paperProjection(id,w,h,options={}){
     const endpoints=viewEndpoints(id,w,h),alpha=muzzleEdgeY[id]??.25;
     const fl=focalLength(h), recoil=options.recoil||0,motionX=options.motionX||0,
-      motionY=options.motionY||0,drop=options.drop||0, swing=options.swing||0;
-    const front={x:endpoints.front.x+motionX+4*recoil+swing,
-      y:endpoints.front.y+motionY-12*recoil+drop};
-    const rear={x:endpoints.edge.x+motionX+12*recoil-swing*.3,
-      y:endpoints.edge.y+motionY+15*recoil+drop};
+      motionY=options.motionY||0,drop=options.drop||0,swing=options.swing||0;
+    const adsT=Math.max(0,Math.min(1,options.adsProgress||0));
+    const mix=(a,b)=>a+(b-a)*adsT;
+    // While ADS animates, the flat photo changes perspective: rear is below
+    // camera and its muzzle edge converges to the middle of the display.
+    // The central overlaid receiver completes the non-sniper sight picture.
+    const adsFront={x:w*.50,y:h*.545};
+    const adsRear={x:w*.50,y:h*1.23};
+    const front={x:mix(endpoints.front.x,adsFront.x)+motionX*(1-adsT)+4*recoil+swing,
+      y:mix(endpoints.front.y,adsFront.y)+motionY*(1-adsT)-12*recoil+drop};
+    const rear={x:mix(endpoints.edge.x,adsRear.x)+motionX*(1-adsT)+12*recoil-swing*.3,
+      y:mix(endpoints.edge.y,adsRear.y)+motionY*(1-adsT)+15*recoil+drop};
     const M=atDepth(front,FRONT_DEPTH,w,h,fl),R=atDepth(rear,REAR_DEPTH,w,h,fl);
-    const upright=endpoints.paperHeight; // paper's physical image height
-    const point=(u,v)=>({x:M.x+(R.x-M.x)*u,
-      y:M.y+(R.y-M.y)*u+(.5-v)*upright,
+    const upright=endpoints.paperHeight*(1-.38*adsT);
+    const point=(u,v)=>({
+      // Turn the flat sheet toward the viewer during ADS; its vertical paper
+      // dimension becomes screen-width when the centerline is straight ahead.
+      x:M.x+(R.x-M.x)*u+(.5-v)*upright*.48*adsT,
+      y:M.y+(R.y-M.y)*u+(.5-v)*upright*(1-.65*adsT),
       z:M.z+(R.z-M.z)*u+(v-.5)*.035});
     // source v=alpha is the point where the leftmost muzzle pixels are centered.
     // Translate image height so exactly THAT location projects to `front`.
@@ -154,14 +164,20 @@
       const drop=reloading?Math.sin(Math.PI*reloadProgress)*78:0;
       const draw=Math.max(0,1-(now-switchAt)/230)*64;
       const swing=shown==='knife'?firing*(fireMode==='heavy'?-55:65):0;
+      const adsT=shown==='knife'?0:Math.max(0,Math.min(1,player.adsProgress||0));
       const args={recoil:shown==='knife'?0:firing,motionX:bob,
-        motionY:Math.abs(bob)+breath,drop:drop+draw+(player.isScoped?175:0),swing};
+        motionY:Math.abs(bob)+breath,drop:drop+draw*(1-adsT),swing,adsProgress:adsT};
       const p=paperProjection(shown,w,h,args);
       if(p.matrix!==lastTransform){photo.style.transform=p.matrix;lastTransform=p.matrix;}
       const viewport=`${w}x${h}`;if(viewport!==lastViewport){
         photo.style.width=p.source.width+'px';photo.style.height=p.source.height+'px';
         lastViewport=viewport;
       }
+      // Side photo gradually folds toward the eye. The ADS receiver and sight
+      // stay visible for non-snipers; sniper photos disappear inside the scope.
+      const sniper=['marshal','outlaw','operator'].includes(shown);
+      photo.style.opacity=sniper?String(1-adsT):String(1-.96*adsT*adsT);
+      layer.classList.toggle('weapon-sniper-full',sniper&&adsT>=.999);
       muzzleScreen={x:p.muzzle.x,y:p.muzzle.y,depth:p.frontDepth};
       if(flashNode){
         flashNode.style.left=p.muzzle.x.toFixed(1)+'px';
@@ -169,7 +185,7 @@
         flashNode.style.opacity=shown!=='knife'&&!player.isScoped&&firing>.45?
           String(Math.min(1,(firing-.45)*2.0)):'0';
       }
-      layer.classList.toggle('weapon-aiming',!!player.isScoped);
+      layer.classList.toggle('weapon-aiming',adsT>.01);
     }
     function getMuzzleScreenPosition(){return muzzleScreen?{...muzzleScreen}:null;}
     function getMuzzleWorldPosition(camera){

@@ -18,7 +18,8 @@
   <script src="shotgun-pellets.js"></script>
   <script src="crosshair-profile.js"></script>
   <script src="crosshair-ui.js" defer></script>
-  <script src="weapon-viewmodels.js?v=20261123-paper-muzzle"></script>
+  <script src="ads-system.js?v=20261124-ads100"></script>
+  <script src="weapon-viewmodels.js?v=20261124-ads100"></script>
 
   <style>
     :root {
@@ -83,7 +84,51 @@
       contain: layout style;
     }
     #fps-weapon-sprite-layer.weapon-visible { opacity: 1; visibility: visible; }
-    #fps-weapon-sprite-layer.weapon-aiming { opacity: .12; }
+    #fps-weapon-sprite-layer.weapon-aiming { opacity: 1; }
+    #fps-weapon-sprite-layer.weapon-sniper-full { opacity: 0; }
+    /* Reflex/iron-sight screen used only for rifles, SMGs, and other ADS
+       guns without a telescopic scope. It follows the 100ms gun transition. */
+    #ads-iron-overlay {
+      position: fixed; z-index: 16; left: 50%; top: 50%; width: 246px;
+      height: 300px; --ads-accent:#f0c466; transform: translate(-50%, -2%) translateY(48px) scale(.84);
+      transform-origin: 50% 0; pointer-events: none; opacity: 0;
+      display: none; will-change: transform, opacity;
+      filter: drop-shadow(0 9px 6px rgba(0,0,0,.55));
+    }
+    #ads-iron-overlay .ads-receiver {
+      position:absolute; left:50%; top:36px; width:136px; height:276px;
+      transform:translateX(-50%); background:linear-gradient(90deg,
+        #070c11 0%, #39434a 21%, #141d25 48%,#485059 78%,#080d13 100%);
+      clip-path:polygon(32% 0,68% 0,88% 30%,100% 100%,0 100%,12% 30%);
+      border-radius:11px 11px 0 0; box-shadow:inset 0 0 15px #080b10;
+    }
+    #ads-iron-overlay .ads-receiver::before {
+      content:''; position:absolute;left:47%;top:20px;width:6%;height:250px;
+      background:linear-gradient(#5e6970,#18212c);border-radius:3px;
+    }
+    #ads-iron-overlay .ads-rear-notch {
+      position:absolute;top:28px;left:50%;width:112px;height:40px;
+      transform:translateX(-50%);background:#0b121a;
+      clip-path:polygon(0 0,29% 0,39% 56%,61% 56%,71% 0,100% 0,100% 100%,0 100%);
+      border-bottom:4px solid #737f88;
+    }
+    #ads-iron-overlay .ads-front-post {
+      position:absolute;top:3px;left:50%;width:5px;height:47px;
+      transform:translateX(-50%);background:linear-gradient(var(--ads-accent),var(--ads-accent) 45%,#111a24 46%);
+      box-shadow:0 0 8px rgba(250,200,90,.45);
+    }
+    #ads-iron-overlay .ads-sight-left,#ads-iron-overlay .ads-sight-right {
+      position:absolute;top:15px;width:25px;height:17px;
+      border-top:3px solid var(--ads-accent);border-bottom:3px solid #222f3b;
+    }
+    #ads-iron-overlay .ads-sight-left {left:71px;transform:skewY(19deg);}
+    #ads-iron-overlay .ads-sight-right {right:71px;transform:skewY(-19deg);}
+    #ads-iron-overlay[data-shape="compact"] .ads-receiver { width:108px; }
+    #ads-iron-overlay[data-shape="compact"] .ads-rear-notch { width:93px; }
+    #ads-iron-overlay[data-shape="bullpup"] .ads-receiver { width:151px; }
+    #ads-iron-overlay[data-shape="precision"] .ads-front-post { width:3px; }
+    @media(max-width:600px){#ads-iron-overlay{width:212px;transform-origin:50% 0;}}
+
     #fps-weapon-sprite-layer > img.fps-paper-weapon {
       position:absolute; top:0; left:0; display:block; pointer-events:none;
       max-width:none; max-height:none; border:0; object-fit:fill;
@@ -228,6 +273,13 @@
     <div class="w-full h-px bg-rose-500/80"></div>
     <div class="h-full w-px bg-rose-500/80 absolute"></div>
     <div class="w-4 h-4 rounded-full border-2 border-rose-500 absolute"></div>
+  </div>
+
+  <!-- Non-sniper ADS: top of receiver and virtual iron/reflex sight. -->
+  <div id="ads-iron-overlay" aria-hidden="true">
+    <div class="ads-receiver"></div><div class="ads-rear-notch"></div>
+    <div class="ads-front-post"></div><div class="ads-sight-left"></div>
+    <div class="ads-sight-right"></div>
   </div>
 
   <!-- Center Crosshair & Hitmarker -->
@@ -1765,12 +1817,8 @@
         player.vel.set(0, 0, 0);
         player.hp = 100;
         player.alive = true;
-        player.isScoped = false;
-        window.setCrosshairScoped?.(false);
-        document.getElementById('scope-overlay').classList.add('hidden');
+        resetADS();
         document.getElementById('spectator-banner').classList.add('hidden');
-        camera.fov = 75;
-        camera.updateProjectionMatrix();
 
         blastDoors.forEach(d => {
           d.closed = false;
@@ -2700,12 +2748,7 @@
         if (window.MP.active && window.MP.started) window.MP.send({type:'equip',slot});
         player.activeSlot = slot;
         viewmodel.setWeapon(getActiveWeapon().id);
-        player.isScoped = false;
-        window.setCrosshairScoped?.(false);
-        document.getElementById('scope-overlay').classList.add('hidden');
-        document.getElementById('mob-ads-btn').classList.remove('vm-btn-active-state');
-        camera.fov = 75;
-        camera.updateProjectionMatrix();
+        resetADS();
 
         ['primary', 'secondary', 'knife'].forEach(s => {
           const btn = document.getElementById('slot-' + s + '-btn');
@@ -2718,27 +2761,57 @@
         updateHUD();
       };
 
-      window.toggleScope = function () {
-        if (!player.alive) {
-          window.cycleSpectator(-1);
+      // ADS is a 100ms first-person animation; scoped accuracy and overlay only
+      // engage when the gun reaches the center. Hit detection remains unchanged.
+      const GameADS=window.GameADS;
+      let adsCrosshairReady=false;
+      function resetADS(){
+        GameADS.reset(player);
+        adsCrosshairReady=false;
+        window.setCrosshairScoped?.(false);
+        document.getElementById('scope-overlay').classList.add('hidden');
+        const iron=document.getElementById('ads-iron-overlay');
+        iron.style.display='none';iron.style.opacity='0';
+        document.getElementById('mob-ads-btn').classList.remove('vm-btn-active-state');
+        if(camera.fov!==75){camera.fov=75;camera.updateProjectionMatrix();}
+      }
+      function updateADSFrame(now){
+        const gun=getActiveWeapon();
+        if(!matchState.inMatch||!player.alive||!GameADS.isEligible(gun)){
+          if(player.adsRequested||player.adsProgress||player.isScoped)resetADS();
           return;
         }
-        const w = getActiveWeapon();
-        if (!w.canScope) return;
-        player.isScoped = !player.isScoped;
-        window.setCrosshairScoped?.(player.isScoped);
-        const sc = document.getElementById('scope-overlay');
-        const adsBtn = document.getElementById('mob-ads-btn');
-        if (player.isScoped) {
-          sc.classList.remove('hidden');
-          if (adsBtn) adsBtn.classList.add('vm-btn-active-state');
-          camera.fov = (w.id === 'operator' || w.id === 'marshal' || w.id === 'outlaw') ? 28 : 52;
-        } else {
-          sc.classList.add('hidden');
-          if (adsBtn) adsBtn.classList.remove('vm-btn-active-state');
-          camera.fov = 75;
+        const amount=GameADS.update(player,now);
+        const ready=player.isScoped;
+        const sniper=GameADS.isSniper(gun);
+        const zoomFov=GameADS.fov(gun);
+        const fov=75+(zoomFov-75)*amount;
+        if(Math.abs(camera.fov-fov)>0.001){camera.fov=fov;camera.updateProjectionMatrix();}
+        if(ready!==adsCrosshairReady){
+          window.setCrosshairScoped?.(ready);
+          adsCrosshairReady=ready;
         }
-        camera.updateProjectionMatrix();
+        document.getElementById('scope-overlay').classList.toggle('hidden',!sniper||!ready);
+        const iron=document.getElementById('ads-iron-overlay');
+        const open=!sniper&&amount>.001;
+        iron.style.display=open?'block':'none';
+        if(open){
+          if(iron.dataset.weapon!==gun.id){
+            const style=GameADS.SIGHTS[gun.id]||GameADS.SIGHTS.vandal;
+            iron.dataset.weapon=gun.id;
+            iron.dataset.shape=style.shape;
+            iron.style.setProperty('--ads-accent',style.accent);
+          }
+          iron.style.opacity=String(Math.min(1,amount*amount));
+          iron.style.transform=`translate(-50%, -2%) translateY(${((1-amount)*48).toFixed(1)}px) scale(${(.84+.16*amount).toFixed(3)})`;
+        }
+      }
+      window.toggleScope = function () {
+        if(!player.alive){window.cycleSpectator(-1);return;}
+        const gun=getActiveWeapon();
+        if(!GameADS.isEligible(gun))return; // pistols, shotguns, knife
+        GameADS.request(player,performance.now(),!player.adsRequested);
+        document.getElementById('mob-ads-btn').classList.toggle('vm-btn-active-state',player.adsRequested);
       };
 
       window.toggleCrouchMobile = function () {
@@ -3362,10 +3435,7 @@
                       } else {
                         player.hp = 0;
                         player.alive = false;
-                        player.isScoped = false;
-                        document.getElementById('scope-overlay').classList.add('hidden');
-                        camera.fov = 75;
-                        camera.updateProjectionMatrix();
+                        resetADS();
                         player.spectateIdx = 0;
                         addKillFeed(b.name, 'YOU', b.weapon.name, false);
                       }
@@ -3569,6 +3639,7 @@
         if (matchState.inMatch) {
           const holdingAnyFire = isMouseFiring || isKeyboardFiring || isLeftTouchFiring || isRightTouchFiring;
           if (holdingAnyFire && player.alive && getActiveWeapon().auto) attemptFire();
+          updateADSFrame(now);
           updatePlayerAndSpectatorCamera(dt);
           window.updateCrosshairErrors?.((keys['KeyW'] || keys['KeyA'] || keys['KeyS'] || keys['KeyD']) ? 3 : 0, now);
           updateBotsAndTeamCombat(dt);
@@ -3576,6 +3647,7 @@
           window.MP.tick(dt);
           if (now - lastRadarAt > 75) {drawAscentRadar();lastRadarAt = now;}
         } else {
+          if(player.adsRequested||player.adsProgress)resetADS();
           viewmodel.update(dt, player, matchState); // Hide the 2D viewmodel in menus and after a match.
           const t = now * 0.00022;
           camera.position.set(Math.cos(t) * 38, 17, Math.sin(t) * 38);
