@@ -40,8 +40,9 @@ function tracerHarness() {
   };
   const renderer={domElement:{clientHeight:720}};
   const script=`const activeTracers=[];${'const TRACER_LIFETIME = '+body[1]}\n function tick(dt){${'for (let i = activeTracers.length - 1; i >= 0; i--) {'+update[1]+'\n        }'}};\n ({spawnBulletTracer,localTracerVisualStart,tick,activeTracers})`;
-  const api=vm.runInNewContext(script,{THREE,scene,camera,renderer,window:{innerHeight:720},Number,Math});
-  return {api,THREE,added,removed};
+  const viewmodel={getMuzzleWorldPosition:()=>null};
+  const api=vm.runInNewContext(script,{THREE,scene,camera,renderer,viewmodel,window:{innerHeight:720},Number,Math});
+  return {api,THREE,added,removed,viewmodel};
 }
 
 test('tracer becomes a bright yellow group of three thin parallel lines, never a sphere',()=>{
@@ -60,11 +61,12 @@ test('tracer becomes a bright yellow group of three thin parallel lines, never a
   assert.equal('progress' in api.activeTracers[0],false,'no travel animation');
 });
 
-test('local first-person shot starts slightly right and down; hit ray remains unchanged',()=>{
-  const {api,THREE}=tracerHarness();
+test('local first-person tracer begins exactly at projected PAPER muzzle, hit ray remains unchanged',()=>{
+  const {api,THREE,viewmodel}=tracerHarness();
+  viewmodel.getMuzzleWorldPosition=()=>new THREE.Vector3(.12,-.29,-2.9);
   const origin=new THREE.Vector3(0,0,0), dir=new THREE.Vector3(0,0,-1);
   const visual=api.localTracerVisualStart(origin,dir);
-  assert(visual.x>0.1 && visual.y<0 && visual.z<0);
+  assert.equal(visual.x,.12);assert.equal(visual.y,-.29);assert.equal(visual.z,-2.9);
   assert.equal(origin.x,0);
   assert.equal(origin.y,0);
   assert.equal(dir.x,0);

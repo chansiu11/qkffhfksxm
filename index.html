@@ -18,7 +18,7 @@
   <script src="shotgun-pellets.js"></script>
   <script src="crosshair-profile.js"></script>
   <script src="crosshair-ui.js" defer></script>
-  <script src="weapon-viewmodels.js?v=20261123-sideprofile"></script>
+  <script src="weapon-viewmodels.js?v=20261123-viewpose"></script>
 
   <style>
     :root {
@@ -74,46 +74,31 @@
       z-index: 1;
     }
 
-    /* Anchored first-person weapon plane: the near edge exits at the lower-right,
-       while the front of the sprite converges toward the lower center. */
+    /* Transparent flat weapon photos are projected as 3D paper quads using
+       matrix3d from the four virtual corners. No player hands or weapon models. */
     #fps-weapon-sprite-layer {
-      position: fixed;
-      inset: 0;
-      width: 100%;
-      height: 100%;
-      z-index: 14;
-      opacity: 0;
-      visibility: hidden;
-      pointer-events: none;
-      overflow: hidden;
+      position: fixed; inset: 0; width: 100%; height: 100%; z-index: 14;
+      opacity: 0; visibility: hidden; pointer-events: none; overflow: hidden;
       transition: opacity .11s ease-out, visibility .11s ease-out;
       contain: layout style;
     }
     #fps-weapon-sprite-layer.weapon-visible { opacity: 1; visibility: visible; }
     #fps-weapon-sprite-layer.weapon-aiming { opacity: .12; }
-    #fps-weapon-sprite-layer > svg {
-      position: absolute;
-      display: block;
-      overflow: visible;
-      transform-style: preserve-3d;
-      backface-visibility: hidden;
-      will-change: transform;
-      filter: drop-shadow(8px 16px 8px rgba(0,0,0,.48));
+    #fps-weapon-sprite-layer > img.fps-paper-weapon {
+      position:absolute; top:0; left:0; display:block; pointer-events:none;
+      max-width:none; max-height:none; border:0; object-fit:fill;
+      transform-origin:0 0; backface-visibility:visible; will-change:transform;
+      filter:drop-shadow(3px 8px 4px rgba(0,0,0,.43));
     }
     #fps-weapon-sprite-layer .weapon-shot-flash {
-      position: absolute;
-      display: block;
-      width: 70px;
-      height: 38px;
-      pointer-events: none;
-      opacity: 0;
-      background: radial-gradient(ellipse at 16% 50%, #fff9d3 0%, #ffe585 30%, #ffa528 59%, transparent 75%);
-      clip-path: polygon(0 43%, 35% 20%, 73% 0, 57% 35%, 100% 50%, 57% 63%, 73% 100%, 29% 77%, 0 58%);
-      filter: drop-shadow(0 0 6px #ffbf43);
-      transform-origin: 10% 50%;
+      position:absolute; width:70px; height:38px; pointer-events:none;
+      opacity:0; transform:translate(-50%,-50%);
+      background:radial-gradient(ellipse at 16% 50%,#fff9d3 0%,#ffe585 30%,#ffa528 59%,transparent 75%);
+      clip-path:polygon(0 43%,35% 20%,73% 0,57% 35%,100% 50%,57% 63%,73% 100%,29% 77%,0 58%);
+      filter:drop-shadow(0 0 6px #ffbf43);
     }
-    @media (prefers-reduced-motion: reduce) {
-      #fps-weapon-sprite-layer { transition: none; }
+    @media (prefers-reduced-motion:reduce) {
+      #fps-weapon-sprite-layer {transition:none;}
     }
     /* Red peripheral hit feedback for both AI and live opponents. */
     #damage-vignette {
@@ -797,7 +782,8 @@
         <div>
           <span class="px-2 py-0.5 bg-amber-400 text-slate-950 font-num font-black text-xs">CUSTOM GAME CHEATS // F1</span>
           <h2 class="text-xl font-black text-white mt-1">발로란트 사설방 치트 제어판 (방장 통제)</h2>
-        </div>        <div class="flex items-center gap-2">
+        </div>
+        <div class="flex items-center gap-2">
           <button type="button" id="modal-host-cheat-btn" onclick="window.toggleHostCheatPermission(event)"
                   class="px-3.5 py-2 bg-emerald-500 text-slate-950 font-black text-xs cursor-pointer">
             HOST CHEATS: ON
@@ -811,7 +797,6 @@
       <div id="cheat-locked-notice" class="hidden my-4 p-4 bg-rose-950/80 border border-rose-500 text-center text-rose-200 text-xs font-bold">
         현재 방장(Host)이 사설방 치트 사용을 [OFF]로 비활성화했습니다. 상단의 [HOST CHEATS] 버튼을 눌러 ON으로 전환할 수 있습니다.
       </div>
-
       <div id="cheat-controls-body" class="space-y-4 mt-4">
         <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
           <button type="button" id="cheat-btn-ghost" onclick="window.toggleCheatOption('ghost')" class="p-3 bg-[#0f1923] border border-white/15 text-left cursor-pointer">
@@ -1596,7 +1581,8 @@
           if (b.maxY <= footY + STEP_HEIGHT) continue;
           const cx = Math.max(b.minX, Math.min(pos.x, b.maxX));
           const cz = Math.max(b.minZ, Math.min(pos.z, b.maxZ));
-          const dx = pos.x - cx, dz = pos.z - cz;          const distSq = dx * dx + dz * dz;
+          const dx = pos.x - cx, dz = pos.z - cz;
+          const distSq = dx * dx + dz * dz;
           if (distSq < radius * radius) {
             const dist = Math.sqrt(distSq) || 0.001;
             const overlap = radius - dist;
@@ -1610,8 +1596,7 @@
        * 5. FULL VALORANT WEAPON ROSTER & 4-SLOT PURE GUNPLAY LOADOUT
        * ========================================================================= */
       const WEAPON_CATALOG = {
-        knife:    { id: 'knife', slot: 'knife', name: 'MELEE KNIFE', cost: 0, headDmg: 150, bodyDmg: 50, fireRate: 0.42, magSize: 1, resSize: 0, spreadBase: 0, spreadMove: 0, recoilPitch: 0.01, auto: false, canScope: false, pellets: 1, range: 3.4, color: 0xf5c542 },
-        classic:  { id: 'classic', slot: 'secondary', name: 'CLASSIC', cost: 0, headDmg: 78, bodyDmg: 26, fireRate: 0.16, magSize: 12, resSize: 36, spreadBase: 0.004, spreadMove: 0.045, recoilPitch: 0.016, auto: false, canScope: false, pellets: 1, range: 220, color: 0x94a3b8 },
+        knife:    { id: 'knife', slot: 'knife', name: 'MELEE KNIFE', cost: 0, headDmg: 150, bodyDmg: 50, fireRate: 0.42, magSize: 1, resSize: 0, spreadBase: 0, spreadMove: 0, recoilPitch: 0.01, auto: false, canScope: false, pellets: 1, range: 3.4, color: 0xf5c542 },        classic:  { id: 'classic', slot: 'secondary', name: 'CLASSIC', cost: 0, headDmg: 78, bodyDmg: 26, fireRate: 0.16, magSize: 12, resSize: 36, spreadBase: 0.004, spreadMove: 0.045, recoilPitch: 0.016, auto: false, canScope: false, pellets: 1, range: 220, color: 0x94a3b8 },
         shorty:   { id: 'shorty', slot: 'secondary', name: 'SHORTY', cost: 300, headDmg: 36, bodyDmg: 18, fireRate: 0.28, magSize: 2, resSize: 6, spreadBase: 0.075, spreadMove: 0.09, recoilPitch: 0.045, auto: false, canScope: false, pellets: 8, range: 42, color: 0xf97316 },
         frenzy:   { id: 'frenzy', slot: 'secondary', name: 'FRENZY', cost: 450, headDmg: 78, bodyDmg: 26, fireRate: 0.095, magSize: 13, resSize: 39, spreadBase: 0.012, spreadMove: 0.05, recoilPitch: 0.018, auto: true, canScope: false, pellets: 1, range: 220, color: 0xfacc15 },
         ghost:    { id: 'ghost', slot: 'secondary', name: 'GHOST', cost: 500, headDmg: 105, bodyDmg: 30, fireRate: 0.15, magSize: 15, resSize: 45, spreadBase: 0.0025, spreadMove: 0.045, recoilPitch: 0.015, auto: false, canScope: false, pellets: 1, range: 220, color: 0x38e2c7 },
@@ -2395,7 +2380,8 @@
           }
           syncCheatPermissionUI();
           modal.classList.remove('hidden');
-        } else {          modal.classList.add('hidden');
+        } else {
+          modal.classList.add('hidden');
           if (matchState.inMatch) tryLockPointerSafe();
         }
         sfx.playUI();
@@ -2409,8 +2395,7 @@
           btn.className = cheats[key]
             ? 'p-3 bg-[#1b3142] border-2 border-[#38e2c7] text-left cursor-pointer'
             : 'p-3 bg-[#0f1923] border border-white/15 text-left cursor-pointer';
-        }
-        if (key === 'ghost') {
+        }        if (key === 'ghost') {
           document.getElementById('hud-ghost-banner').classList.toggle('hidden', !cheats.ghost);
         }
         if (key === 'infiniteCreds' && cheats.infiniteCreds) {
@@ -2538,10 +2523,11 @@
         activeTracers.push({ line, age: 0, lifetime: TRACER_LIFETIME });
       }
 
-      // Keep game hit calculations centered on the crosshair. Shift ONLY the local visual
-      // line start toward the first-person gun sprite so a perfectly straight-ahead shot
-      // is actually visible instead of projecting to a single dot at screen center.
+      // Ballistics remain centered on the crosshair. ONLY the VISUAL line begins
+      // at the actual 3D-projected midpoint of the flat paper gun's muzzle edge.
       function localTracerVisualStart(origin, direction) {
+        const projectedMuzzle = viewmodel.getMuzzleWorldPosition(camera);
+        if (projectedMuzzle) return projectedMuzzle;
         const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
         const down = new THREE.Vector3(0, -1, 0).applyQuaternion(camera.quaternion);
         return origin.clone().addScaledVector(direction, 0.42)
@@ -2555,8 +2541,8 @@
         return new THREE.Vector3(-Math.sin(yaw) * cp, Math.sin(pitch), -Math.cos(yaw) * cp).normalize();
       }
 
-      // The visible tracer starts on the CROSSHAIR ray, not on an offset viewmodel muzzle ray.
-      // A separate muzzle flash remains attached to the weapon for visual feedback.
+      // Gameplay hit rays come from the crosshair; visible hitscan lines start
+      // at the paper's far/muzzle edge and end at the hit-ray impact point.
       function drawLocalShot(weapon, pelletRotation = 0) {
         if (weapon.slot === 'knife') return;
         const maxDist = weapon.range || 200;
@@ -3194,7 +3180,8 @@
             const baseSpeed = (isCrouching || isWalkingSlow) ? 4.3 : 7.6;
             const walkSpeed = baseSpeed * knifeBonus;
 
-            player.vel.x = wishDir.x * walkSpeed;            player.vel.z = wishDir.z * walkSpeed;
+            player.vel.x = wishDir.x * walkSpeed;
+            player.vel.z = wishDir.z * walkSpeed;
             player.pos.x += player.vel.x * dt;
             player.pos.z += player.vel.z * dt;
 
@@ -3207,8 +3194,7 @@
             player.footY += player.vel.y * dt;
             if (player.footY <= sup.y) {
               player.footY = sup.y;
-              player.vel.y = 0;
-              player.onGround = true;
+              player.vel.y = 0;              player.onGround = true;
             } else {
               player.onGround = false;
             }

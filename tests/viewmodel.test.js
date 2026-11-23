@@ -6,105 +6,106 @@ const fs=require('node:fs');
 const path=require('node:path');
 const root=path.join(__dirname,'..');
 let clock=0;
-const layer={content:'',style:{},classes:new Set(),classList:{toggle(name,on){if(on)layer.classes.add(name);else layer.classes.delete(name)}},set innerHTML(html){this.content=html;},get innerHTML(){return this.content;},querySelector(selector){if(selector==='svg'&&this.content.includes('<svg'))return {style:{}};return null;},appendChild(child){this.lastChild=child}};
-const ctx={window:{innerWidth:1440,innerHeight:900},performance:{now:()=>clock},document:{getElementById:id=>id==='fps-weapon-sprite-layer'?layer:null,createElement:()=>({className:'',style:{}})}};
+const photo={style:{}},flash={style:{}};
+const layer={content:'',classes:new Set(),classList:{toggle(n,v){if(v)layer.classes.add(n);else layer.classes.delete(n)}},
+  set innerHTML(s){this.content=s;},get innerHTML(){return this.content;},
+  querySelector(selector){return selector==='.fps-paper-weapon'?photo:selector==='.weapon-shot-flash'?flash:null;}};
+const ctx={window:{innerWidth:1440,innerHeight:900},performance:{now:()=>clock},
+  document:{getElementById:id=>id==='fps-weapon-sprite-layer'?layer:null}};
 vm.runInNewContext(fs.readFileSync(path.join(root,'weapon-viewmodels.js'),'utf8'),ctx);
-const API=ctx.window.WeaponViewmodels;
+const api=ctx.window.WeaponViewmodels;
 class Group{constructor(){this.children=[]}}
-test('17 active guns and knife use only user photos, NO hand, glove or vector gun overlays',()=>{
-  assert.equal(Object.keys(API.styles).length,17);
-  const images=new Set();
-  for(const id of Object.keys(API.styles)){
-    const svg=API.makeSvg(id);images.add(svg);
-    assert(svg.includes(`<title>${API.styles[id].mark}`),id);
-    assert(svg.includes(`data-weapon-id="${id}"`),id);
-    assert(svg.includes(`href="assets/weapons/${id}.webp"`),id);
-    assert(svg.includes('class="weapon-texture"'),id);
-    assert(!/paper-hand|paper-gun-hand|<path|<polygon|<rect|holdingHands|glove|sleeve|art-blade|art-mag/.test(svg),id);
-  }
-  assert.equal(images.size,17);
-  const js=fs.readFileSync(path.join(root,'weapon-viewmodels.js'),'utf8');
-  assert(!/holdingHands|gunParts|cutoutDepth|metallicFacets/.test(js));
-});
-test('first-person sprite moves with weapon swap, firing, reload, scope and motion without 3D mesh',()=>{
-  const vm=API.create({Group});
-  assert.equal(vm.group.children.length,0);
-  for(const id of Object.keys(API.styles)){
-    vm.setWeapon(id);assert.equal(vm.current,id);
-    clock+=330;
-    vm.update(.016,{alive:true,vel:{x:3,z:0},isScoped:false},{inMatch:true});
+class Vector3{constructor(x,y,z){this.x=x;this.y=y;this.z=z;}}
+const T={Group,Vector3};
+const alive={alive:true,vel:{x:0,z:0},isScoped:false};
+const running={inMatch:true};
+
+test('all 17 equipped guns/knife use their own photo without any 3D meshes, hands or arms',()=>{
+  const view=api.create(T);
+  assert.equal(view.group.children.length,0);
+  assert.equal(Object.keys(api.styles).length,17);
+  for(const id of Object.keys(api.styles)){
+    view.setWeapon(id);
+    assert.equal(view.current,id);
+    assert.match(layer.content,new RegExp(`assets/weapons/${id}\\.webp`));
+    assert(layer.content.includes('<img class="fps-paper-weapon"'));
+    assert(!/glove|paper-hand|sleeve|<svg|<path|holdingHands/i.test(layer.content));
+    clock+=350;view.update(.016,alive,running);
+    assert.match(photo.style.transform,/^matrix3d\(/);
     assert(layer.classes.has('weapon-visible'));
-    assert(layer.content.includes(`href="assets/weapons/${id}.webp"`));
     if(id!=='knife'){
-      vm.beginReload();assert(vm.isReloading);
-      clock+=220;vm.update(.016,{alive:true,vel:{x:0,z:0},isScoped:false},{inMatch:true});
-      vm.stopReload();assert(!vm.isReloading);
+      view.beginReload();assert(view.isReloading);
+      clock+=400;view.update(.016,alive,running);
+      view.stopReload();assert(!view.isReloading);
     }
-    vm.fire(id==='knife'?'heavy':'light');clock+=50;
-    vm.update(.016,{alive:true,vel:{x:0,z:0},isScoped:true},{inMatch:true});
+    view.fire(id==='knife'?'heavy':'light');clock+=20;view.update(.016,alive,running);
   }
-  vm.update(.016,{alive:true,vel:{x:0,z:0},isScoped:false},{inMatch:false});
+  view.update(.016,alive,{inMatch:false});
   assert(!layer.classes.has('weapon-visible'));
 });
-test('crosshair controls and hit flash remain wired into multiplayer and standalone',()=>{
-  const html=fs.readFileSync(path.join(root,'index.html'),'utf8');
-  const multiplayer=fs.readFileSync(path.join(root,'multiplayer-client.js'),'utf8');
-  assert.match(html,/e\.code === 'KeyX'/);
-  assert.match(html,/window\.toggleScope\(\)/);
-  assert.match(html,/function flashDamage\(/);
-  assert.match(multiplayer,/a\.flashDamage\(\)/);
-});
-test('side-profile gun keeps almost flat barrel-to-stock pose and no arms',()=>{
-  const src=fs.readFileSync(path.join(root,'weapon-viewmodels.js'),'utf8');
-  const css=fs.readFileSync(path.join(root,'index.html'),'utf8');
-  assert.match(src,/perspective\(1250px\)/);
-  assert.match(src,/rotateY\(/);
-  assert.match(src,/rotateX\(/);
-  assert.match(src,/rotateZ\(/);
-  assert.match(src,/width<=820&&height>width/);
-  assert.match(css,/transform-style: preserve-3d;/);
-  assert(!src.includes('paper-hand'));
+
+test('first-person paper is PROJECTED as near-large/far-small rectangle, not rotated as a flat poster',()=>{
+  const w=1440,h=900;
+  const p=api.paperProjection('vandal',w,h);
+  assert.match(p.matrix,/^matrix3d\(/);
+  assert(p.corners[1].x>p.corners[0].x);
+  const farHeight=Math.hypot(p.corners[3].x-p.corners[0].x,p.corners[3].y-p.corners[0].y);
+  const nearHeight=Math.hypot(p.corners[2].x-p.corners[1].x,p.corners[2].y-p.corners[1].y);
+  assert(nearHeight>farHeight*2.7,`rear paper edge should be visibly larger (far=${farHeight},near=${nearHeight})`);
+  assert(p.frontDepth>p.rearDepth*3);
+  assert(p.muzzle.x>w*.5 && p.muzzle.x<w*.7);
+  assert(p.muzzle.y>h*.5 && p.muzzle.y<h*.73);
+  assert.equal(api.muzzleEdgeY.vandal,.226);
 });
 
+test('paper projection retains real muzzle endpoint while weapon shifts with firing/reloading',()=>{
+  const view=api.create(T);view.setWeapon('vandal');clock+=400;
+  view.update(.016,alive,running);
+  const resting=view.getMuzzleScreenPosition();
+  assert(resting && resting.depth===2.9);
+  const still=photo.style.transform;
+  view.fire();clock+=30;view.update(.016,alive,running);
+  assert.notEqual(photo.style.transform,still);
+  const firing=view.getMuzzleScreenPosition();
+  assert(Math.hypot(firing.x-resting.x,firing.y-resting.y)>3);
+  assert(parseFloat(flash.style.opacity)>0,'flash must begin at projected muzzle');
+  assert(Math.abs(parseFloat(flash.style.left)-firing.x)<1);
+  assert(Math.abs(parseFloat(flash.style.top)-firing.y)<1);
+  clock+=200;view.update(.016,alive,running);
+  assert.equal(flash.style.opacity,'0');
+  view.beginReload();clock+=300;view.update(.016,alive,running);
+  assert(view.getMuzzleScreenPosition().y>resting.y+40);
+  view.stopReload();assert(!view.isReloading);
+});
 
-test('UI view endpoints anchor the barrel-front below crosshair and near edge outside viewport',()=>{
-  for(const id of Object.keys(API.styles)){
-    for(const [w,h] of [[1440,900],[390,844],[1280,720]]){
-      const pose=API.viewEndpoints(id,w,h);
-      assert(pose.front.x>w*.35&&pose.front.x<w*.86,id+' front must stay on screen');
-      assert(pose.front.y>h*.55&&pose.front.y<h*.80,id+' front not lower-center');
-      assert(pose.edge.x>w,id+' rear should exit off-screen right');
-      assert(Math.abs(pose.edge.y-pose.front.y)<h*.035,id+' gun must stay close to horizontal');
-      assert(pose.edge.y<h*.84,id+' stock must not point down toward camera');
-      assert(Math.abs(pose.yaw)<=8,id+' should show the gun side, not the buttstock');
-    }
+test('muzzle world position is the actual paper edge transformed by camera, while hit ray is unchanged',()=>{
+  const view=api.create(T);view.setWeapon('vandal');clock+=400;view.update(.016,alive,running);
+  const tip=view.getMuzzleScreenPosition();
+  const camera={fov:75,updateMatrixWorld(){},localToWorld(v){v.x+=3;v.y+=1;v.z+=12;return v;}};
+  const point=view.getMuzzleWorldPosition(camera);
+  const focal=900/(2*Math.tan(75*Math.PI/360));
+  assert(Math.abs(point.x-(3+(tip.x-720)*tip.depth/focal))<.001);
+  assert(Math.abs(point.y-(1+(450-tip.y)*tip.depth/focal))<.001);
+  assert.equal(point.z,12-tip.depth);
+});
+
+test('responsive mobile paper endpoint stays below center and rear exits right/lower screen',()=>{
+  for(const id of Object.keys(api.styles))for(const [w,h] of [[1440,900],[390,844],[1280,720]]){
+    const p=api.paperProjection(id,w,h), cfg=api.viewEndpoints(id,w,h);
+    assert(Math.abs(p.muzzle.x-cfg.front.x)<.01,id);
+    assert(Math.abs(p.muzzle.y-cfg.front.y)<.01,id);
+    assert(p.muzzle.y>h*.55 && p.muzzle.y<h*.8,id);
+    assert(cfg.edge.x>w,id);
+    assert(p.corners.every(q=>Number.isFinite(q.x)&&Number.isFinite(q.y)),id);
   }
 });
 
-test('A display-only hit effect follows the front of the sprite, without changing the shot ray',()=>{
-  const view=API.create({Group});
-  view.setWeapon('vandal'); clock+=400;view.update(.016,{alive:true,vel:{x:0,z:0},isScoped:false},{inMatch:true});
-  view.fire('light');clock+=40;view.update(.016,{alive:true,vel:{x:0,z:0},isScoped:false},{inMatch:true});
-  assert(layer.lastChild.style.opacity>0,'brief muzzle glow should be visible');
-  const front=API.viewEndpoints('vandal',1440,900).front;
-  assert(Math.abs(parseFloat(layer.lastChild.style.left)-front.x)<35,'effect must stay attached to displayed front');
-  assert(Math.abs(parseFloat(layer.lastChild.style.top)-front.y)<35,'effect must be near the displayed front height');
-  clock+=200;view.update(.016,{alive:true,vel:{x:0,z:0},isScoped:false},{inMatch:true});
-  assert.equal(layer.lastChild.style.opacity,'0');
-});
-
-
-test('standing still is nearly level, with negligible pitch and yaw depth',()=>{
-  const vm=API.create({Group});
-  vm.setWeapon('vandal');clock+=450;
-  vm.update(.016,{alive:true,vel:{x:0,z:0},isScoped:false},{inMatch:true});
-  const transform=layer.querySelector('svg')?.style?.transform || '';
-  // The fake element returned by this fixture is rebuilt on each query;
-  // check the calculation itself and invariant source expressions as well.
-  const pose=API.viewEndpoints('vandal',1440,900);
-  assert(Math.abs(Math.atan2(pose.edge.y-pose.front.y,pose.edge.x-pose.front.x)*180/Math.PI)<3);
-  const src=fs.readFileSync(path.join(root,'weapon-viewmodels.js'),'utf8');
-  assert(src.includes('const pitch=.7+'));
-  assert(src.includes('const yaw=pose.yaw+breathing*.10'));
-  assert(!src.includes('reloadDrop*11'));
+test('crosshair shooting, damage, reload and online hooks still wired',()=>{
+  const html=fs.readFileSync(path.join(root,'index.html'),'utf8');
+  const online=fs.readFileSync(path.join(root,'multiplayer-client.js'),'utf8');
+  assert.match(html,/e\.code === 'KeyX'/);
+  assert.match(html,/viewmodel\.getMuzzleWorldPosition\(camera\)/);
+  assert.match(html,/spawnBulletTracer\(localTracerVisualStart\(player\.pos, bulletDirection\), endPt\)/);
+  assert.match(html,/function flashDamage\(/);
+  assert.match(online,/a\.viewmodel\.fire\(/);
 });

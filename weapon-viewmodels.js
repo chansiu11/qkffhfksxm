@@ -1,36 +1,27 @@
-/* User-supplied weapon-only textures. First-person 2.5D view, no hands, gloves,
- * sleeves, pre-drawn weapon models, or first-person Three.js weapon geometry.
- * All 17 playable weapons map to a separate background-removed WebP texture.
+/* First-person WEAPON-ONLY paper-plane viewmodel.
+ * Each supplied transparent 2D texture lies on a single mathematically projected
+ * rectangle in 3D camera space: muzzle edge far, rear/stock edge near. This is
+ * a perspective warp of a flat photograph, NOT a 3D weapon or an arm model.
  */
-(function(){
+(function () {
   'use strict';
-  const styles=Object.freeze({
-    knife:{kind:'blade',mark:'EDGE',scale:.94},
-    classic:{kind:'pistol',mark:'CLASSIC',scale:.90},
-    shorty:{kind:'short',mark:'SHORTY',scale:1},
-    frenzy:{kind:'machine',mark:'FRENZY',scale:.93},
-    ghost:{kind:'pistol',mark:'GHOST',scale:.98},
-    sheriff:{kind:'revolver',mark:'SHERIFF',scale:.98},
-    stinger:{kind:'smg',mark:'STINGER',scale:1.02},
-    spectre:{kind:'smg',mark:'SPECTRE',scale:1.03},
-    bucky:{kind:'shotgun',mark:'BUCKY',scale:1.05},
-    judge:{kind:'shotgun',mark:'JUDGE',scale:1.04},
-    bulldog:{kind:'rifle',mark:'BULLDOG',scale:1.07},
-    guardian:{kind:'rifle',mark:'GUARDIAN',scale:1.05},
-    phantom:{kind:'rifle',mark:'PHANTOM',scale:1.07},
-    vandal:{kind:'rifle',mark:'VANDAL',scale:1.09},
-    marshal:{kind:'sniper',mark:'MARSHAL',scale:1.08},
-    outlaw:{kind:'sniper',mark:'OUTLAW',scale:1.09},
-    operator:{kind:'sniper',mark:'OPERATOR',scale:1.12}
+  const styles = Object.freeze({
+    knife:{kind:'blade',mark:'EDGE'},classic:{kind:'pistol',mark:'CLASSIC'},
+    shorty:{kind:'short',mark:'SHORTY'},frenzy:{kind:'machine',mark:'FRENZY'},
+    ghost:{kind:'pistol',mark:'GHOST'},sheriff:{kind:'revolver',mark:'SHERIFF'},
+    stinger:{kind:'smg',mark:'STINGER'},spectre:{kind:'smg',mark:'SPECTRE'},
+    bucky:{kind:'shotgun',mark:'BUCKY'},judge:{kind:'shotgun',mark:'JUDGE'},
+    bulldog:{kind:'rifle',mark:'BULLDOG'},guardian:{kind:'rifle',mark:'GUARDIAN'},
+    phantom:{kind:'rifle',mark:'PHANTOM'},vandal:{kind:'rifle',mark:'VANDAL'},
+    marshal:{kind:'sniper',mark:'MARSHAL'},outlaw:{kind:'sniper',mark:'OUTLAW'},
+    operator:{kind:'sniper',mark:'OPERATOR'}
   });
-  // All twenty source images are separately cut out, including future guns.
   const referenceImages=Object.freeze({
     bandit:'bandit',classic:'classic',shorty:'shorty',frenzy:'frenzy',ghost:'ghost',
     sheriff:'sheriff',stinger:'stinger',spectre:'spectre',bucky:'bucky',judge:'judge',
     bulldog:'bulldog',guardian:'guardian',phantom:'phantom',vandal:'vandal',
     marshal:'marshal',outlaw:'outlaw',operator:'operator',ares:'ares',odin:'odin',knife:'knife'
   });
-  // Pixel dimensions AFTER removing beige background and trimming empty margins.
   const sourceSize=Object.freeze({
     bandit:[294,182],classic:[308,234],shorty:[668,231],sheriff:[444,246],
     ghost:[664,228],frenzy:[285,233],stinger:[647,255],spectre:[626,245],
@@ -38,164 +29,163 @@
     phantom:[669,181],vandal:[663,232],marshal:[672,129],operator:[661,143],
     ares:[677,151],odin:[638,211],knife:[658,136],outlaw:[680,160]
   });
-  function referencePlacement(id){
-    const size=sourceSize[id]||sourceSize.classic;
-    const kind=styles[id]?.kind||'rifle';
-    const width=kind==='blade'?820:kind==='pistol'?575:
-      kind==='revolver'?585:kind==='machine'?550:
-      kind==='short'?765:kind==='smg'?805:kind==='shotgun'?865:900;
-    const height=Math.round(width*size[1]/size[0]);
-    // Attach the near end (stock / handle) near the bottom-right of the HUD.
-    const x=Math.round(980-width);
-    const y=Math.round((kind==='blade'?273:kind==='pistol'||kind==='machine'||kind==='revolver'?254:231)-height*.51);
-    return {x,y,width,height};
+  // From the edge-alpha pixels of the user's cutout images, NOT an arbitrary
+  // center of the whole screenshot. Values are fractions of the source height.
+  const muzzleEdgeY=Object.freeze({
+    bandit:.138,classic:.171,shorty:.180,sheriff:.214,ghost:.151,frenzy:.151,
+    stinger:.156,spectre:.150,bucky:.262,judge:.270,bulldog:.307,
+    guardian:.188,phantom:.273,vandal:.226,marshal:.311,operator:.272,
+    ares:.265,odin:.342,knife:.459,outlaw:.340
+  });
+  // Project the flat photo as an actual paper rectangle in first-person space.
+  // Rear is closer to the eye: depth .76, muzzle is farther away: depth 2.9.
+  // The plane is viewed from behind and diagonally, so its near end grows larger.
+  const VIEW_ENDPOINTS=Object.freeze({
+    rifle:{front:[.527,.587],rear:[1.105,.875],height:.47},
+    sniper:{front:[.522,.585],rear:[1.105,.868],height:.36},
+    smg:{front:[.562,.625],rear:[1.105,.864],height:.49},
+    shotgun:{front:[.545,.610],rear:[1.102,.867],height:.48},
+    pistol:{front:[.674,.668],rear:[1.093,.868],height:.60},
+    machine:{front:[.670,.668],rear:[1.097,.865],height:.56},
+    revolver:{front:[.667,.662],rear:[1.097,.874],height:.58},
+    short:{front:[.634,.664],rear:[1.092,.876],height:.52},
+    blade:{front:[.585,.668],rear:[1.092,.863],height:.42}
+  });
+  const FRONT_DEPTH=2.9, REAR_DEPTH=.76, FOV=75;
+  function viewEndpoints(id,width,height){
+    const kind=styles[id]?.kind||'rifle', cfg=VIEW_ENDPOINTS[kind]||VIEW_ENDPOINTS.rifle;
+    const portrait=width<=820&&height>width;
+    const front=portrait?[kind==='pistol'||kind==='revolver'||kind==='machine'?.67:.515,
+      kind==='blade'?.665:.650]:cfg.front;
+    const rear=portrait?[1.23,kind==='blade'?.92:.955]:cfg.rear;
+    return {front:{x:width*front[0],y:height*front[1]},
+      edge:{x:width*rear[0],y:height*rear[1]},
+      frontDepth:FRONT_DEPTH,rearDepth:REAR_DEPTH,paperHeight:cfg.height};
+  }
+  function focalLength(screenH,fov=FOV){return screenH/(2*Math.tan(fov*Math.PI/360));}
+  function atDepth(screen,depth,w,h,focal){
+    return {x:(screen.x-w*.5)*depth/focal,
+      y:(h*.5-screen.y)*depth/focal,z:-depth};
+  }
+  function project(p,w,h,focal){
+    const depth=-p.z;return {x:w*.5+p.x*focal/depth,y:h*.5-p.y*focal/depth};
+  }
+  // A proper planar projective transform from the source rectangle to FOUR
+  // projected 3D corners, not a rotateZ() applied to a flat overlay.
+  function quadToMatrix(corners,width,height){
+    const [p0,p1,p2,p3]=corners;
+    const dx1=p1.x-p2.x,dx2=p3.x-p2.x,dx3=p0.x-p1.x+p2.x-p3.x;
+    const dy1=p1.y-p2.y,dy2=p3.y-p2.y,dy3=p0.y-p1.y+p2.y-p3.y;
+    const determinant=dx1*dy2-dx2*dy1;
+    let g=0,h=0;
+    if(Math.abs(dx3)>1e-8||Math.abs(dy3)>1e-8){
+      if(Math.abs(determinant)<1e-8)throw Error('Degenerate paper quad');
+      g=(dx3*dy2-dx2*dy3)/determinant;
+      h=(dx1*dy3-dx3*dy1)/determinant;
+    }
+    const a=p1.x-p0.x+g*p1.x,b=p3.x-p0.x+h*p3.x,c=p0.x;
+    const d=p1.y-p0.y+g*p1.y,e=p3.y-p0.y+h*p3.y,f=p0.y;
+    const arr=[a/width,d/width,0,g/width,b/height,e/height,0,h/height,
+      0,0,1,0,c,f,0,1];
+    return `matrix3d(${arr.map(v=>Number(v.toFixed(9))).join(',')})`;
+  }
+  function paperProjection(id,w,h,options={}){
+    const endpoints=viewEndpoints(id,w,h),alpha=muzzleEdgeY[id]??.25;
+    const fl=focalLength(h), recoil=options.recoil||0,motionX=options.motionX||0,
+      motionY=options.motionY||0,drop=options.drop||0, swing=options.swing||0;
+    const front={x:endpoints.front.x+motionX+4*recoil+swing,
+      y:endpoints.front.y+motionY-12*recoil+drop};
+    const rear={x:endpoints.edge.x+motionX+12*recoil-swing*.3,
+      y:endpoints.edge.y+motionY+15*recoil+drop};
+    const M=atDepth(front,FRONT_DEPTH,w,h,fl),R=atDepth(rear,REAR_DEPTH,w,h,fl);
+    const upright=endpoints.paperHeight; // paper's physical image height
+    const point=(u,v)=>({x:M.x+(R.x-M.x)*u,
+      y:M.y+(R.y-M.y)*u+(.5-v)*upright,
+      z:M.z+(R.z-M.z)*u+(v-.5)*.035});
+    // source v=alpha is the point where the leftmost muzzle pixels are centered.
+    // Translate image height so exactly THAT location projects to `front`.
+    const actual=(u,v)=>point(u,v-alpha+.5);
+    const corners=[actual(0,0),actual(1,0),actual(1,1),actual(0,1)].map(p=>project(p,w,h,fl));
+    const [iw,ih]=sourceSize[id]||sourceSize.classic;
+    const muzzle=project(actual(0,alpha),w,h,fl);
+    return {matrix:quadToMatrix(corners,iw,ih),corners,muzzle,
+      frontDepth:FRONT_DEPTH,rearDepth:REAR_DEPTH,source:{width:iw,height:ih},front,rear};
   }
   function makeSvg(id){
+    // Keep a compatibility SVG public method for existing tooling; the real HUD
+    // uses an <img> warped with the paper's four projected corners.
     const name=Object.hasOwn(referenceImages,id)?id:'classic';
-    const s=styles[name]||{mark:name.toUpperCase()};
-    const p=referencePlacement(name);
-    // One source photo only; duplicates used as shadow must not resemble a hand.
-    // Source files already have transparent backgrounds.
-    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 450" `+
-      `preserveAspectRatio="xMidYMid meet" role="img" aria-label="${s.mark} cutout">`+
-      `<title>${s.mark} - user-provided weapon-only texture</title>`+
-      `<g class="weapon-only" data-weapon-id="${name}">`+
-      `<image class="weapon-texture" data-ref-image="${name}" href="assets/weapons/${name}.webp" `+
-      `x="${p.x}" y="${p.y}" width="${p.width}" height="${p.height}" `+
-      `preserveAspectRatio="xMidYMid meet"/></g></svg>`;
+    const [w,h]=sourceSize[name];return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}"><title>${styles[name]?.mark||name}</title><image class="weapon-texture" data-weapon-id="${name}" href="assets/weapons/${name}.webp" width="${w}" height="${h}"/></svg>`;
   }
-  // User-selected side-on FPS pose: show the full weapon flank, not the
-  // buttstock pointing at the camera. Muzzle and stock stay almost level.
-  // The front/muzzle remains under the crosshair; the stock exits the right.
-  const VIEW_ENDPOINTS = Object.freeze({
-    rifle:   {front:[.535,.675], edge:[1.205,.691], plane:-7},
-    smg:     {front:[.598,.709], edge:[1.215,.724], plane:-6},
-    shotgun: {front:[.545,.688], edge:[1.215,.705], plane:-7},
-    sniper:  {front:[.490,.666], edge:[1.190,.682], plane:-8},
-    pistol:  {front:[.750,.755], edge:[1.188,.768], plane:-4},
-    revolver:{front:[.730,.758], edge:[1.194,.770], plane:-5},
-    machine: {front:[.731,.760], edge:[1.193,.773], plane:-4},
-    short:   {front:[.703,.757], edge:[1.193,.771], plane:-5},
-    blade:   {front:[.611,.735], edge:[1.190,.750], plane:-4}
-  });
-  function viewEndpoints(id, width, height){
-    const kind=styles[id]?.kind||'rifle';
-    const ref=VIEW_ENDPOINTS[kind]||VIEW_ENDPOINTS.rifle;
-    const portrait=width<=820&&height>width;
-    // On tall screens the right edge is further beyond the viewport so the
-    // nearly-horizontal weapon stays large without pitching toward the player.
-    const front=portrait ? [
-      kind==='blade'?.56:kind==='pistol'||kind==='revolver'||kind==='machine'?.67:.43,
-      kind==='blade'?.740:kind==='pistol'||kind==='revolver'||kind==='machine'?.790:.745
-    ] : ref.front;
-    const edge=portrait ? [
-      kind==='pistol'||kind==='revolver'||kind==='machine'?1.52:1.62,
-      front[1]+.012
-    ] : ref.edge;
-    return {front:{x:width*front[0],y:height*front[1]},
-      edge:{x:width*edge[0],y:height*edge[1]},yaw:ref.plane};
-  }
+  function referencePlacement(id){const [w,h]=sourceSize[id]||sourceSize.classic;return {x:0,y:0,width:w,height:h};}
   function create(THREE){
-    // No weapon mesh is attached to the camera; kept only for legacy gameplay API.
-    const group=new THREE.Group();
+    const group=new THREE.Group(); // compatibility-only; no 3D gun meshes or limbs
     const flash={visible:false,material:{opacity:0}};
     const layer=document.getElementById('fps-weapon-sprite-layer');
     if(!layer)throw Error('Missing weapon sprite layer');
-    const cache=new Map(),elements={};
-    let shown='',fireAt=-1e6,fireMode='light',reloadAt=-1e6,reloadPlaying=false;
-    let switchAt=-1e6,lastVisible=false,lastTransform='',lastLayoutKey='';
-    let pose=null,flashNode=null;
+    let shown='',photo=null,flashNode=null,fireAt=-100000,reloadAt=-100000,
+      switchAt=-100000,reloading=false,fireMode='light',lastVisible=false,
+      lastTransform='',lastViewport='',muzzleScreen=null;
     function setWeapon(id){
-      const next=Object.hasOwn(styles,id)?id:'classic';
-      if(next===shown)return;
-      shown=next;
-      reloadPlaying=false;
-      switchAt=performance.now();
-      if(!cache.has(next))cache.set(next,makeSvg(next));
-      layer.innerHTML=cache.get(next);
-      elements.svg=layer.querySelector('svg');
-      flashNode=document.createElement('span');
-      flashNode.className='weapon-shot-flash';
-      layer.appendChild(flashNode);
-      layer.classList.toggle('weapon-knife',next==='knife');
-      lastLayoutKey='';lastTransform='';
+      id=Object.hasOwn(styles,id)?id:'classic';
+      if(id===shown)return;
+      shown=id;switchAt=performance.now();reloading=false;
+      const [w,h]=sourceSize[id];
+      layer.innerHTML=`<img class="fps-paper-weapon" src="assets/weapons/${id}.webp" width="${w}" height="${h}" alt="" draggable="false" aria-hidden="true">`+
+        `<span class="weapon-shot-flash" aria-hidden="true"></span>`;
+      photo=layer.querySelector('.fps-paper-weapon');
+      flashNode=layer.querySelector('.weapon-shot-flash');
+      muzzleScreen=null;lastTransform='';lastViewport='';
+      layer.classList.toggle('weapon-knife',shown==='knife');
     }
-    function fire(mode='light'){
-      fireMode=mode==='heavy'?'heavy':'light';
-      fireAt=performance.now();
-    }
-    function beginReload(){if(shown!=='knife'){reloadAt=performance.now();reloadPlaying=true;}}
-    function stopReload(){reloadPlaying=false;}
-    function update(dt,p,state){
-      const live=!!(p?.alive&&state?.inMatch);
-      if(live!==lastVisible){layer.classList.toggle('weapon-visible',live);lastVisible=live;}
-      if(!live||!elements.svg)return;
-      const now=performance.now();
-      const sword=shown==='knife',kind=styles[shown]?.kind||'rifle';
-      const moving=Math.min(1,Math.hypot(p.vel?.x||0,p.vel?.z||0)/7.6);
-      const bobX=Math.sin(now*.0097)*4.7*moving;
-      const bobY=Math.abs(Math.sin(now*.0097))*6.7*moving;
-      const breathing=Math.sin(now*.00105);
-      const kick=Math.max(0,1-(now-fireAt)/(sword?280:135));
-      const draw=Math.max(0,1-(now-switchAt)/260);
-      const reloadProgress=reloadPlaying?Math.min(1,Math.max(0,(now-reloadAt)/1170)):0;
-      const reloadDrop=reloadPlaying?Math.sin(Math.PI*reloadProgress):0;
-      const heavy=sword&&fireMode==='heavy';
-      // Two viewport anchors define the first-person pose: front of the sprite
-      // near lower center, near side disappearing past the lower-right edge.
-      // This avoids simply rotating an undersized, floating picture in place.
-      const screenWidth=Number.isFinite(window.innerWidth)?window.innerWidth:1440;
-      const screenHeight=Number.isFinite(window.innerHeight)?window.innerHeight:900;
-      const key=`${shown}:${screenWidth}:${screenHeight}`;
-      if(lastLayoutKey!==key){
-        const pImg=referencePlacement(shown);
-        const pivotX=pImg.x+pImg.width;
-        const pivotY=pImg.y+pImg.height*.5;
-        const endpoints=viewEndpoints(shown,screenWidth,screenHeight);
-        const dx=endpoints.edge.x-endpoints.front.x;
-        const dy=endpoints.edge.y-endpoints.front.y;
-        const distance=Math.hypot(dx,dy);
-        const radians=Math.atan2(dy,dx);
-        const yawRadians=endpoints.yaw*Math.PI/180;
-        // View-plane width chosen from the two on-screen points. A mild 3D
-        // foreshortening is compensated so the front remains clearly visible.
-        const svgWidth=distance/(pImg.width/1000*Math.cos(yawRadians)*.96);
-        const svgHeight=svgWidth*.45;
-        elements.svg.style.width=`${svgWidth.toFixed(1)}px`;
-        elements.svg.style.height=`${svgHeight.toFixed(1)}px`;
-        elements.svg.style.left=`${(endpoints.edge.x-svgWidth*pivotX/1000).toFixed(1)}px`;
-        elements.svg.style.top=`${(endpoints.edge.y-svgHeight*pivotY/450).toFixed(1)}px`;
-        elements.svg.style.transformOrigin=`${(pivotX/10).toFixed(2)}% ${(pivotY/4.5).toFixed(2)}%`;
-        pose={angle:radians*180/Math.PI,yaw:endpoints.yaw,front:endpoints.front,edge:endpoints.edge};
-        lastLayoutKey=key;lastTransform='';
+    function fire(mode='light'){fireMode=mode==='heavy'?'heavy':'light';fireAt=performance.now();}
+    function beginReload(){if(shown!=='knife'){reloadAt=performance.now();reloading=true;}}
+    function stopReload(){reloading=false;}
+    function update(dt,player,state){
+      const visible=!!(player?.alive&&state?.inMatch);
+      if(visible!==lastVisible){layer.classList.toggle('weapon-visible',visible);lastVisible=visible;}
+      if(!visible||!photo)return;
+      const now=performance.now(),w=window.innerWidth||1440,h=window.innerHeight||900;
+      const moving=Math.min(1,Math.hypot(player.vel?.x||0,player.vel?.z||0)/7.6);
+      const bob=Math.sin(now*.010)*2.8*moving;
+      const breath=Math.sin(now*.0011)*1.3;
+      const firing=Math.max(0,1-(now-fireAt)/(shown==='knife'?255:135));
+      const reloadProgress=reloading?Math.min(1,(now-reloadAt)/1170):0;
+      const drop=reloading?Math.sin(Math.PI*reloadProgress)*78:0;
+      const draw=Math.max(0,1-(now-switchAt)/230)*64;
+      const swing=shown==='knife'?firing*(fireMode==='heavy'?-55:65):0;
+      const args={recoil:shown==='knife'?0:firing,motionX:bob,
+        motionY:Math.abs(bob)+breath,drop:drop+draw+(player.isScoped?175:0),swing};
+      const p=paperProjection(shown,w,h,args);
+      if(p.matrix!==lastTransform){photo.style.transform=p.matrix;lastTransform=p.matrix;}
+      const viewport=`${w}x${h}`;if(viewport!==lastViewport){
+        photo.style.width=p.source.width+'px';photo.style.height=p.source.height+'px';
+        lastViewport=viewport;
       }
-      const swing= sword?(heavy?28:-30):0;
-      // Idle pose stays almost horizontal; action-only recoil/reload adds movement.
-      const roll=pose.angle+breathing*.09+kick*(sword?swing:1.4)+reloadDrop*6;
-      const portrait=screenWidth<=820&&screenHeight>screenWidth;
-      // Visual-only offset compensates for perspective distortion, placing the
-      // *actual displayed* front near the target screenshot anchor.
-      const anchorShiftX=-screenWidth*(portrait?.15:.20);
-      const anchorShiftY=-screenHeight*(portrait?.10:.145);
-      const x=anchorShiftX+bobX+kick*(sword?-21:8);
-      const y=anchorShiftY+bobY+kick*(sword?-15:21)+reloadDrop*100+draw*90+(p.isScoped?205:0);
-      const yaw=pose.yaw+breathing*.10;
-      const pitch=.7+breathing*.15+moving*.18;
-      const transform=`translate3d(${x.toFixed(2)}px,${y.toFixed(2)}px,0) `+
-        `perspective(1250px) rotateZ(${roll.toFixed(2)}deg) `+
-        `rotateX(${pitch.toFixed(2)}deg) rotateY(${yaw.toFixed(2)}deg)`;
-      if(transform!==lastTransform){elements.svg.style.transform=transform;lastTransform=transform;}
+      muzzleScreen={x:p.muzzle.x,y:p.muzzle.y,depth:p.frontDepth};
       if(flashNode){
-        flashNode.style.left=`${(pose.front.x+x-anchorShiftX+9).toFixed(1)}px`;
-        flashNode.style.top=`${(pose.front.y+y-anchorShiftY-15).toFixed(1)}px`;
-        flashNode.style.transform=`translate(-70%, -50%) rotate(${(roll+180).toFixed(1)}deg)`;
-        flashNode.style.opacity=(!sword&&!p.isScoped&&kick>.55)?String(Math.min(1,(kick-.55)*2.2)):'0';
+        flashNode.style.left=p.muzzle.x.toFixed(1)+'px';
+        flashNode.style.top=p.muzzle.y.toFixed(1)+'px';
+        flashNode.style.opacity=shown!=='knife'&&!player.isScoped&&firing>.45?
+          String(Math.min(1,(firing-.45)*2.0)):'0';
       }
-      layer.classList.toggle('weapon-aiming',!!p.isScoped);
+      layer.classList.toggle('weapon-aiming',!!player.isScoped);
+    }
+    function getMuzzleScreenPosition(){return muzzleScreen?{...muzzleScreen}:null;}
+    function getMuzzleWorldPosition(camera){
+      if(!muzzleScreen||!camera||!THREE.Vector3)return null;
+      const w=window.innerWidth||1440,h=window.innerHeight||900;
+      const focal=focalLength(h,camera.fov||FOV),z=muzzleScreen.depth;
+      const world=new THREE.Vector3((muzzleScreen.x-w/2)*z/focal,
+        (h/2-muzzleScreen.y)*z/focal,-z);
+      camera.updateMatrixWorld?.(true);
+      return camera.localToWorld(world);
     }
     setWeapon('classic');
     return {group,flash,setWeapon,fire,beginReload,stopReload,update,
-      get isReloading(){return reloadPlaying;},get current(){return shown;},styles};
+      getMuzzleScreenPosition,getMuzzleWorldPosition,
+      get isReloading(){return reloading;},get current(){return shown;},styles};
   }
-  window.WeaponViewmodels={create,styles,makeSvg,referenceImages,referencePlacement,viewEndpoints};
+  window.WeaponViewmodels={create,styles,makeSvg,referenceImages,referencePlacement,
+    viewEndpoints,paperProjection,quadToMatrix,muzzleEdgeY};
 })();

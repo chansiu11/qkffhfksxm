@@ -29,7 +29,8 @@ test('Outlaw uses submitted photo, every playable weapon maps to its own source,
   for(const id of Object.keys(api.styles)){
     const svg=api.makeSvg(id);
     assert(svg.includes(`href="assets/weapons/${id}.webp"`),id);
-    assert(svg.includes('weapon-only'));
+    assert(svg.includes('class="weapon-texture"'));
+    assert(svg.includes(`data-weapon-id="${id}"`));
     assert(!svg.includes('paper-hand'));
   }
 });
