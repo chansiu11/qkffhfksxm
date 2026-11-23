@@ -219,9 +219,11 @@
           break;
         }
         case 'reload_started': {
-          if (a.getActiveWeapon()?.id===data.weapon) {
-            a.player.reloading=true;
-            a.player.pendingReloadWeapon=data.weapon;
+          const p = a.player;
+          if (p.pendingReloadWeapon === data.weapon &&
+              (data.requestId == null || p.reloadId === data.requestId)) {
+            p.reloading = true;
+            p.reloadServerConfirmed = true;
             if (!a.viewmodel.isReloading) a.viewmodel.beginReload();
           }
           a.updateHUD();
@@ -232,24 +234,33 @@
             const w=a.player[slot];
             if (w?.id===data.weapon){w.mag=data.mag;w.reserve=data.reserve;}
           }
-          if (a.player.pendingReloadWeapon===data.weapon) {
+          // Ammo is authoritative; an earlier missing start packet must not
+          // prevent a valid completion from unlocking the control.
+          if (a.player.pendingReloadWeapon===data.weapon ||
+              (a.getActiveWeapon()?.id === data.weapon && a.player.reloading)) {
             a.player.pendingReloadWeapon=null;
             a.player.reloading=false;
+            a.player.reloadServerConfirmed=false;
             a.player.reloadId=(a.player.reloadId||0)+1;
             a.viewmodel.stopReload();
           }
           a.updateHUD();
           break;
         }
-        case 'reload_cancelled':
-          if (!data.weapon || a.player.pendingReloadWeapon===data.weapon) {
-            a.player.pendingReloadWeapon=null;
-            a.player.reloading=false;
-            a.player.reloadId=(a.player.reloadId||0)+1;
+        case 'reload_cancelled': {
+          const p = a.player;
+          // A mismatched server equip response is itself a rejection of the
+          // pending request. Clear it rather than freezing until watchdog.
+          if (p.reloading && (data.requestId == null || data.requestId === p.reloadId)) {
+            p.pendingReloadWeapon = null;
+            p.reloading = false;
+            p.reloadServerConfirmed = false;
+            p.reloadId = (p.reloadId || 0) + 1;
             a.viewmodel.stopReload();
           }
           a.updateHUD();
           break;
+        }
         case 'shot': {
           if (data.shooter === this.myId || !this.started || !this.api.matchState.inMatch) break;
           const xyz = v => Array.isArray(v) && v.length === 3 && v.every(Number.isFinite);
@@ -392,8 +403,25 @@
       // The UI can be optimistic while waiting for a reload ack, but the
       // authoritative server completion always unlocks it eventually.
       if (me.reloading && me.reloadWeapon === gun.id) {
-        a.player.reloading=true;
-        a.player.pendingReloadWeapon=gun.id;
+        a.player.reloading = true;
+        a.player.pendingReloadWeapon = gun.id;
+        a.player.reloadServerConfirmed = true;
+        if (!a.viewmodel.isReloading) a.viewmodel.beginReload();
+      } else if (a.player.pendingReloadWeapon) {
+        // Recover even if reload_done was dropped: snapshots are server-truth.
+        // Never prematurely unlock before the server has seen our request.
+        const elapsed = performance.now() - (a.player.reloadRequestedAt || 0);
+        if (a.player.reloadServerConfirmed || elapsed > 2200) {
+          a.player.reloading = false;
+          a.player.pendingReloadWeapon = null;
+          a.player.reloadServerConfirmed = false;
+          a.player.reloadId = (a.player.reloadId || 0) + 1;
+          a.viewmodel.stopReload();
+        }
+      } else if (a.player.reloading && !me.reloading) {
+        a.player.reloading = false;
+        a.player.reloadServerConfirmed = false;
+        a.viewmodel.stopReload();
       }
       // Honor server spawn on round start and server corrections for abnormal movement.
       if (state.phase === 'buy' && state.timer > 15.5) {
@@ -449,12 +477,13 @@
       }
       this.peers.clear();
     },
-    fire() {
+    fire(knifeMode = 'light') {
       const a=this.api,p=a.player;
       if (!this.started || !p.alive || p.reloading || this.state?.phase === 'buy') return;
       const w=a.getActiveWeapon();
       const now=performance.now()/1000;
-      if(now-p.lastShotTime < w.fireRate) return;
+      const rate = w.slot === 'knife' ? MeleeRules.MODES[MeleeRules.modeFor(knifeMode)].cooldown : w.fireRate;
+      if(now-p.lastShotTime < rate) return;
       if(w.slot !== 'knife' && w.mag<=0){window.triggerReload?.();return;}
       const pelletRotation=Math.random()*Math.PI*2;
       // Clients render opponent positions slightly behind the latest server
@@ -480,10 +509,11 @@
       this.send({type:'move',x:p.pos.x,y:p.pos.y,z:p.pos.z,footY:p.footY,
         yaw:p.yaw,pitch:p.pitch});
       if(!this.send({type:'shoot',yaw:p.yaw,pitch:p.pitch,scatter:pelletRotation,
+        mode:w.slot === 'knife' ? MeleeRules.modeFor(knifeMode) : undefined,
         seenAt:Math.round(seenAt),from}))return;
       p.lastShotTime=now;
       if(w.slot!=='knife')w.mag--;
-      a.viewmodel.fire();
+      a.viewmodel.fire(knifeMode);
       window.markCrosshairFiring?.();
       if(w.slot==='knife') {
         a.sfx.playKnifeSlash();

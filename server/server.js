@@ -5,7 +5,8 @@ const { URL } = require('node:url');
 const catalog = require('./weapons.json');
 const blockers = require('./blockers.json');
 const ShotgunPellets = require('../shotgun-pellets.js');
-const {recordPosition, rayCharacter, MAX_REWIND_MS} = require('./hit-registry.js');
+const MeleeRules = require('../melee-rules.js');
+const {recordPosition, samplePosition, rayCharacter, MAX_REWIND_MS} = require('./hit-registry.js');
 const PORT = process.env.PORT == null ? 10000 : Number(process.env.PORT);
 const rooms = new Map();
 const clients = new Set();
@@ -252,7 +253,9 @@ function fire(r, p, msg) {
   if (!p.alive || p.reloading) return;
   const w = catalog[p.weapon] || catalog.classic;
   const now = Date.now();
-  if (now - p.lastShot < (w.fireRate * 1000 - 8)) return;
+  const meleeMode = MeleeRules.modeFor(msg.mode);
+  const cooldown = w.id === 'knife' ? MeleeRules.MODES[meleeMode].cooldown : w.fireRate;
+  if (now - p.lastShot < (cooldown * 1000 - 8)) return;
   if (w.id !== 'knife' && p.mag <= 0) {send(p.client,{type:'ammo_sync',weapon:p.weapon,mag:p.mag,reserve:p.reserve});return;}
   p.lastShot = now;
   if (w.id !== 'knife') p.mag--;
@@ -269,6 +272,36 @@ function fire(r, p, msg) {
   // Clients aim at the interpolated previous snapshot; rewind ONLY character
   // positions, never walls, by a strictly bounded amount of server time.
   const shotAt=finite(msg.seenAt,now-MAX_REWIND_MS,now,now);
+  if (w.id === 'knife') {
+    const candidates = [...r.players.values()].filter(target => target.alive && target.team !== p.team)
+      .map(target => Object.assign({player: target, alive: true}, samplePosition(target, shotAt)));
+    const meleeHit = MeleeRules.selectTarget({x: ox,y: oy,z: oz}, yaw,pitch,meleeMode,candidates,
+      (target, info) => {
+        // Walls block swings; a melee attack can never hit through a barrier.
+        const dy=info.bodyY-oy,dist3=Math.hypot(info.dx,dy,info.dz);
+        if (dist3 <= .02) return false;
+        for(const block of blockers) {
+          const t=rayBox(ox,oy,oz,info.dx/dist3,dy/dist3,info.dz/dist3,block);
+          if(t>.04 && t<dist3-.30)return false;
+        }
+        return true;
+      });
+    if (meleeHit) {
+      const target=meleeHit.target.player;
+      const damage=meleeHit.damage;
+      const armorDamage=Math.min(target.armor, Math.round(damage*.55));
+      target.armor-=armorDamage;
+      target.hp=Math.max(0,target.hp-(damage-armorDamage));
+      send(p.client,{type:'hit',headshot:false,damage:damage-armorDamage,pelletsHit:1});
+      if(target.hp===0){
+        target.alive=false;p.credits=clamp(p.credits+200,0,9000);
+        emitRoom(r,{type:'kill',killer:p.id,victim:target.id,weapon:'knife',headshot:false});
+        if(!roomUsers(r).some(q=>q.team===target.team&&q.alive)&&!r.spike)
+          endRound(r,p.team,'TEAM ELIMINATED');
+      }
+    }
+    return;
+  }
   let totalDamage = 0, anyHeadshot = false, hitCount = 0;
   const ends = [];
   for (const [dx, dy, dz] of directions) {
@@ -379,15 +412,21 @@ function receive(c,m) {
     send(c,{type:'purchase',item:id,credits:p.credits,armor:p.armor,mag:p.mag,reserve:p.reserve});
   } else if(m.type==='reload' && r.started && p.alive) {
     const weaponId=p.weapon, w=catalog[weaponId];
-    // Return explicit start/cancel/complete events, never silently ignore R.
+    const requestId = Number.isSafeInteger(m.requestId) ? m.requestId : null;
+    // An old equipped weapon must never lock the client into a different gun.
+    if (m.weapon && m.weapon !== weaponId) {
+      send(c,{type:'reload_cancelled',weapon:m.weapon,requestId,reason:'weapon_mismatch'});
+      send(c,{type:'ammo_sync',weapon:weaponId,mag:p.mag,reserve:p.reserve});
+      return;
+    }
     if(p.reloading){
-      send(c,{type:'reload_started',weapon:p.reloadWeapon,
+      send(c,{type:'reload_started',weapon:p.reloadWeapon,requestId,
         remainingMs:Math.max(0,p.reloadEndsAt-now)});
       return;
     }
     if(!w || weaponId==='knife' || p.mag>=w.magSize || p.reserve<=0 ||
        (m.weapon && m.weapon!==weaponId)) {
-      send(c,{type:'reload_cancelled',weapon:weaponId,reason:'invalid'});
+      send(c,{type:'reload_cancelled',weapon:weaponId,requestId,reason:'invalid'});
       send(c,{type:'ammo_sync',weapon:weaponId,mag:p.mag,reserve:p.reserve});
       return;
     }
@@ -396,7 +435,7 @@ function receive(c,m) {
     const duration=1100;
     p.reloadEndsAt=now+duration;
     const sequence=p.reloadSeq=(p.reloadSeq || 0)+1;
-    send(c,{type:'reload_started',weapon:weaponId,remainingMs:duration});
+    send(c,{type:'reload_started',weapon:weaponId,requestId,remainingMs:duration});
     const playerId=p.id,roomCode=r.code;
     setTimeout(()=>{
       const room=rooms.get(roomCode),pl=room?.players.get(playerId);
@@ -409,7 +448,7 @@ function receive(c,m) {
       pl.ammo[weaponId]=current;
       pl.mag=current.mag;pl.reserve=current.reserve;
       pl.reloading=false;pl.reloadWeapon=null;pl.reloadEndsAt=0;
-      send(pl.client,{type:'reload_done',weapon:weaponId,mag:pl.mag,reserve:pl.reserve});
+      send(pl.client,{type:'reload_done',weapon:weaponId,requestId,mag:pl.mag,reserve:pl.reserve});
       send(pl.client,{type:'inventory',weapon:weaponId,mag:pl.mag,reserve:pl.reserve});
     },duration);
   } else if (m.type==='spike' && r.started) {

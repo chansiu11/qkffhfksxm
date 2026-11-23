@@ -247,7 +247,7 @@
     const layer = document.getElementById('fps-weapon-sprite-layer');
     if(!layer)throw new Error('Missing #fps-weapon-sprite-layer');
     const cache=new Map();
-    let shown='',fireAt=-10000,reloadAt=-10000,reloadPlaying=false;
+    let shown='',fireAt=-10000,fireMode='light',reloadAt=-10000,reloadPlaying=false;
     const elements={};
     let lastVisible=false,prevTransform='';
     function setWeapon(id){
@@ -261,7 +261,7 @@
       layer.classList.toggle('weapon-knife',shown==='knife');
       prevTransform='';
     }
-    function fire(){fireAt=performance.now();}
+    function fire(mode='light'){fireMode=mode==='heavy'?'heavy':'light';fireAt=performance.now();}
     function beginReload(){if(shown!=='knife'){reloadPlaying=true;reloadAt=performance.now();}}
     function stopReload(){reloadPlaying=false;for(const key of ['mag','slide','bolt','pump','cylinder'])elements[key]?.removeAttribute('transform');}
     function update(dt,p,state){
@@ -280,11 +280,12 @@
       const breath=Math.sin(now*.00092)*1.1;
       const screenWidth=Number.isFinite(window.innerWidth)?window.innerWidth:1440;
       const forwardShift=referenceImages[shown]?Math.max(-150,65-(screenWidth-390)*.205):0;
-      const x=bobX+fireT*16+(sword?fireT*-35:0)+forwardShift;
-      const y=bobY+fireT*15+reloadPulse*85+(p.isScoped?185:0);
+      const heavySwing = sword && fireMode === 'heavy';
+      const x=bobX+fireT*16+(sword?fireT*(heavySwing?-12:-35):0)+forwardShift;
+      const y=bobY+fireT*(heavySwing?-22:15)+reloadPulse*85+(p.isScoped?185:0);
       const kind=styles[shown]?.kind;
       const baseTilt=sword?39: ['pistol','revolver','double','machine'].includes(kind)?32:kind==='smg'?26:24;
-      const degrees=baseTilt+sway+fireT*(sword?-32:5)+reloadPulse*11;
+      const degrees=baseTilt+sway+fireT*(sword?(heavySwing?17:-32):5)+reloadPulse*11;
       const zoom=(styles[shown]?.scale||1)*(referenceImages[shown]?1.12:1)*(screenWidth<=600?.94:1);
       // A perspective-transformed single SVG plane: a tilted sheet of paper, not
       // a rendered 3D weapon model. The right/near end is larger than the muzzle.
@@ -304,7 +305,8 @@
       if(elements.cylinder)elements.cylinder.setAttribute('transform',reloadPlaying?`rotate(${(360*r).toFixed(1)} 559 178) translate(${(up*25).toFixed(1)} 0)`:'');
     }
     setWeapon('classic');
-    return {group,flash,setWeapon,fire,beginReload,stopReload,update,get current(){return shown;},styles};
+    return {group,flash,setWeapon,fire,beginReload,stopReload,update,
+      get isReloading(){return reloadPlaying;},get current(){return shown;},styles};
   }
   window.WeaponViewmodels={create,styles,makeSvg,referenceImages,referencePlacement};
 })();

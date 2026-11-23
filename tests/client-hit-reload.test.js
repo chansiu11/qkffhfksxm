@@ -52,3 +52,21 @@ test('shot sends latest position before bullet and rewound rendering timestamp',
   assert.equal(packets[1].from[0],c.player.pos.x);
   assert.equal(c.gun.mag,1);
 });
+
+test('out-of-sync reload refusal unlocks input rather than trapping the player',()=>{
+  const c=newClient();
+  c.player.pendingReloadWeapon='operator';c.player.reloading=true;
+  c.player.reloadId=9;c.player.reloadServerConfirmed=false;
+  c.mp.receive({type:'reload_cancelled',requestId:9,weapon:'classic',reason:'weapon_mismatch'});
+  assert.equal(c.player.reloading,false);
+  assert.equal(c.player.pendingReloadWeapon,null);
+  assert.equal(c.stopped(),1);
+});
+
+test('a reload-start ack is not allowed to re-lock an old weapon after switching',()=>{
+  const c=newClient();
+  c.player.reloadId=15;c.player.reloading=false;c.player.pendingReloadWeapon=null;
+  c.mp.receive({type:'reload_started',weapon:'operator',requestId:12,remainingMs:900});
+  assert.equal(c.player.reloading,false);
+  assert.equal(c.started(),0);
+});

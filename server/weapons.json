@@ -4,7 +4,7 @@
     "slot": "knife",
     "name": "MELEE KNIFE",
     "cost": 0,
-    "headDmg": 150,
+    "headDmg": 50,
     "bodyDmg": 50,
     "fireRate": 0.42,
     "magSize": 1,
@@ -15,7 +15,7 @@
     "auto": false,
     "canScope": false,
     "pellets": 1,
-    "range": 3.4,
+    "range": 2.9,
     "color": 0
   },
   "classic": {
