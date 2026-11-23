@@ -1,6 +1,8 @@
-/* Independent, original 2D FPS weapon illustrations and first-person sprite animation.
- * These vector sprites are made for this project; no proprietary game textures are copied.
- * The exported API retains the old viewmodel contract for the existing gameplay/network code. */
+/* First-person 2D weapon renderer. Individual transparent sprites are extracted from the
+ * weapon reference sheet provided by the user; no external game resources are downloaded.
+ * Perspective transforms place each muzzle away from the player, toward screen center.
+ * Outlaw, missing from the supplied sheet, retains the project's custom vector sprite.
+ * Public API remains compatible with existing gameplay/network code. */
 (function () {
   'use strict';
   const styles = {
@@ -23,6 +25,46 @@
     operator: {kind:'heavy',   body:'#4f503e',accent:'#e8cc65',detail:'#dbd8b3',mark:'OPERATOR',scale:1.09}
   };
   const svgOpen = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 420" role="img" aria-label="Perspective 2D first-person weapon illustration" preserveAspectRatio="xMidYMid meet">`;
+  // PNGs are 18 distinct, user-provided reference-sheet crops with transparent backgrounds.
+  // Current game has 15 matching guns + knife; Ares and Odin are prepared for future weapon slots.
+  const referenceImages = Object.freeze({
+    classic:'classic',shorty:'shorty',frenzy:'frenzy',ghost:'ghost',sheriff:'sheriff',
+    stinger:'stinger',spectre:'spectre',bucky:'bucky',judge:'judge',bulldog:'bulldog',
+    guardian:'guardian',phantom:'phantom',vandal:'vandal',marshal:'marshal',
+    operator:'operator',knife:'knife',ares:'ares',odin:'odin'
+  });
+  const spriteAspect = Object.freeze({
+    classic:216/172,shorty:424/164,frenzy:208/172,ghost:432/148,
+    sheriff:288/164,stinger:420/168,spectre:408/184,bucky:424/112,
+    judge:404/168,bulldog:428/168,guardian:436/128,phantom:436/168,
+    vandal:428/192,marshal:436/108,operator:428/116,
+    ares:436/128,odin:420/184,knife:424/112
+  });
+  function referencePlacement(id){
+    const ratio = spriteAspect[id];
+    const kind=styles[id]?.kind;
+    let width=800, cx=520, cy=202;
+    if(id==='knife'){width=770;cx=525;cy=240;}
+    else if(['pistol','machine','revolver'].includes(kind)){width=470;cx=605;cy=195;}
+    else if(kind==='double'){width=680;cx=548;cy=200;}
+    else if(['sniper','heavy','dmr','break'].includes(kind)){width=820;cx=510;cy=186;}
+    else if(kind==='pump'){width=805;cx=516;cy=200;}
+    return {x:Math.round(cx-width/2),y:Math.round(cy-(width/ratio)/2),
+      width,height:Math.round(width/ratio)};
+  }
+  function referenceCutout(id,s){
+    const pos=referencePlacement(id);
+    const src=`assets/weapons/${referenceImages[id]}.webp`;
+    const args=`x="${pos.x}" y="${pos.y}" width="${pos.width}" height="${pos.height}" preserveAspectRatio="xMidYMid meet"`;
+    // Reuse the alpha mask itself for a thin physical side edge. Image is still 2D.
+    const depth=`<image href="${src}" ${args} style="filter:brightness(0)" opacity=".5"/>`;
+    const img=`<image href="${src}" ${args} style="filter:drop-shadow(0px 3px 2px rgba(0,0,0,.60))"/>`;
+    const weaponArt = id==='knife'?`<g id="art-blade">${img}</g>`:img;
+    return `<g class="paper-cutout-depth" transform="translate(11 13)">${depth}</g>`+
+      `<g class="weapon-art" data-ref-image="${id}">${weaponArt}</g>`+
+      holdingHands(s);
+  }
+
   function shape(points, fill, stroke='#14202a', sw=5) {return `<polygon points="${points}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}" stroke-linejoin="round"/>`;}
   function path(d,fill,stroke='#14202a',sw=5){return `<path d="${d}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round"/>`;}
   function rect(x,y,w,h,fill,rx=3,stroke='none',sw=0){return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${rx}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}"/>`;}
@@ -193,8 +235,10 @@
 
   function makeSvg(id){
     const s=styles[id]||styles.classic;
-    const art = cutoutDepth(s)+`<g class="weapon-art">`+gunParts(id,s)+metallicFacets(s)+`</g>`+holdingHands(s);
-    return svgOpen+`<title>${s.mark} — detailed original illustrated first-person weapon</title>`+
+    const fromSheet=Object.hasOwn(referenceImages,id);
+    const art = fromSheet ? referenceCutout(id,s) :
+      cutoutDepth(s)+`<g class="weapon-art">`+gunParts(id,s)+metallicFacets(s)+`</g>`+holdingHands(s);
+    return svgOpen+`<title>${s.mark} — ${fromSheet?'user reference image':'custom 2D illustration'} in first-person perspective</title>`+
       `<g class="paper-weapon" data-weapon-id="${id}">${art}</g></svg>`;
   }
   function create(T){
@@ -234,16 +278,18 @@
       // The barrel is tilted upward, along the right side of the screen, not a 3D world object.
       const sway=sword?Math.sin(now*.0018)*1.2:Math.sin(now*.0014)*0.65;
       const breath=Math.sin(now*.00092)*1.1;
-      const x=bobX+fireT*16+(sword?fireT*-35:0);
+      const screenWidth=Number.isFinite(window.innerWidth)?window.innerWidth:1440;
+      const forwardShift=referenceImages[shown]?Math.max(-150,65-(screenWidth-390)*.205):0;
+      const x=bobX+fireT*16+(sword?fireT*-35:0)+forwardShift;
       const y=bobY+fireT*15+reloadPulse*85+(p.isScoped?185:0);
       const kind=styles[shown]?.kind;
-      const baseTilt=sword?46: ['pistol','revolver','double','machine'].includes(kind)?42:kind==='smg'?36:33;
+      const baseTilt=sword?39: ['pistol','revolver','double','machine'].includes(kind)?32:kind==='smg'?26:24;
       const degrees=baseTilt+sway+fireT*(sword?-32:5)+reloadPulse*11;
-      const zoom=styles[shown]?.scale||1;
+      const zoom=(styles[shown]?.scale||1)*(referenceImages[shown]?1.12:1)*(screenWidth<=600?.94:1);
       // A perspective-transformed single SVG plane: a tilted sheet of paper, not
       // a rendered 3D weapon model. The right/near end is larger than the muzzle.
-      const planeYaw=(-34 + sway*.75 + fireT*4).toFixed(2);
-      const planePitch=(sword?16:21)+breath+(moving*1.1)-reloadPulse*4;
+      const planeYaw=(-51 + sway*.75 + fireT*3).toFixed(2);
+      const planePitch=(sword?15:19)+breath+(moving*1.1)-reloadPulse*4;
       const transform=`translate3d(${x.toFixed(2)}px,${y.toFixed(2)}px,0) `+
         `perspective(870px) rotateY(${planeYaw}deg) rotateX(${planePitch.toFixed(2)}deg) `+
         `rotateZ(${degrees.toFixed(2)}deg) scale(${zoom})`;
@@ -260,5 +306,5 @@
     setWeapon('classic');
     return {group,flash,setWeapon,fire,beginReload,stopReload,update,get current(){return shown;},styles};
   }
-  window.WeaponViewmodels={create,styles,makeSvg};
+  window.WeaponViewmodels={create,styles,makeSvg,referenceImages,referencePlacement};
 })();

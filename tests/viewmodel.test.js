@@ -52,13 +52,14 @@ test('crosshair zoom key, shared online and offline hit flash wiring',()=>{
 });
 
 
-test('perspective gun cutouts preserve individual silhouettes and respond to movement',()=>{
+test('perspective gun cutouts preserve individual source images and respond to movement',()=>{
   for (const id of Object.keys(api.styles)) {
     const svg=api.makeSvg(id);
     assert.match(svg,/paper-cutout-depth/,id+' must have a physical thin edge');
     assert.match(svg,/paper-hand/,id+' must show a supporting glove/arm');
     assert.match(svg,/data-weapon-id="[a-z]+"/,id+' must preserve identity');
-    assert(!svg.includes('<image '),id+' must not embed third-party game textures');
+    if(id==='outlaw') assert(!svg.includes('data-ref-image='),'Outlaw not pictured in supplied reference');
+    else assert(svg.includes('href="assets/weapons/'+id+'.webp"'),id+' must display its own user-supplied reference crop');
   }
   const js=fs.readFileSync(path.join(__dirname,'..','weapon-viewmodels.js'),'utf8');
   const html=fs.readFileSync(path.join(__dirname,'..','index.html'),'utf8');
