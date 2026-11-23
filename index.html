@@ -697,7 +697,8 @@
             <div><div class="text-sm font-bold text-[#ece8e1]">CLASSIC</div><div class="text-[10px] text-slate-400">HEAD 78 / BODY 26</div></div>
             <span class="font-num text-xs font-black text-[#38e2c7]">FREE</span>
           </button>
-          <button type="button" onclick="window.buyItem('shorty')" class="val-cut-sm w-full p-2.5 bg-[#0f1923] hover:bg-[#1f3144] border border-white/15 hover:border-[#38e2c7] text-left flex justify-between items-center cursor-pointer">            <div><div class="text-sm font-bold text-[#ece8e1]">SHORTY</div><div class="text-[10px] text-slate-400">SAWED-OFF // 2 RDS</div></div>
+          <button type="button" onclick="window.buyItem('shorty')" class="val-cut-sm w-full p-2.5 bg-[#0f1923] hover:bg-[#1f3144] border border-white/15 hover:border-[#38e2c7] text-left flex justify-between items-center cursor-pointer">
+            <div><div class="text-sm font-bold text-[#ece8e1]">SHORTY</div><div class="text-[10px] text-slate-400">SAWED-OFF // 2 RDS</div></div>
             <span class="font-num text-xs font-black text-[#f5c542]">300</span>
           </button>
           <button type="button" onclick="window.buyItem('frenzy')" class="val-cut-sm w-full p-2.5 bg-[#0f1923] hover:bg-[#1f3144] border border-white/15 hover:border-[#38e2c7] text-left flex justify-between items-center cursor-pointer">
@@ -796,8 +797,7 @@
       <div class="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-white/15">
         <div>
           <span class="px-2 py-0.5 bg-amber-400 text-slate-950 font-num font-black text-xs">CUSTOM GAME CHEATS // F1</span>
-          <h2 class="text-xl font-black text-white mt-1">발로란트 사설방 치트 제어판 (방장 통제)</h2>
-        </div>
+          <h2 class="text-xl font-black text-white mt-1">발로란트 사설방 치트 제어판 (방장 통제)</h2>        </div>
         <div class="flex items-center gap-2">
           <button type="button" id="modal-host-cheat-btn" onclick="window.toggleHostCheatPermission(event)"
                   class="px-3.5 py-2 bg-emerald-500 text-slate-950 font-black text-xs cursor-pointer">
@@ -1396,7 +1396,8 @@
         addSolidBox3D(27, -8, 2.8, 4.4, 2.65, 3.15, matDarkMetal, 'A GENERATOR TOP');
         addSolidBox3D(35.5, -4, 3.2, 3.2, 0, 1.75, matRadianite, 'A DICE');
         addSolidBox3D(35.5, -4, 2.1, 2.1, 1.75, 3.1, matRadianite, 'A DICE STACK');
-        addSolidBox3D(35.5, -1.4, 2.0, 1.6, 0, 0.85, matWoodFloor, 'A DICE STEP');        addSolidBox3D(20.5, -4.5, 2.2, 2.2, 0, 1.65, matRadianite, 'A GREEN BOX');
+        addSolidBox3D(35.5, -1.4, 2.0, 1.6, 0, 0.85, matWoodFloor, 'A DICE STEP');
+        addSolidBox3D(20.5, -4.5, 2.2, 2.2, 0, 1.65, matRadianite, 'A GREEN BOX');
 
         /* --- A GARDEN / A TREE --- */
         addWalkableSlab(6, 16, -6, 6, 1.4, 1.4, 'A TREE UPPER', matUpperFloor, true);
@@ -1595,8 +1596,7 @@
           if (pMaxY <= b.minY || pMinY >= b.maxY) continue;
           if (b.maxY <= footY + STEP_HEIGHT) continue;
           const cx = Math.max(b.minX, Math.min(pos.x, b.maxX));
-          const cz = Math.max(b.minZ, Math.min(pos.z, b.maxZ));
-          const dx = pos.x - cx, dz = pos.z - cz;
+          const cz = Math.max(b.minZ, Math.min(pos.z, b.maxZ));          const dx = pos.x - cx, dz = pos.z - cz;
           const distSq = dx * dx + dz * dz;
           if (distSq < radius * radius) {
             const dist = Math.sqrt(distSq) || 0.001;
@@ -2095,7 +2095,8 @@
         }
         const modalBtn = document.getElementById('modal-host-cheat-btn');
         if (modalBtn) {
-          modalBtn.textContent = allowed ? 'HOST CHEATS: ON' : 'HOST CHEATS: OFF';          modalBtn.className = allowed
+          modalBtn.textContent = allowed ? 'HOST CHEATS: ON' : 'HOST CHEATS: OFF';
+          modalBtn.className = allowed
             ? 'px-3.5 py-2 bg-emerald-500 text-slate-950 font-black text-xs cursor-pointer'
             : 'px-3.5 py-2 bg-rose-600 text-white font-black text-xs cursor-pointer';
         }
@@ -2394,8 +2395,7 @@
           }
           syncCheatPermissionUI();
           modal.classList.remove('hidden');
-        } else {
-          modal.classList.add('hidden');
+        } else {          modal.classList.add('hidden');
           if (matchState.inMatch) tryLockPointerSafe();
         }
         sfx.playUI();
@@ -2501,23 +2501,51 @@
         setTimeout(() => { hm.style.opacity = '0'; }, 120);
       }
 
-      // Instant hitscan tracer: render a thin line along the full ray immediately.
-      // No traveling mesh, ball, cylinder, or distance-dependent bullet speed.
-      // Used by local shots, AI and network-replicated shots alike.
+      // Instant yellow hitscan tracers. Three.js/WebGL generally ignores LineBasicMaterial.linewidth,
+      // so draw three tightly-spaced 1px segments (~2.4px on screen) without making a bullet mesh.
+      // All three segments are present instantly: there is no travel time or moving projectile.
       const TRACER_LIFETIME = 0.13;
-      function spawnBulletTracer(startPos, endPos, colorHex = 0xffd567) {
+      const TRACER_COLOR = 0xffe331;
+      const TRACER_WIDTH_PIXEL_OFFSETS = [-0.7, 0, 0.7];
+      function spawnBulletTracer(startPos, endPos, _originalColor) {
         const start = startPos.clone(), end = endPos.clone();
         const distance = start.distanceTo(end);
         if (!(distance > 0.05) || !Number.isFinite(distance)) return;
-        const geometry = new THREE.BufferGeometry().setFromPoints([start, end]);
+        // Build three parallel line segments with offsets measured in screen pixels.
+        // Unlike linewidth: 2, this remains visible in common WebGL mobile browsers.
+        const eye = camera.getWorldPosition(new THREE.Vector3());
+        const forward = camera.getWorldDirection(new THREE.Vector3()).normalize();
+        const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+        const pixelsPerWorldDepth = 2 * Math.tan((camera.fov * Math.PI / 180) / 2)
+          / Math.max(1, renderer.domElement.clientHeight || window.innerHeight || 720);
+        const offsetAt = (point, pixelOffset) => {
+          const depth = Math.max(camera.near || 0.1, point.clone().sub(eye).dot(forward));
+          return point.clone().addScaledVector(right, pixelOffset * pixelsPerWorldDepth * depth);
+        };
+        const points = [];
+        for (const pixelOffset of TRACER_WIDTH_PIXEL_OFFSETS) {
+          points.push(offsetAt(start, pixelOffset), offsetAt(end, pixelOffset));
+        }
+        const geometry = new THREE.BufferGeometry().setFromPoints(points);
         const material = new THREE.LineBasicMaterial({
-          color: colorHex, transparent: true, opacity: 0.95,
-          blending: THREE.AdditiveBlending, depthWrite: false, depthTest: true
+          color: TRACER_COLOR, transparent: true, opacity: 0.98,
+          blending: THREE.AdditiveBlending, depthWrite: false, depthTest: true,
+          toneMapped: false
         });
-        const line = new THREE.Line(geometry, material);
+        const line = new THREE.LineSegments(geometry, material);
         line.frustumCulled = false;
         scene.add(line);
         activeTracers.push({ line, age: 0, lifetime: TRACER_LIFETIME });
+      }
+
+      // Keep game hit calculations centered on the crosshair. Shift ONLY the local visual
+      // line start toward the first-person gun sprite so a perfectly straight-ahead shot
+      // is actually visible instead of projecting to a single dot at screen center.
+      function localTracerVisualStart(origin, direction) {
+        const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+        const down = new THREE.Vector3(0, -1, 0).applyQuaternion(camera.quaternion);
+        return origin.clone().addScaledVector(direction, 0.42)
+          .addScaledVector(right, 0.17).addScaledVector(down, 0.125);
       }
 
       // Must match Three.js camera.rotation.order='YXZ' and the server's firing direction.
@@ -2541,8 +2569,8 @@
           const cast = new THREE.Raycaster(origin, direction, 0, maxDist);
           const hits = cast.intersectObjects(mapTargetMeshes, false);
           const end = hits.length ? hits[0].point : origin.clone().addScaledVector(direction, maxDist);
-          const start = origin.clone().addScaledVector(direction, 0.28);
-          spawnBulletTracer(start, end, weapon.color || 0xffd567);
+          const start = localTracerVisualStart(origin, direction);
+          spawnBulletTracer(start, end);
         }
       }
 
@@ -2627,7 +2655,7 @@
           }
           if (w.slot !== 'knife') {
             // Each shotgun pellet has its own tracer; rifle shots still emit exactly one.
-            spawnBulletTracer(player.pos.clone().addScaledVector(bulletDirection, 0.28), endPt, w.color);
+            spawnBulletTracer(localTracerVisualStart(player.pos, bulletDirection), endPt);
           }
         }
 
@@ -2794,7 +2822,8 @@
         if (editing) return;
         keys[e.code] = true;
 
-        if (e.code === 'F1') {          e.preventDefault();
+        if (e.code === 'F1') {
+          e.preventDefault();
           window.toggleCheatPanel();
           return;
         }
@@ -3166,7 +3195,6 @@
             player.pos.z += player.vel.z * dt;
 
             resolveCollisions3D(player.pos, player.footY, 0.62, matchState.phase === 'buy', roomState.playerSide);
-
             const sup = getSurfaceSupport(player.pos.x, player.pos.z, player.footY);
             player.callout = sup.callout;
 
@@ -3494,6 +3522,7 @@
           }
         }
       }
+
       window.addEventListener('resize', () => {
         camera.aspect = window.innerWidth / window.innerHeight;
         camera.updateProjectionMatrix();
@@ -3566,7 +3595,7 @@
           const tracer = activeTracers[i];
           tracer.age += dt;
           const remaining = Math.max(0, 1 - tracer.age / tracer.lifetime);
-          tracer.line.material.opacity = remaining * 0.95;
+          tracer.line.material.opacity = remaining * 0.98;
           if (remaining <= 0) {
             scene.remove(tracer.line);
             tracer.line.geometry.dispose();
