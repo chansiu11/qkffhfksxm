@@ -1,308 +1,127 @@
-/* First-person 2D weapon renderer. Individual transparent sprites are extracted from the
- * weapon reference sheet provided by the user; no external game resources are downloaded.
- * Perspective transforms place each muzzle away from the player, toward screen center.
- * Outlaw, missing from the supplied sheet, retains the project's custom vector sprite.
- * Public API remains compatible with existing gameplay/network code. */
-(function () {
+/* User-supplied weapon-only textures. First-person 2.5D view, no hands, gloves,
+ * sleeves, pre-drawn weapon models, or first-person Three.js weapon geometry.
+ * All 17 playable weapons map to a separate background-removed WebP texture.
+ */
+(function(){
   'use strict';
-  const styles = {
-    knife:    {kind:'blade',   body:'#354553',accent:'#e8b95d',detail:'#aabeca',mark:'EDGE',    scale:0.88},
-    classic:  {kind:'pistol',  body:'#3f5264',accent:'#42d7bc',detail:'#c9d9db',mark:'CLASSIC', scale:0.86},
-    shorty:   {kind:'double',  body:'#665044',accent:'#edaf66',detail:'#d7bca0',mark:'SHORTY', scale:0.96},
-    frenzy:   {kind:'machine', body:'#414357',accent:'#f3b751',detail:'#a6acbb',mark:'FRENZY', scale:0.92},
-    ghost:    {kind:'pistol',  body:'#334854',accent:'#69dcd2',detail:'#bdceda',mark:'GHOST', scale:0.95,suppressor:true},
-    sheriff:  {kind:'revolver',body:'#3f4043',accent:'#eab767',detail:'#dee1d1',mark:'SHERIFF',scale:0.96},
-    stinger:  {kind:'smg',     body:'#4d435a',accent:'#a586f9',detail:'#c1b9d0',mark:'STINGER',scale:1},
-    spectre:  {kind:'smg',     body:'#2d4c5e',accent:'#63c5ef',detail:'#c3dce5',mark:'SPECTRE',scale:1,suppressor:true},
-    bucky:    {kind:'pump',    body:'#58483c',accent:'#e8aa61',detail:'#c7afa0',mark:'BUCKY', scale:1.04},
-    judge:    {kind:'autoShot',body:'#5c4540',accent:'#e98560',detail:'#d5b4ad',mark:'JUDGE', scale:1.04},
-    bulldog:  {kind:'bullpup', body:'#3b5253',accent:'#66d3a1',detail:'#bbcfd3',mark:'BULLDOG',scale:1.06},
-    guardian: {kind:'dmr',     body:'#3b5262',accent:'#78aeeb',detail:'#cbd8e4',mark:'GUARDIAN',scale:1.07},
-    phantom:  {kind:'rifle',   body:'#24454b',accent:'#57dcba',detail:'#bddcd9',mark:'PHANTOM',scale:1.08,suppressor:true},
-    vandal:   {kind:'rifle',   body:'#504247',accent:'#eb6b71',detail:'#c7bdc6',mark:'VANDAL',scale:1.08},
-    marshal:  {kind:'sniper',  body:'#4a5849',accent:'#bbd978',detail:'#d8ddcc',mark:'MARSHAL',scale:1.06},
-    outlaw:   {kind:'break',   body:'#594763',accent:'#c292ed',detail:'#dad0e4',mark:'OUTLAW',scale:1.07},
-    operator: {kind:'heavy',   body:'#4f503e',accent:'#e8cc65',detail:'#dbd8b3',mark:'OPERATOR',scale:1.09}
-  };
-  const svgOpen = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 420" role="img" aria-label="Perspective 2D first-person weapon illustration" preserveAspectRatio="xMidYMid meet">`;
-  // PNGs are 18 distinct, user-provided reference-sheet crops with transparent backgrounds.
-  // Current game has 15 matching guns + knife; Ares and Odin are prepared for future weapon slots.
-  const referenceImages = Object.freeze({
-    classic:'classic',shorty:'shorty',frenzy:'frenzy',ghost:'ghost',sheriff:'sheriff',
-    stinger:'stinger',spectre:'spectre',bucky:'bucky',judge:'judge',bulldog:'bulldog',
-    guardian:'guardian',phantom:'phantom',vandal:'vandal',marshal:'marshal',
-    operator:'operator',knife:'knife',ares:'ares',odin:'odin'
+  const styles=Object.freeze({
+    knife:{kind:'blade',mark:'EDGE',scale:.94},
+    classic:{kind:'pistol',mark:'CLASSIC',scale:.90},
+    shorty:{kind:'short',mark:'SHORTY',scale:1},
+    frenzy:{kind:'machine',mark:'FRENZY',scale:.93},
+    ghost:{kind:'pistol',mark:'GHOST',scale:.98},
+    sheriff:{kind:'revolver',mark:'SHERIFF',scale:.98},
+    stinger:{kind:'smg',mark:'STINGER',scale:1.02},
+    spectre:{kind:'smg',mark:'SPECTRE',scale:1.03},
+    bucky:{kind:'shotgun',mark:'BUCKY',scale:1.05},
+    judge:{kind:'shotgun',mark:'JUDGE',scale:1.04},
+    bulldog:{kind:'rifle',mark:'BULLDOG',scale:1.07},
+    guardian:{kind:'rifle',mark:'GUARDIAN',scale:1.05},
+    phantom:{kind:'rifle',mark:'PHANTOM',scale:1.07},
+    vandal:{kind:'rifle',mark:'VANDAL',scale:1.09},
+    marshal:{kind:'sniper',mark:'MARSHAL',scale:1.08},
+    outlaw:{kind:'sniper',mark:'OUTLAW',scale:1.09},
+    operator:{kind:'sniper',mark:'OPERATOR',scale:1.12}
   });
-  const spriteAspect = Object.freeze({
-    classic:216/172,shorty:424/164,frenzy:208/172,ghost:432/148,
-    sheriff:288/164,stinger:420/168,spectre:408/184,bucky:424/112,
-    judge:404/168,bulldog:428/168,guardian:436/128,phantom:436/168,
-    vandal:428/192,marshal:436/108,operator:428/116,
-    ares:436/128,odin:420/184,knife:424/112
+  // All twenty source images are separately cut out, including future guns.
+  const referenceImages=Object.freeze({
+    bandit:'bandit',classic:'classic',shorty:'shorty',frenzy:'frenzy',ghost:'ghost',
+    sheriff:'sheriff',stinger:'stinger',spectre:'spectre',bucky:'bucky',judge:'judge',
+    bulldog:'bulldog',guardian:'guardian',phantom:'phantom',vandal:'vandal',
+    marshal:'marshal',outlaw:'outlaw',operator:'operator',ares:'ares',odin:'odin',knife:'knife'
+  });
+  // Pixel dimensions AFTER removing beige background and trimming empty margins.
+  const sourceSize=Object.freeze({
+    bandit:[294,182],classic:[308,234],shorty:[668,231],sheriff:[444,246],
+    ghost:[664,228],frenzy:[285,233],stinger:[647,255],spectre:[626,245],
+    bucky:[653,138],judge:[623,214],bulldog:[663,222],guardian:[671,159],
+    phantom:[669,181],vandal:[663,232],marshal:[672,129],operator:[661,143],
+    ares:[677,151],odin:[638,211],knife:[658,136],outlaw:[680,160]
   });
   function referencePlacement(id){
-    const ratio = spriteAspect[id];
-    const kind=styles[id]?.kind;
-    let width=800, cx=520, cy=202;
-    if(id==='knife'){width=770;cx=525;cy=240;}
-    else if(['pistol','machine','revolver'].includes(kind)){width=470;cx=605;cy=195;}
-    else if(kind==='double'){width=680;cx=548;cy=200;}
-    else if(['sniper','heavy','dmr','break'].includes(kind)){width=820;cx=510;cy=186;}
-    else if(kind==='pump'){width=805;cx=516;cy=200;}
-    return {x:Math.round(cx-width/2),y:Math.round(cy-(width/ratio)/2),
-      width,height:Math.round(width/ratio)};
+    const size=sourceSize[id]||sourceSize.classic;
+    const kind=styles[id]?.kind||'rifle';
+    const width=kind==='blade'?820:kind==='pistol'?575:
+      kind==='revolver'?585:kind==='machine'?550:
+      kind==='short'?765:kind==='smg'?805:kind==='shotgun'?865:900;
+    const height=Math.round(width*size[1]/size[0]);
+    // Attach the near end (stock / handle) near the bottom-right of the HUD.
+    const x=Math.round(980-width);
+    const y=Math.round((kind==='blade'?273:kind==='pistol'||kind==='machine'||kind==='revolver'?254:231)-height*.51);
+    return {x,y,width,height};
   }
-  function referenceCutout(id,s){
-    const pos=referencePlacement(id);
-    const src=`assets/weapons/${referenceImages[id]}.webp`;
-    const args=`x="${pos.x}" y="${pos.y}" width="${pos.width}" height="${pos.height}" preserveAspectRatio="xMidYMid meet"`;
-    // Reuse the alpha mask itself for a thin physical side edge. Image is still 2D.
-    const depth=`<image href="${src}" ${args} style="filter:brightness(0)" opacity=".5"/>`;
-    const img=`<image href="${src}" ${args} style="filter:drop-shadow(0px 3px 2px rgba(0,0,0,.60))"/>`;
-    const weaponArt = id==='knife'?`<g id="art-blade">${img}</g>`:img;
-    return `<g class="paper-cutout-depth" transform="translate(11 13)">${depth}</g>`+
-      `<g class="weapon-art" data-ref-image="${id}">${weaponArt}</g>`+
-      holdingHands(s);
-  }
-
-  function shape(points, fill, stroke='#14202a', sw=5) {return `<polygon points="${points}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}" stroke-linejoin="round"/>`;}
-  function path(d,fill,stroke='#14202a',sw=5){return `<path d="${d}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round"/>`;}
-  function rect(x,y,w,h,fill,rx=3,stroke='none',sw=0){return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${rx}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}"/>`;}
-  function line(x1,y1,x2,y2,stroke='#cbd7dc',sw=3){return `<path d="M${x1} ${y1}L${x2} ${y2}" fill="none" stroke="${stroke}" stroke-width="${sw}" stroke-linecap="round"/>`;}
-  function circle(x,y,r,fill,stroke='#19232e',sw=3){return `<circle cx="${x}" cy="${y}" r="${r}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}"/>`;}
-  function scratches(x,y,count,step,color){let out='';for(let i=0;i<count;i++)out+=line(x+step*i,y,x+step*i-9,y+11,color,1.7);return out;}
-  function rifleStock(s,kind){
-    if(kind==='sniper'||kind==='heavy'||kind==='dmr')return shape('708,134 813,124 920,148 938,173 900,216 830,199 801,219 738,220 713,202',s.body)+shape('808,148 899,161 910,172 889,189 838,181 824,193 798,192', '#18232c')+rect(916,154,20,56,s.detail,5);
-    if(kind==='bullpup')return shape('685,140 853,125 933,166 926,232 835,236 787,211 696,217',s.body)+path('M778 178L879 166L901 184L899 210L836 210L817 196Z','#22303a')+rect(924,161,18,80,s.detail,3);
-    if(kind==='pump'||kind==='autoShot')return shape('681,158 822,139 943,166 936,227 836,228 801,205 694,218',s.body)+shape('805,165 908,171 917,204 832,211', '#2e3034')+rect(936,168,15,59,s.detail,2);
-    if(kind==='smg')return shape('707,155 846,148 893,172 883,188 764,186 748,217 713,217',s.body)+rect(877,158,17,41,s.detail,3);
-    return shape('688,153 808,128 931,151 947,173 916,224 828,222 794,197 708,205',s.body)+shape('801,159 907,158 921,175 893,202 846,199 823,184', '#1b2b34')+rect(937,160,15,57,s.detail,2);
-  }
-  function receiver(s,kind){
-    const body = kind==='bullpup'
-      ? '400,145 723,145 766,179 727,230 592,235 580,250 434,240 410,213'
-      : kind==='sniper'||kind==='heavy'||kind==='dmr'||kind==='break'
-      ? '407,153 743,147 782,173 755,205 704,233 461,227 427,210'
-      : '407,133 733,141 768,175 732,226 600,241 435,226 410,200';
-    let out=shape(body,s.body);
-    out+=shape('428,150 695,154 716,169 693,180 429,178','#20303b','none',0);
-    out+=shape('444,188 715,185 708,210 634,221 484,210',s.detail,'none',0);
-    out+=shape('449,190 700,188 675,197 473,197',s.accent,'none',0);
-    out+=rect(450,164,255,8,'#09161e',2);
-    for(let x=454;x<675;x+=35)out+=rect(x,170,14,3,'#849ba7',0);
-    out+=circle(711,212,7,'#19252e')+circle(465,205,5,s.detail);
-    out+=scratches(485,204,6,18,'#93a5b1');
-    out+=`<text x="498" y="214" font-family="Arial,sans-serif" font-size="19" font-weight="800" letter-spacing="3" fill="#0e2029" opacity=".82">${s.mark}</text>`;
-    return out;
-  }
-  function gunParts(id,s){
-    const k=s.kind;
-    const pistol=['pistol','machine','revolver','double'].includes(k);
-    const long=['sniper','heavy','dmr','break'].includes(k);
-    let out=`<defs><linearGradient id="steel" x2="0" y2="1"><stop stop-color="${s.detail}"/><stop offset=".52" stop-color="#657889"/><stop offset="1" stop-color="#17252d"/></linearGradient><linearGradient id="metal" x2="0" y2="1"><stop stop-color="${s.body}"/><stop offset=".5" stop-color="#1c303c"/><stop offset="1" stop-color="#10171f"/></linearGradient></defs>`;
-    if(k==='blade'){
-      out+=`<g id="art-blade">`;
-      out+=path('M110 143 L588 105 Q696 88 746 54 L793 48 763 83 Q744 115 720 137 L290 167Z','url(#steel)','#182731',8);
-      out+=path('M116 145L664 125L762 86L721 138L310 163Z', '#d4e1e1','none',0);
-      out+=path('M139 147L560 123','#eaf2e9','none',0);
-      out+=rect(703,102,22,86,s.accent,7,'#293643',5);
-      out+=shape('711,140 892,138 934,169 916,207 701,205 683,180',s.body);
-      out+=rect(740,152,133,40,'#24313b',11);
-      for(let x=759;x<871;x+=22)out+=line(x,157,x-10,189,s.accent,5);
-      out+=circle(903,173,13,s.accent);
-      out+='</g>';
-      return out;
-    }
-    if(pistol){
-      const barrelStart=s.suppressor?185:k==='double'?291:k==='revolver'?335:333;
-      const barrelEnd=k==='double'?674:745;
-      out+=rect(barrelStart,160,barrelEnd-barrelStart,43,'url(#metal)',5,'#15242d',5);
-      if(s.suppressor){out+=rect(173,151,191,58,'#243941',21,'#20343b',5);for(let x=196;x<350;x+=26)out+=line(x,161,x,195,s.accent,2);}
-      if(k==='double'){out+=rect(278,143,390,16,s.detail,4)+rect(283,200,390,14,s.detail,4);}
-      if(k==='revolver'){out+=`<g id="art-cylinder">`+rect(505,148,108,74,s.detail,17,'#1b252e',7);for(let i=0;i<5;i++)out+=circle(537+(i%2)*35,168+Math.floor(i/2)*18,6,s.accent);out+='</g>';}
-      out+=shape('376,137 718,131 744,166 729,209 557,216 497,227 390,210',s.body);
-      out+=`<g id="art-slide">`+shape('390,136 710,133 727,159 701,173 389,170','url(#steel)')+rect(415,141,257,7,s.accent,2);out+=scratches(636,145,5,15,'#243542')+'</g>';
-      out+=shape('591,210 710,204 760,304 728,353 652,342 631,270 596,258','#263642');
-      out+=shape('657,245 717,230 747,306 717,328 669,319',s.body);
-      out+=rect(691,266,28,46,s.accent,5);
-      out+=path('M573 209 Q532 261 588 287 L627 284', 'none','#13212d',9);
-      if(k==='machine')out+=`<g id="art-mag">`+shape('663,282 724,280 729,358 665,358',s.accent)+'</g>';
-      if(k==='revolver')out+=rect(572,190,30,15,'#15232b',3);
-      out+=rect(458,123,29,22,s.detail,3)+rect(681,121,28,20,s.detail,3);
-      out+=`<text x="486" y="203" fill="${s.accent}" font-family="Arial,sans-serif" font-weight="900" font-size="21" letter-spacing="3">${s.mark}</text>`;
-      return out;
-    }
-    const tubeStart=s.suppressor?72:long?40:130;
-    out+=rect(tubeStart,153,430-tubeStart,37,'url(#metal)',9,'#102029',6);
-    out+=rect(tubeStart+6,164,425-tubeStart,6,'#b8cad0',3);
-    if(s.suppressor){out+=rect(67,149,186,46,'#1e3039',15,'#344d56',6);for(let x=81;x<233;x+=27)out+=line(x,157,x,185,s.accent,2.5);}
-    if(k==='heavy'||k==='break')out+=rect(87,196,337,28,'#33434e',8,'#131e25',5);
-    if(k==='pump'||k==='autoShot')out+=`<g id="art-pump">`+rect(220,189,175,52,s.body,10,'#172129',7)+scratches(260,195,9,13,s.detail)+'</g>';
-    if(k==='rifle'||k==='smg'||k==='bullpup'||k==='dmr')out+=rect(225,138,204,13,'#1d2a35',2)+Array.from({length:8},(_,i)=>rect(230+i*25,137,13,4,s.accent,0)).join('');
-    out+=rifleStock(s,k);
-    out+=receiver(s,k);
-    out+=`<g id="art-mag">`;
-    if(k==='autoShot')out+=rect(565,227,112,104,'#253541',24,s.accent,5);
-    else if(k==='break')out+=shape('586,231 664,225 666,272 593,270','#2b3042');
-    else if(k==='heavy')out+=shape('553,228 677,225 684,302 620,332 560,301',s.body);
-    else if(id==='vandal')out+=path('M543 234L642 233L646 272Q638 329 576 353L540 343Q586 302 590 270L542 268Z','#263642');
-    else out+=shape('544,228 643,228 637,347 559,350 548,291','#21313c');
-    out+=rect(568,258,36,11,s.accent,3)+'</g>';
-    if(k==='bullpup')out+=path('M562 218L660 217L699 258L667 269L603 250Z','#26343c');
-    out+=shape('650,219 706,219 750,323 718,345 690,333 659,270','#24313b');
-    out+=shape('670,247 699,237 733,314 713,322',s.body);
-    out+=path('M613 216 Q607 259 656 283', 'none','#101923',9);
-    out+=`<g id="art-slide">`+rect(482,146,168,18,s.detail,3,'#192632',3)+scratches(495,149,9,15,s.body)+'</g>';
-    if(long){
-      out+=`<g id="art-bolt">`+rect(611,138,57,11,s.accent,2)+circle(665,144,8,s.detail)+'</g>';
-      out+=rect(520,115,128,10,'#15212a',3);
-      out+=rect(528,89,218,37,'url(#metal)',9,'#112028',6);
-      out+=circle(539,108,22,'#182936',s.detail,7);
-      out+=circle(734,108,21,'#182936',s.detail,6);
-      out+=rect(562,101,130,4,s.accent,2);
-    }else if(['rifle','bullpup','smg'].includes(k)){
-      out+=rect(531,113,114,24,'#253540',6,'#11232d',5);
-      out+=rect(553,103,50,11,s.detail,3);
-    }
-    out+=circle(694,202,5,s.accent);
-    return out;
-  }
-  // A deliberately thin, offset silhouette: the weapon is a 2D cut-out with a visible
-  // dark paper edge. It is NOT a 3D scene mesh or an external copyrighted texture.
-  function cutoutDepth(s) {
-    let depth = '';
-    if (s.kind==='blade') {
-      depth += path('M108 143L700 91L798 50L765 94L722 147L286 180Z','#0c151c','#0b1019',9);
-      depth += path('M704 150L893 149L951 181L932 222L709 220Z','#16212b','#090f17',11);
-    } else if (['pistol','machine','double','revolver'].includes(s.kind)) {
-      depth += shape('357,144 724,132 775,177 750,231 607,253 441,242 389,226','#111d28','#07111a',12);
-      depth += shape('650,221 732,208 795,327 750,378 660,367 623,284','#131f29','#07121b',12);
-    } else {
-      depth += rect(75,161,385,44,'#101e28',12,'#0b121d',9);
-      depth += shape('404,145 738,152 785,188 758,254 617,260 429,243','#13202b','#060f19',12);
-      depth += shape('678,166 821,142 954,170 978,193 938,249 837,247 794,217 707,224','#121d26','#070e16',10);
-      depth += shape('553,246 675,243 675,372 566,377','#121e28','#08121b',11);
-    }
-    return `<g class="paper-cutout-depth" transform="translate(13 15)">${depth}</g>`;
-  }
-
-  // A low-cost, vector-only set of hands with thumb/finger planes and jacket cuffs.
-  // They sit in FRONT of the gun drawing and slide with the 2D sprite as it animates.
-  function holdingHands(s) {
-    const knife=s.kind==='blade';
-    const handColor='#394d60', gloveLight='#667b8c', seam='#162530';
-    if(knife) return `<g class="paper-hand paper-knife-hand">`+
-      path('M1024 409L925 356L881 280L850 255L802 277L811 336L853 419Z','#263644','#111923',10)+
-      path('M809 273Q780 262 774 278L767 332Q770 354 790 352L829 322L846 287Z',handColor,seam,8)+
-      path('M780 280Q765 282 771 296L778 314Q785 322 800 316L826 292Z',gloveLight,seam,6)+
-      path('M794 341L831 355L890 422L974 436','#172535',seam,9)+
-      line(818,329,838,342,'#92adba',3)+
-      '</g>';
-    return `<g class="paper-hand paper-gun-hand">`+
-      // Forearm and sleeve extend to the screen's bottom-right edge.
-      path('M1040 438L940 419L848 378L811 339L749 321L712 341L749 390L834 441Z','#233443','#0c1722',12)+
-      path('M934 420L853 384L829 355L806 366L838 420L892 447','#3a4f61','#152633',6)+
-      shape('830,346 849,326 895,340 930,370 914,398 867,389',gloveLight,seam,6)+
-      // Thumb wraps around the near-side pistol grip.
-      path('M719 261Q736 251 750 267L768 295Q776 311 766 323L737 344Q719 352 708 339L696 326Q691 313 699 305L710 292L707 275Z',handColor,seam,9)+
-      path('M713 271Q728 264 739 274L755 294L743 308L714 299Z',gloveLight,seam,5)+
-      // Index finger and knuckle silhouette near trigger guard.
-      path('M673 254Q653 248 643 257L629 274Q621 286 632 295L650 302Q662 307 671 294L686 276Q693 263 673 254Z','#52677b',seam,7)+
-      path('M645 262L664 261L680 271','#90a4b4',seam,4)+
-      path('M698 307L739 316L760 301','none','#8da1b0',3)+
-      // Glove construction details.
-      line(729,328,743,337,'#91aabb',3)+line(746,318,756,326,'#91aabb',3)+
-      path('M808 340L845 370L873 380','none','#b3c5cb',5)+
-      `<path d="M831 364L845 375L866 380" fill="none" stroke="${s.accent}" stroke-width="5" opacity=".85"/>`+
-      '</g>';
-  }
-
-  // Additional highlight/edge planes give the illustration a faceted, readable
-  // first-person look even when viewed nearly edge-on by the CSS 3D transform.
-  function metallicFacets(s) {
-    const isKnife=s.kind==='blade',pistol=['pistol','machine','revolver','double'].includes(s.kind);
-    if(isKnife)return path('M131 144L686 115L747 87L705 127L306 157Z',
-      'rgba(238,247,248,.16)','none',0)+line(180,139,620,117,'#d4e7e7',2);
-    if(pistol)return shape('397,141 709,136 698,146 407,149',
-      'rgba(252,255,255,.24)','none',0)+path('M716 214L755 292L742 298L702 216Z','rgba(0,0,0,.26)','none',0);
-    let f=shape('412,143 738,146 743,159 439,155','rgba(241,249,250,.17)','none',0);
-    f+=shape('440,224 603,235 707,231 718,237 600,247 432,234','rgba(0,0,0,.28)','none',0);
-    f+=shape('698,157 818,138 906,150 834,151 714,169','rgba(255,255,255,.13)','none',0);
-    if(s.kind==='rifle'||s.kind==='smg')f+=`<g opacity=".77">`+Array.from({length:11},(_,i)=>rect(255+i*13,191,6,14,i%2?s.detail:s.accent,1)).join('')+`</g>`;
-    if(s.kind==='heavy'||s.kind==='sniper')f+=Array.from({length:7},(_,i)=>line(253+i*17,155,246+i*17,184,s.detail,3)).join('');
-    return f;
-  }
-
   function makeSvg(id){
-    const s=styles[id]||styles.classic;
-    const fromSheet=Object.hasOwn(referenceImages,id);
-    const art = fromSheet ? referenceCutout(id,s) :
-      cutoutDepth(s)+`<g class="weapon-art">`+gunParts(id,s)+metallicFacets(s)+`</g>`+holdingHands(s);
-    return svgOpen+`<title>${s.mark} — ${fromSheet?'user reference image':'custom 2D illustration'} in first-person perspective</title>`+
-      `<g class="paper-weapon" data-weapon-id="${id}">${art}</g></svg>`;
+    const name=Object.hasOwn(referenceImages,id)?id:'classic';
+    const s=styles[name]||{mark:name.toUpperCase()};
+    const p=referencePlacement(name);
+    // One source photo only; duplicates used as shadow must not resemble a hand.
+    // Source files already have transparent backgrounds.
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 450" `+
+      `preserveAspectRatio="xMidYMid meet" role="img" aria-label="${s.mark} cutout">`+
+      `<title>${s.mark} - user-provided weapon-only texture</title>`+
+      `<g class="weapon-only" data-weapon-id="${name}">`+
+      `<image class="weapon-texture" data-ref-image="${name}" href="assets/weapons/${name}.webp" `+
+      `x="${p.x}" y="${p.y}" width="${p.width}" height="${p.height}" `+
+      `preserveAspectRatio="xMidYMid meet"/></g></svg>`;
   }
-  function create(T){
-    const group = new T.Group(); // Compatibility-only; intentionally empty (no first-person 3D meshes).
-    const flash = {visible:false,material:{opacity:0}}; // Existing gunfire code expects a flash object.
-    const layer = document.getElementById('fps-weapon-sprite-layer');
-    if(!layer)throw new Error('Missing #fps-weapon-sprite-layer');
-    const cache=new Map();
-    let shown='',fireAt=-10000,fireMode='light',reloadAt=-10000,reloadPlaying=false;
-    const elements={};
-    let lastVisible=false,prevTransform='';
+  function create(THREE){
+    // No weapon mesh is attached to the camera; kept only for legacy gameplay API.
+    const group=new THREE.Group();
+    const flash={visible:false,material:{opacity:0}};
+    const layer=document.getElementById('fps-weapon-sprite-layer');
+    if(!layer)throw Error('Missing weapon sprite layer');
+    const cache=new Map(),elements={};
+    let shown='',fireAt=-1e6,fireMode='light',reloadAt=-1e6,reloadPlaying=false;
+    let switchAt=-1e6,lastVisible=false,lastTransform='';
     function setWeapon(id){
-      id=styles[id]?id:'classic';
-      if(id===shown)return;
-      shown=id;reloadPlaying=false;
-      if(!cache.has(id))cache.set(id,makeSvg(id));
-      layer.innerHTML=cache.get(id);
+      const next=Object.hasOwn(styles,id)?id:'classic';
+      if(next===shown)return;
+      shown=next;
+      reloadPlaying=false;
+      switchAt=performance.now();
+      if(!cache.has(next))cache.set(next,makeSvg(next));
+      layer.innerHTML=cache.get(next);
       elements.svg=layer.querySelector('svg');
-      for(const id of ['mag','slide','bolt','pump','cylinder','blade'])elements[id]=layer.querySelector('#art-'+id);
-      layer.classList.toggle('weapon-knife',shown==='knife');
-      prevTransform='';
+      layer.classList.toggle('weapon-knife',next==='knife');
+      lastTransform='';
     }
-    function fire(mode='light'){fireMode=mode==='heavy'?'heavy':'light';fireAt=performance.now();}
-    function beginReload(){if(shown!=='knife'){reloadPlaying=true;reloadAt=performance.now();}}
-    function stopReload(){reloadPlaying=false;for(const key of ['mag','slide','bolt','pump','cylinder'])elements[key]?.removeAttribute('transform');}
+    function fire(mode='light'){
+      fireMode=mode==='heavy'?'heavy':'light';
+      fireAt=performance.now();
+    }
+    function beginReload(){if(shown!=='knife'){reloadAt=performance.now();reloadPlaying=true;}}
+    function stopReload(){reloadPlaying=false;}
     function update(dt,p,state){
-      const live=!!(p?.alive && state?.inMatch);
+      const live=!!(p?.alive&&state?.inMatch);
       if(live!==lastVisible){layer.classList.toggle('weapon-visible',live);lastVisible=live;}
-      if(!live)return;
-      const now=performance.now(),moving=Math.min(1,Math.hypot(p.vel?.x||0,p.vel?.z||0)/7.6);
-      const bobX=Math.sin(now*.010)*4*moving;
-      const bobY=Math.abs(Math.sin(now*.010))*6*moving;
-      const fireT=Math.max(0,1-(now-fireAt)/185);
-      const r=reloadPlaying?Math.min(1,Math.max(0,(now-reloadAt)/1100)):0;
-      const reloadPulse=reloadPlaying?Math.sin(Math.PI*r):0;
-      const sword=shown==='knife';
-      // The barrel is tilted upward, along the right side of the screen, not a 3D world object.
-      const sway=sword?Math.sin(now*.0018)*1.2:Math.sin(now*.0014)*0.65;
-      const breath=Math.sin(now*.00092)*1.1;
+      if(!live||!elements.svg)return;
+      const now=performance.now();
+      const sword=shown==='knife',kind=styles[shown]?.kind||'rifle';
+      const moving=Math.min(1,Math.hypot(p.vel?.x||0,p.vel?.z||0)/7.6);
+      const bobX=Math.sin(now*.0097)*4.7*moving;
+      const bobY=Math.abs(Math.sin(now*.0097))*6.7*moving;
+      const breathing=Math.sin(now*.00105);
+      const kick=Math.max(0,1-(now-fireAt)/(sword?280:135));
+      const draw=Math.max(0,1-(now-switchAt)/260);
+      const reloadProgress=reloadPlaying?Math.min(1,Math.max(0,(now-reloadAt)/1170)):0;
+      const reloadDrop=reloadPlaying?Math.sin(Math.PI*reloadProgress):0;
+      const heavy=sword&&fireMode==='heavy';
+      // Keep the right/near end closest to camera and muzzle facing away/toward center.
       const screenWidth=Number.isFinite(window.innerWidth)?window.innerWidth:1440;
-      const forwardShift=referenceImages[shown]?Math.max(-150,65-(screenWidth-390)*.205):0;
-      const heavySwing = sword && fireMode === 'heavy';
-      const x=bobX+fireT*16+(sword?fireT*(heavySwing?-12:-35):0)+forwardShift;
-      const y=bobY+fireT*(heavySwing?-22:15)+reloadPulse*85+(p.isScoped?185:0);
-      const kind=styles[shown]?.kind;
-      const baseTilt=sword?39: ['pistol','revolver','double','machine'].includes(kind)?32:kind==='smg'?26:24;
-      const degrees=baseTilt+sway+fireT*(sword?(heavySwing?17:-32):5)+reloadPulse*11;
-      const zoom=(styles[shown]?.scale||1)*(referenceImages[shown]?1.12:1)*(screenWidth<=600?.94:1);
-      // A perspective-transformed single SVG plane: a tilted sheet of paper, not
-      // a rendered 3D weapon model. The right/near end is larger than the muzzle.
-      const planeYaw=(-51 + sway*.75 + fireT*3).toFixed(2);
-      const planePitch=(sword?15:19)+breath+(moving*1.1)-reloadPulse*4;
+      const mobile=screenWidth<=820;
+      const angle=sword?33:kind==='pistol'||kind==='machine'||kind==='revolver'?28:
+        kind==='short'?25:kind==='smg'?23:20;
+      const yaw=-49 + breathing*.6 + kick*3;
+      const pitch=(sword?9:15)+breathing*1.1+moving*1.4-reloadDrop*5;
+      const z=angle+breathing*.75 + kick*(sword?(heavy?32:-32):7) + reloadDrop*13;
+      const x=bobX+kick*(sword?(heavy?-40:-24):11)+(mobile?4:0);
+      const y=bobY+kick*(sword?-18:22)+reloadDrop*106+draw*92+(p.isScoped?180:0);
+      const scale=(styles[shown].scale||1)*(mobile?.9:1);
       const transform=`translate3d(${x.toFixed(2)}px,${y.toFixed(2)}px,0) `+
-        `perspective(870px) rotateY(${planeYaw}deg) rotateX(${planePitch.toFixed(2)}deg) `+
-        `rotateZ(${degrees.toFixed(2)}deg) scale(${zoom})`;
-      if(transform!==prevTransform){elements.svg.style.transform=transform;prevTransform=transform;}
+        `perspective(930px) rotateY(${yaw.toFixed(2)}deg) `+
+        `rotateX(${pitch.toFixed(2)}deg) rotateZ(${z.toFixed(2)}deg) scale(${scale.toFixed(3)})`;
+      if(transform!==lastTransform){elements.svg.style.transform=transform;lastTransform=transform;}
       layer.classList.toggle('weapon-aiming',!!p.isScoped);
-      const up=Math.sin(Math.PI*r);
-      const down=r<.37?r/.37:r<.68?1:1-(r-.68)/.32;
-      if(elements.mag)elements.mag.setAttribute('transform',reloadPlaying?`translate(${(down*7).toFixed(1)} ${(down*105).toFixed(1)}) rotate(${(down*12).toFixed(1)} 590 235)`:'');
-      if(elements.slide)elements.slide.setAttribute('transform',reloadPlaying?`translate(${(-up*29).toFixed(1)} 0)`:(fireT>0?`translate(${(-fireT*17).toFixed(1)} 0)`:''));
-      if(elements.bolt)elements.bolt.setAttribute('transform',reloadPlaying?`translate(${(-up*53).toFixed(1)} 0)`:'');
-      if(elements.pump)elements.pump.setAttribute('transform',reloadPlaying?`translate(${(up*70).toFixed(1)} 0)`:'');
-      if(elements.cylinder)elements.cylinder.setAttribute('transform',reloadPlaying?`rotate(${(360*r).toFixed(1)} 559 178) translate(${(up*25).toFixed(1)} 0)`:'');
     }
     setWeapon('classic');
     return {group,flash,setWeapon,fire,beginReload,stopReload,update,

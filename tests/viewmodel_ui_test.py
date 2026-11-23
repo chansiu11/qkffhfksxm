@@ -17,12 +17,12 @@ with sync_playwright() as p:
             window.sprite.setWeapon('vandal');
             window.sprite.update(.016,{alive:true,vel:{x:0,z:0},isScoped:false},{inMatch:true});}''')
         assert page.locator('#fps-weapon-sprite-layer.weapon-visible svg').count() == 1
-        assert page.locator('#fps-weapon-sprite-layer text').text_content().find('VANDAL') != -1
+        assert 'VANDAL' in page.locator('#fps-weapon-sprite-layer title').text_content()
         page.wait_for_timeout(160)
         assert page.evaluate("getComputedStyle(document.querySelector('#fps-weapon-sprite-layer')).opacity") == '1'
         page.evaluate('''() => {window.sprite.setWeapon('knife');window.sprite.update(.016,
             {alive:true,vel:{x:0,z:0},isScoped:false},{inMatch:true});}''')
-        assert page.locator('#art-blade').count() == 1
+        assert page.locator('#fps-weapon-sprite-layer image[href="assets/weapons/knife.webp"]').count() == 1
         assert page.locator('#art-mag').count() == 0
         page.evaluate('''() => window.sprite.update(.016,
             {alive:true,vel:{x:0,z:0},isScoped:false},{inMatch:false})''')
