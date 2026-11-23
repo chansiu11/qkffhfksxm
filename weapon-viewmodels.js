@@ -58,7 +58,9 @@
     const front=portrait?[kind==='pistol'||kind==='revolver'||kind==='machine'?.67:.515,
       kind==='blade'?.665:.650]:cfg.front;
     const rear=portrait?[1.23,kind==='blade'?.92:.955]:cfg.rear;
-    return {front:{x:width*front[0],y:height*front[1]},
+    // Foreshorten the gun horizontally around its stock.
+    const muzzleX = kind === 'blade' ? front[0] : front[0] + (rear[0] - front[0]) * .15;
+    return {front:{x:width*muzzleX,y:height*front[1]},
       edge:{x:width*rear[0],y:height*rear[1]},
       frontDepth:FRONT_DEPTH,rearDepth:REAR_DEPTH,paperHeight:cfg.height};
   }
