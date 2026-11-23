@@ -15,6 +15,9 @@
   <link rel="stylesheet" href="menu.css" />
   <!-- Three.js r128 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="shotgun-pellets.js"></script>
+  <script src="crosshair-profile.js"></script>
+  <script src="crosshair-ui.js" defer></script>
   <script src="weapon-viewmodels.js"></script>
 
   <style>
@@ -245,16 +248,37 @@
 
   <!-- Center Crosshair & Hitmarker -->
   <div id="crosshair-wrap" class="hidden fixed inset-0 pointer-events-none z-20 flex items-center justify-center">
-    <div id="crosshair" class="relative w-6 h-6 flex items-center justify-center transition-transform duration-75">
-      <div class="absolute w-2.5 h-0.5 bg-[#38e2c7] -left-2"></div>
-      <div class="absolute w-2.5 h-0.5 bg-[#38e2c7] -right-2"></div>
-      <div class="absolute h-2.5 w-0.5 bg-[#38e2c7] -top-2"></div>
-      <div class="absolute h-2.5 w-0.5 bg-[#38e2c7] -bottom-2"></div>
-      <div class="w-1 h-1 bg-white"></div>
-    </div>
+    <div id="crosshair" class="relative" aria-hidden="true"></div>
     <div id="hitmarker" class="opacity-0 transition-opacity duration-75 absolute w-7 h-7 pointer-events-none">
       <div id="hm-line-1" class="absolute inset-0 m-auto w-7 h-0.5 bg-white rotate-45"></div>
       <div id="hm-line-2" class="absolute inset-0 m-auto w-7 h-0.5 bg-white -rotate-45"></div>
+    </div>
+  </div>
+
+  <!-- Import any standard VALORANT share-code without altering projectile direction. -->
+  <div id="crosshair-settings" role="dialog" aria-modal="true" aria-labelledby="crosshair-dialog-title"
+       class="hidden fixed inset-0 z-[70] overflow-y-auto bg-[#070d14]/95 backdrop-blur-md p-3 sm:p-6">
+    <div class="mx-auto my-6 max-w-lg bg-[#0f1923] border border-[#38e2c7]/50 p-5 sm:p-7 shadow-2xl">
+      <div class="flex items-start justify-between gap-3 mb-4">
+        <div><div class="text-xs font-num font-bold text-[#38e2c7] tracking-widest">CROSSHAIR // PROFILE IMPORT</div>
+          <h2 id="crosshair-dialog-title" class="text-xl sm:text-2xl font-black text-white">발로란트 조준점 코드 가져오기</h2></div>
+        <button type="button" id="crosshair-close" class="px-3 py-2 border border-white/30 text-white cursor-pointer">닫기 ×</button>
+      </div>
+      <p class="text-sm text-slate-300 mb-4">발로란트에서 복사한 <code>0;P;...</code> 프로필 코드를 그대로 붙여넣으세요. 조준점 디자인만 변경되고 명중 방향은 유지됩니다.</p>
+      <div class="bg-[#202c3a] border border-white/20 min-h-[160px] grid place-items-center mb-4" aria-label="조준점 미리보기">
+        <div id="crosshair-preview" class="relative" aria-hidden="true"></div>
+      </div>
+      <form id="crosshair-form" class="grid gap-3">
+        <label for="crosshair-code" class="text-xs text-[#38e2c7] font-black tracking-widest">PROFILE SHARE CODE</label>
+        <textarea id="crosshair-code" rows="3" maxlength="4096" autocapitalize="off" autocomplete="off" spellcheck="false"
+             class="w-full rounded-none border border-white/25 bg-[#0b131d] text-white text-sm p-3 select-text"
+             placeholder="0;P;c;5;o;1;0t;1;0l;4;0o;2;0a;1;0f;0;1b;0"></textarea>
+        <p id="crosshair-status" role="status" aria-live="polite" class="text-xs text-[#38e2c7]">기존 설정 불러오는 중...</p>
+        <div class="flex gap-2 flex-wrap">
+          <button type="submit" class="flex-1 min-w-[135px] bg-[#ff4655] text-white py-2.5 font-black cursor-pointer">조준점 적용</button>
+          <button type="button" id="crosshair-reset" class="border border-white/30 text-white py-2.5 px-4 font-bold cursor-pointer">기본값으로</button>
+        </div>
+      </form>
     </div>
   </div>
 
@@ -448,6 +472,10 @@
                   class="val-cut-sm px-2.5 py-1 bg-[#0f1923]/95 hover:bg-amber-400/25 border border-amber-400 text-amber-300 font-num font-black text-[11px] cursor-pointer">
             CHEATS [F1]
           </button>
+          <button type="button" onclick="window.openCrosshairSettings(event)"
+                  class="val-cut-sm px-2.5 py-1 bg-[#0f1923]/95 border border-[#38e2c7]/70 text-[#38e2c7] font-num font-black text-[11px] cursor-pointer">
+            CROSSHAIR [P]
+          </button>
           <button type="button" onclick="window.toggleMobileMode(event)" id="hud-touch-toggle-btn"
                   class="val-cut-sm px-2.5 py-1 bg-[#38e2c7]/20 border border-[#38e2c7] text-[#38e2c7] font-num font-black text-[11px] cursor-pointer">
             TOUCH UI: ON
@@ -587,6 +615,8 @@
         <section class="menu-hero" aria-label="게임 소개">
           <div class="menu-section-line"><span>EPISODE // 001</span><span>PC &amp; MOBILE</span></div>
           <div class="menu-hero-copy"><div class="menu-hero-overline"><span class="menu-hero-dash"></span> WELCOME TO THE FIELD</div><h1 class="menu-hero-title">PLAY<br><em>ASCENT</em><span class="menu-title-stop">.</span></h1><p class="menu-hero-desc">하나의 선택이 승부를 바꾼다.<br>전략적인 5대5 전투에 참여하세요.</p></div>
+          <button type="button" onclick="window.openCrosshairSettings(event)"
+                  class="mt-2 mb-3 px-4 py-2 text-sm font-bold border border-[#38e2c7]/60 text-[#38e2c7] hover:bg-[#38e2c7]/10 cursor-pointer">⊕ 조준점 코드 설정</button>
           <div class="menu-feature-row"><span>◈ &nbsp; REALTIME 5 VS 5</span><span>◈ &nbsp; CUSTOM ROOMS</span><span>◈ &nbsp; CROSS PLATFORM</span></div>
           <button type="button" class="menu-practice-btn" onclick="window.quickStartMatch(event)"><span class="menu-practice-icon">↗</span><span><b>혼자 연습하기</b><small>OFFLINE · AI TRAINING</small></span><span class="menu-practice-arrow">→</span></button>
           <div class="menu-hero-foot"><span>MAP 01&nbsp; / &nbsp;ASCENT</span><span>MOVE WITH PURPOSE.</span></div>
@@ -767,8 +797,7 @@
       <div class="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-white/15">
         <div>
           <span class="px-2 py-0.5 bg-amber-400 text-slate-950 font-num font-black text-xs">CUSTOM GAME CHEATS // F1</span>
-          <h2 class="text-xl font-black text-white mt-1">발로란트 사설방 치트 제어판 (방장 통제)</h2>
-        </div>
+          <h2 class="text-xl font-black text-white mt-1">발로란트 사설방 치트 제어판 (방장 통제)</h2>        </div>
         <div class="flex items-center gap-2">
           <button type="button" id="modal-host-cheat-btn" onclick="window.toggleHostCheatPermission(event)"
                   class="px-3.5 py-2 bg-emerald-500 text-slate-950 font-black text-xs cursor-pointer">
@@ -797,7 +826,8 @@
           <button type="button" id="cheat-btn-infiniteCreds" onclick="window.toggleCheatOption('infiniteCreds')" class="p-3 bg-[#0f1923] border border-white/15 text-left cursor-pointer">
             <div class="text-xs font-bold text-[#38e2c7]">INFINITE CREDITS (9,000)</div>
             <div class="text-[11px] text-slate-400 mt-0.5">보유 크레딧 9,000 고정</div>
-          </button>          <button type="button" id="cheat-btn-infiniteAmmo" onclick="window.toggleCheatOption('infiniteAmmo')" class="p-3 bg-[#0f1923] border border-white/15 text-left cursor-pointer">
+          </button>
+          <button type="button" id="cheat-btn-infiniteAmmo" onclick="window.toggleCheatOption('infiniteAmmo')" class="p-3 bg-[#0f1923] border border-white/15 text-left cursor-pointer">
             <div class="text-xs font-bold text-[#38e2c7]">INFINITE MAGAZINE</div>
             <div class="text-[11px] text-slate-400 mt-0.5">재장전 없이 무한 사격</div>
           </button>
@@ -1566,8 +1596,7 @@
           if (pMaxY <= b.minY || pMinY >= b.maxY) continue;
           if (b.maxY <= footY + STEP_HEIGHT) continue;
           const cx = Math.max(b.minX, Math.min(pos.x, b.maxX));
-          const cz = Math.max(b.minZ, Math.min(pos.z, b.maxZ));
-          const dx = pos.x - cx, dz = pos.z - cz;
+          const cz = Math.max(b.minZ, Math.min(pos.z, b.maxZ));          const dx = pos.x - cx, dz = pos.z - cz;
           const distSq = dx * dx + dz * dz;
           if (distSq < radius * radius) {
             const dist = Math.sqrt(distSq) || 0.001;
@@ -1596,7 +1625,8 @@
         guardian: { id: 'guardian', slot: 'primary', name: 'GUARDIAN', cost: 2250, headDmg: 195, bodyDmg: 65, fireRate: 0.19, magSize: 12, resSize: 36, spreadBase: 0.001, spreadMove: 0.09, recoilPitch: 0.034, auto: false, canScope: true, pellets: 1, range: 220, color: 0x60a5fa },
         phantom:  { id: 'phantom', slot: 'primary', name: 'PHANTOM', cost: 2900, headDmg: 140, bodyDmg: 39, fireRate: 0.09, magSize: 30, resSize: 90, spreadBase: 0.0026, spreadMove: 0.09, recoilPitch: 0.018, auto: true, canScope: true, pellets: 1, range: 220, color: 0x38e2c7 },
         vandal:   { id: 'vandal', slot: 'primary', name: 'VANDAL', cost: 2900, headDmg: 160, bodyDmg: 40, fireRate: 0.10, magSize: 25, resSize: 75, spreadBase: 0.0020, spreadMove: 0.10, recoilPitch: 0.024, auto: true, canScope: true, pellets: 1, range: 220, color: 0xff4655 },
-        marshal:  { id: 'marshal', slot: 'primary', name: 'MARSHAL', cost: 950, headDmg: 202, bodyDmg: 101, fireRate: 0.95, magSize: 5, resSize: 15, spreadBase: 0.0015, spreadMove: 0.11, recoilPitch: 0.055, auto: false, canScope: true, pellets: 1, range: 220, color: 0xa3e635 },        outlaw:   { id: 'outlaw', slot: 'primary', name: 'OUTLAW', cost: 2400, headDmg: 238, bodyDmg: 140, fireRate: 0.45, magSize: 2, resSize: 10, spreadBase: 0.0008, spreadMove: 0.13, recoilPitch: 0.065, auto: false, canScope: true, pellets: 1, range: 220, color: 0xc084fc },
+        marshal:  { id: 'marshal', slot: 'primary', name: 'MARSHAL', cost: 950, headDmg: 202, bodyDmg: 101, fireRate: 0.95, magSize: 5, resSize: 15, spreadBase: 0.0015, spreadMove: 0.11, recoilPitch: 0.055, auto: false, canScope: true, pellets: 1, range: 220, color: 0xa3e635 },
+        outlaw:   { id: 'outlaw', slot: 'primary', name: 'OUTLAW', cost: 2400, headDmg: 238, bodyDmg: 140, fireRate: 0.45, magSize: 2, resSize: 10, spreadBase: 0.0008, spreadMove: 0.13, recoilPitch: 0.065, auto: false, canScope: true, pellets: 1, range: 220, color: 0xc084fc },
         operator: { id: 'operator', slot: 'primary', name: 'OPERATOR', cost: 4700, headDmg: 255, bodyDmg: 150, fireRate: 1.15, magSize: 5, resSize: 10, spreadBase: 0.0004, spreadMove: 0.15, recoilPitch: 0.08, auto: false, canScope: true, pellets: 1, range: 220, color: 0xeab308 }
       };
 
@@ -1752,6 +1782,7 @@
         player.hp = 100;
         player.alive = true;
         player.isScoped = false;
+        window.setCrosshairScoped?.(false);
         document.getElementById('scope-overlay').classList.add('hidden');
         document.getElementById('spectator-banner').classList.add('hidden');
         camera.fov = 75;
@@ -2001,6 +2032,7 @@
       }
 
       function startNewRound() {
+        player.reloadId = (player.reloadId || 0) + 1;
         player.reloading = false;
         viewmodel.stopReload();
         isSpikeMobileToggleLock = false;
@@ -2363,8 +2395,7 @@
           }
           syncCheatPermissionUI();
           modal.classList.remove('hidden');
-        } else {
-          modal.classList.add('hidden');
+        } else {          modal.classList.add('hidden');
           if (matchState.inMatch) tryLockPointerSafe();
         }
         sfx.playUI();
@@ -2395,7 +2426,8 @@
         endRound(team || 'ally', 'HOST CHEAT // INSTANT WIN');
       };
 
-      window.cheatSwapSides = function () {        if (!roomState.allowCheats) return;
+      window.cheatSwapSides = function () {
+        if (!roomState.allowCheats) return;
         roomState.playerSide = roomState.playerSide === 'attack' ? 'defense' : 'attack';
         document.getElementById('cheat-modal').classList.add('hidden');
         showRoundBanner('HOST CHEAT', 'SIDES SWAPPED');
@@ -2501,17 +2533,21 @@
 
       // The visible tracer starts on the CROSSHAIR ray, not on an offset viewmodel muzzle ray.
       // A separate muzzle flash remains attached to the weapon for visual feedback.
-      function drawLocalShot(weapon) {
+      function drawLocalShot(weapon, pelletRotation = 0) {
         if (weapon.slot === 'knife') return;
         const maxDist = weapon.range || 200;
-        const direction = getAimDirection();
         const origin = player.pos.clone();
-        const cast = new THREE.Raycaster(origin, direction, 0, maxDist);
+        const pelletDirections = ShotgunPellets.directions(player.yaw, player.pitch,
+          weapon.pellets || 1, weapon.spreadBase || 0, pelletRotation);
         scene.updateMatrixWorld(true);
-        const hits = cast.intersectObjects(mapTargetMeshes, false);
-        const end = hits.length ? hits[0].point : origin.clone().addScaledVector(direction, maxDist);
-        const start = origin.clone().addScaledVector(direction, 0.28);
-        spawnBulletTracer(start, end, weapon.color || 0xffd567);
+        for (const vector of pelletDirections) {
+          const direction = new THREE.Vector3(...vector);
+          const cast = new THREE.Raycaster(origin, direction, 0, maxDist);
+          const hits = cast.intersectObjects(mapTargetMeshes, false);
+          const end = hits.length ? hits[0].point : origin.clone().addScaledVector(direction, maxDist);
+          const start = origin.clone().addScaledVector(direction, 0.28);
+          spawnBulletTracer(start, end, weapon.color || 0xffd567);
+        }
       }
 
       function attemptFire() {
@@ -2533,6 +2569,7 @@
           return;
         }
         player.lastShotTime = now;
+        window.markCrosshairFiring?.();
         if (!infAmmo) w.mag--;
 
         viewmodel.fire();
@@ -2545,12 +2582,10 @@
           gunGroup.position.z = -0.32;
         }
 
-        // Single-projectile shots follow the centre of the crosshair exactly.
-        // Multi-pellet shotguns keep only a modest pellet cone around that centre.
-        const spread = w.pellets > 1 ? w.spreadBase * 0.45 : 0;
-        const aimDirection = getAimDirection();
-        const aimRight = new THREE.Vector3().crossVectors(aimDirection, new THREE.Vector3(0, 1, 0)).normalize();
-        const aimUp = new THREE.Vector3().crossVectors(aimRight, aimDirection).normalize();
+        // One fixed fan per trigger pull: real pellets and visible streaks use the same rays.
+        const pelletRotation = Math.random() * Math.PI * 2;
+        const pelletDirections = ShotgunPellets.directions(player.yaw, player.pitch,
+          w.pellets || 1, w.spreadBase || 0, pelletRotation);
         // Update mesh world transforms so ray collision matches the visible geometry.
         scene.updateMatrixWorld(true);
 
@@ -2566,13 +2601,8 @@
         const allTargets = enemyMeshes.concat(mapTargetMeshes);
         const maxDist = w.range || 110;
 
-        for (let p = 0; p < w.pellets; p++) {
-          // First pellet (and every non-shotgun round) is exactly centred.
-          // Shotgun scatter is defined in the camera's right/up basis, never world X/Y.
-          const rx = p === 0 ? 0 : (Math.random() - 0.5) * spread;
-          const ry = p === 0 ? 0 : (Math.random() - 0.5) * spread;
-          const bulletDirection = aimDirection.clone().addScaledVector(aimRight, rx)
-            .addScaledVector(aimUp, ry).normalize();
+        for (let p = 0; p < pelletDirections.length; p++) {
+          const bulletDirection = new THREE.Vector3(...pelletDirections[p]);
           raycaster.set(player.pos.clone(), bulletDirection);
           raycaster.near = 0;
           raycaster.far = maxDist;
@@ -2599,8 +2629,8 @@
               }
             }
           }
-          if (w.slot !== 'knife' && p === 0) {
-            // One clearly visible tracer per shot; shotgun pellets still hit individually.
+          if (w.slot !== 'knife') {
+            // Each shotgun pellet has its own tracer; rifle shots still emit exactly one.
             spawnBulletTracer(player.pos.clone().addScaledVector(bulletDirection, 0.28), endPt, w.color);
           }
         }
@@ -2614,15 +2644,27 @@
         const w = getActiveWeapon();
         if (w.slot === 'knife' || w.mag >= w.magSize || w.reserve <= 0) return;
         player.reloading = true;
+        const reloadId = (player.reloadId = (player.reloadId || 0) + 1);
+        const reloadWeaponId = w.id;
         viewmodel.beginReload();
         sfx.playUI();
         if (window.MP.active) {
-          window.MP.send({type:'reload'});
-          // Server inventory acknowledgement ends the animation; recover on a lost packet.
-          setTimeout(() => { if (player.reloading) { player.reloading = false; viewmodel.stopReload(); } }, 1900);
+          if (!window.MP.send({type:'reload',weapon:reloadWeaponId})) {
+            player.reloading = false;
+            viewmodel.stopReload();
+            return;
+          }
+          // A server acknowledgment updates ammo; a delayed/lost acknowledgment must
+          // not leave the reload lock engaged forever or change another weapon.
+          setTimeout(() => {
+            if (player.reloading && player.reloadId === reloadId) {
+              player.reloading = false; viewmodel.stopReload(); updateHUD();
+            }
+          }, 2500);
           return;
         }
         setTimeout(() => {
+          if (!player.reloading || player.reloadId !== reloadId || getActiveWeapon().id !== reloadWeaponId) return;
           const need = w.magSize - w.mag;
           const take = Math.min(need, w.reserve);
           w.mag += take;
@@ -2634,11 +2676,17 @@
       };
 
       window.switchWeaponSlot = function (slot) {
-        if (window.MP.active && window.MP.started) window.MP.send({type:'equip',slot});
         if (slot === 'primary' && !player.primary) return;
+        if (slot !== player.activeSlot) {
+          player.reloadId = (player.reloadId || 0) + 1;
+          player.reloading = false;
+          viewmodel.stopReload();
+        }
+        if (window.MP.active && window.MP.started) window.MP.send({type:'equip',slot});
         player.activeSlot = slot;
         viewmodel.setWeapon(getActiveWeapon().id);
         player.isScoped = false;
+        window.setCrosshairScoped?.(false);
         document.getElementById('scope-overlay').classList.add('hidden');
         document.getElementById('mob-ads-btn').classList.remove('vm-btn-active-state');
         camera.fov = 75;
@@ -2663,6 +2711,7 @@
         const w = getActiveWeapon();
         if (!w.canScope) return;
         player.isScoped = !player.isScoped;
+        window.setCrosshairScoped?.(player.isScoped);
         const sc = document.getElementById('scope-overlay');
         const adsBtn = document.getElementById('mob-ads-btn');
         if (player.isScoped) {
@@ -2738,6 +2787,15 @@
       let isSpikeMobileToggleLock = false;
 
       window.addEventListener('keydown', (e) => {
+        const editing = e.target?.matches?.('input, textarea, select, [contenteditable]');
+        if (window.isCrosshairSettingsOpen?.()) {
+          if (e.code === 'Escape') { e.preventDefault(); window.closeCrosshairSettings(); }
+          return;
+        }
+        if (e.code === 'KeyP' && !editing) {
+          e.preventDefault(); window.openCrosshairSettings(); return;
+        }
+        if (editing) return;
         keys[e.code] = true;
 
         if (e.code === 'F1') {
@@ -3136,8 +3194,7 @@
 
           document.getElementById('hud-callout-name').textContent = player.callout;
           const elevSign = player.footY >= 0 ? '+' : '';
-          document.getElementById('hud-elevation-badge').textContent = `${elevSign}${player.footY.toFixed(1)}m`;
-        } else {
+          document.getElementById('hud-elevation-badge').textContent = `${elevSign}${player.footY.toFixed(1)}m`;        } else {
           // PLAYER IS DEAD -> LIVE 1ST-PERSON TEAMMATE SPECTATOR CAMERA!
           const specAlly = getCurrentSpectatedAlly();
           if (specAlly) {
@@ -3194,7 +3251,8 @@
               b.group.position.z += toTarget.z * 5.2 * dt;
               resolveCollisions3D(b.group.position, b.footY, 0.55, false, 'attack');
               const sup = getSurfaceSupport(b.group.position.x, b.group.position.z, b.footY);
-              b.footY = sup.y;              b.callout = sup.callout;
+              b.footY = sup.y;
+              b.callout = sup.callout;
               b.group.position.y = b.footY;
 
               const desiredYaw = Math.atan2(-toTarget.x, -toTarget.z);
@@ -3497,6 +3555,7 @@
           const holdingAnyFire = isMouseFiring || isKeyboardFiring || isLeftTouchFiring || isRightTouchFiring;
           if (holdingAnyFire && player.alive && getActiveWeapon().auto) attemptFire();
           updatePlayerAndSpectatorCamera(dt);
+          window.updateCrosshairErrors?.((keys['KeyW'] || keys['KeyA'] || keys['KeyS'] || keys['KeyD']) ? 3 : 0, now);
           updateBotsAndTeamCombat(dt);
           updateSpikeAndMatchRules(dt);
           window.MP.tick(dt);

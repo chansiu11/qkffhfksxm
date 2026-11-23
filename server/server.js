@@ -4,6 +4,7 @@ const crypto = require('node:crypto');
 const { URL } = require('node:url');
 const catalog = require('./weapons.json');
 const blockers = require('./blockers.json');
+const ShotgunPellets = require('../shotgun-pellets.js');
 const PORT = process.env.PORT == null ? 10000 : Number(process.env.PORT);
 const rooms = new Map();
 const clients = new Set();
@@ -141,6 +142,8 @@ function spawn(p, idx) {
   p.mag = catalog.classic.magSize;
   p.reserve = catalog.classic.resSize;
   p.reloading = false;
+  p.reloadWeapon = null;
+  p.reloadSeq = (p.reloadSeq || 0) + 1;
   p.heldSpike = false;
   p.actionFrom = 0;
   p.actionBase = 0;
@@ -252,45 +255,59 @@ function fire(r, p, msg) {
   if (p.ammo?.[p.weapon]) p.ammo[p.weapon].mag = p.mag;
   const yaw = finite(msg.yaw, -100000, 100000, p.yaw);
   const pitch = finite(msg.pitch, -1.48, 1.48, p.pitch);
-  // Three.js YXZ FPS camera: positive pitch looks upward. Never invert dy here.
-  const dx = -Math.sin(yaw) * Math.cos(pitch), dy = Math.sin(pitch), dz = -Math.cos(yaw) * Math.cos(pitch);
+  const spreadRotation = finite(msg.scatter, 0, Math.PI * 2, 0);
+  const directions = ShotgunPellets.directions(yaw, pitch, w.pellets || 1, w.spreadBase || 0, spreadRotation);
   const oy = p.y, ox = p.x, oz = p.z;
-  let best = Infinity, hit = null, headshot = false;
-  for (const target of r.players.values()) {
-    if (!target.alive || target.team === p.team) continue;
-    const tH = raySphere(ox,oy,oz,dx,dy,dz,target.x,target.footY+1.48,target.z,0.27);
-    const tB = raySphere(ox,oy,oz,dx,dy,dz,target.x,target.footY+0.88,target.z,0.54);
-    const t = Math.min(tH,tB);
-    if (t < best && t < w.range) { best = t; hit=target; headshot = tH <= tB; }
-  }
-  // Determine the visible ray endpoint even when no opponent is hit.
-  // The shooter already draws a predicted tracer; send the authoritative path to everyone else.
-  let impactDistance = w.range;
-  for (const b of blockers) {
-    const wallDistance = rayBox(ox,oy,oz,dx,dy,dz,b);
-    if (wallDistance > 0.06 && wallDistance < impactDistance) impactDistance = wallDistance;
-  }
-  if (hit && best > impactDistance + 0.02) hit = null;
-  if (hit) impactDistance = Math.min(impactDistance, best);
-  if (w.id !== 'knife') {
-    const bulletEvent = { type:'shot', shooter:p.id, weapon:p.weapon,
-      from:[ox+dx*0.28,oy+dy*0.28,oz+dz*0.28],
-      to:[ox+dx*impactDistance,oy+dy*impactDistance,oz+dz*impactDistance] };
-    for (const receiver of r.players.values()) if (receiver.id !== p.id) send(receiver.client, bulletEvent);
-  }
-  if (hit) {
-    let damage = headshot ? w.headDmg : w.bodyDmg;
-    const shield = Math.min(hit.armor, Math.round(damage * 0.55));
-    hit.armor -= shield; damage -= shield; hit.hp = Math.max(0, hit.hp - damage);
-    send(p.client,{type:'hit',headshot,damage});
-    if (hit.hp === 0) {
-      hit.alive=false; p.credits=clamp(p.credits+200,0,9000);
-      emitRoom(r,{type:'kill',killer:p.id,victim:hit.id,weapon:p.weapon,headshot});
-      const alive = roomUsers(r).filter(q=>q.team===hit.team&&q.alive).length;
-      if (!alive && !r.spike) endRound(r,p.team,'TEAM ELIMINATED');
+  let totalDamage = 0, anyHeadshot = false, hitCount = 0;
+  const ends = [];
+  for (const [dx, dy, dz] of directions) {
+    let impactDistance = w.range;
+    for (const b of blockers) {
+      const wall = rayBox(ox, oy, oz, dx, dy, dz, b);
+      if (wall > .06 && wall < impactDistance) impactDistance = wall;
     }
+    let best = impactDistance, hit = null, headshot = false;
+    for (const target of r.players.values()) {
+      if (!target.alive || target.team === p.team) continue;
+      const head = raySphere(ox, oy, oz, dx, dy, dz,
+        target.x, target.footY + 1.48, target.z, .27);
+      const body = raySphere(ox, oy, oz, dx, dy, dz,
+        target.x, target.footY + .88, target.z, .54);
+      const t = Math.min(head, body);
+      if (t < best) {best = t; hit = target; headshot = head <= body;}
+    }
+    if (hit) {
+      impactDistance = best;
+      const rawDamage = headshot ? w.headDmg : w.bodyDmg;
+      const shield = Math.min(hit.armor, Math.round(rawDamage * .55));
+      hit.armor -= shield;
+      const damage = rawDamage - shield;
+      hit.hp = Math.max(0, hit.hp - damage);
+      totalDamage += damage; hitCount++; anyHeadshot ||= headshot;
+      if (hit.hp === 0) {
+        hit.alive = false; p.credits = clamp(p.credits + 200, 0, 9000);
+        emitRoom(r, {type:'kill', killer:p.id, victim:hit.id, weapon:p.weapon, headshot});
+        if (!roomUsers(r).some(q => q.team === hit.team && q.alive) && !r.spike)
+          endRound(r, p.team, 'TEAM ELIMINATED');
+      }
+    }
+    ends.push([Math.round((ox + dx * impactDistance) * 100) / 100,
+      Math.round((oy + dy * impactDistance) * 100) / 100,
+      Math.round((oz + dz * impactDistance) * 100) / 100]);
   }
+  if (w.id !== 'knife') {
+    // One compact event per trigger pull, even with eight or ten visible pellets.
+    const first = directions[0];
+    const shot = {type:'shot', shooter:p.id, weapon:p.weapon,
+      from:[ox + first[0] * .28, oy + first[1] * .28, oz + first[2] * .28],
+      to:ends[0], pellets:directions.length > 1 ? ends : undefined};
+    for (const receiver of r.players.values())
+      if (receiver.id !== p.id) send(receiver.client, shot);
+  }
+  if (hitCount) send(p.client, {type:'hit', headshot:anyHeadshot,
+    damage:totalDamage, pelletsHit:hitCount});
 }
+
 function receive(c,m) {
   if (!m || typeof m !== 'object' || Array.isArray(m) || typeof m.type !== 'string') return;
   const now=Date.now();
@@ -311,9 +328,16 @@ function receive(c,m) {
     const slot=String(m.slot||'');
     const item=p.inventory?.[slot];
     if(!item||!catalog[item])return;
+    if (p.weapon !== item && p.reloading) {
+      p.reloading = false;
+      p.reloadWeapon = null;
+      p.reloadSeq = (p.reloadSeq || 0) + 1;
+      send(c, {type:'reload_cancelled'});
+    }
     p.weapon=item;
     p.mag=p.ammo[item]?.mag ?? catalog[item].magSize;
     p.reserve=p.ammo[item]?.reserve ?? catalog[item].resSize;
+    send(c, {type:'inventory',weapon:item,mag:p.mag,reserve:p.reserve});
   }
   else if(m.type==='move' && r.started && p.alive && ['combat','buy','planted'].includes(r.phase)) {
     const x=finite(m.x,-LIMIT,LIMIT,p.x),z=finite(m.z,-LIMIT,LIMIT,p.z),
@@ -340,18 +364,27 @@ function receive(c,m) {
     }
     send(c,{type:'purchase',item:id,credits:p.credits,armor:p.armor,mag:p.mag,reserve:p.reserve});
   } else if(m.type==='reload' && r.started && p.alive && !p.reloading) {
-    const w=catalog[p.weapon];
-    if(!w||p.mag>=w.magSize||p.reserve<=0)return;
+    const weaponId=p.weapon, w=catalog[weaponId];
+    if(!w || weaponId==='knife' || p.mag>=w.magSize || p.reserve<=0) {
+      send(c, {type:'reload_cancelled'});
+      return;
+    }
     p.reloading=true;
+    p.reloadWeapon=weaponId;
+    const sequence=p.reloadSeq=(p.reloadSeq || 0)+1;
     const playerId=p.id,roomCode=r.code;
     setTimeout(()=>{
       const room=rooms.get(roomCode), pl=room?.players.get(playerId);
-      if(!pl||!pl.reloading)return;
-      const spec=catalog[pl.weapon];
-      const take=Math.min(spec.magSize-pl.mag,pl.reserve);
-      pl.mag+=take;pl.reserve-=take;pl.reloading=false;
-      if(pl.ammo[pl.weapon])pl.ammo[pl.weapon]={mag:pl.mag,reserve:pl.reserve};
-      send(pl.client,{type:'inventory',weapon:pl.weapon,mag:pl.mag,reserve:pl.reserve});
+      if (!pl || !pl.reloading || pl.reloadSeq !== sequence ||
+          pl.reloadWeapon !== weaponId || pl.weapon !== weaponId) return;
+      const spec=catalog[weaponId];
+      const current=pl.ammo[weaponId] || {mag:pl.mag,reserve:pl.reserve};
+      const take=Math.min(spec.magSize-current.mag,current.reserve);
+      current.mag+=take; current.reserve-=take;
+      pl.ammo[weaponId]=current;
+      pl.mag=current.mag;pl.reserve=current.reserve;
+      pl.reloading=false;pl.reloadWeapon=null;
+      send(pl.client,{type:'inventory',weapon:weaponId,mag:pl.mag,reserve:pl.reserve});
     },1100);
   } else if (m.type==='spike' && r.started) {
     p.heldSpike=!!m.held;
@@ -385,7 +418,16 @@ function snapshot(r) {
     scores:r.scores,host:r.host,winRounds:r.winRounds,spike:r.spike,
     players:roomUsers(r).map(p=>({id:p.id,name:p.name,team:p.team,x:q(p.x),y:q(p.y),z:q(p.z),footY:q(p.footY),yaw:q(p.yaw),pitch:q(p.pitch),hp:p.hp,armor:p.armor,alive:p.alive,credits:p.credits,weapon:p.weapon,mag:p.mag,reserve:p.reserve,spikeAction:spikeAction(r,p,now)}))};
 }
-function broadcastState(r) { if(r.started)emitRoom(r,snapshot(r)); }
+function broadcastState(r) {
+  if (!r.started) return;
+  // Serialize one frame per room, not once for each participant.
+  const frame = Buffer.from(JSON.stringify(snapshot(r)));
+  for (const p of r.players.values()) {
+    const c = p.client;
+    if (c && !c.closed && c.socket.writable && !c.socket.destroyed &&
+        c.socket.writableLength < 24 * 1024) writeFrame(c.socket, 1, frame);
+  }
+}
 function step(r,now){
   if(!r.started)return;
   if (now>=r.until) {

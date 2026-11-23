@@ -50,6 +50,7 @@
       }
       this.active = false; this.started = false; this.myId = null;
       this.state = null; this.lastRound = 0; this.lastSpike = null;
+      this.lastMoveKey = null;
       this.token = null; this.roomCode = null; this.rtt = null;
       this.pingSent.clear(); this.retries = 0;
       this.removePeers();
@@ -83,6 +84,7 @@
         opened = true;
         clearTimeout(timeout);
         this.lastSent = 0;
+        this.lastMoveKey = null;
         // On reconnect, preserve the exact player identity, team and equipment.
         this.send(recovering ? {type:'resume',code:this.roomCode,token:this.token} : request);
         this.status(recovering ? '서버 연결 복구 확인 중...' : '연결 성공 · 방 정보 확인 중...');
@@ -205,22 +207,42 @@
         case 'round': this.lastRound = 0; break;
         case 'state': this.applyState(data); break;
         case 'purchase': this.applyPurchase(data); break;
-        case 'inventory':
-          if (a.player.activeSlot === 'primary' || a.player.activeSlot === 'secondary') {
-            const w = a.getActiveWeapon();
-            if (w.id === data.weapon) { w.mag = data.mag; w.reserve = data.reserve; }
+        case 'inventory': {
+          // Apply ammo to the weapon named in the server message, even when the
+          // player changed slots during a reload or equip acknowledgment.
+          for (const slot of ['primary', 'secondary']) {
+            const w = a.player[slot];
+            if (w?.id === data.weapon) {
+              w.mag = data.mag;
+              w.reserve = data.reserve;
+            }
           }
+          if (a.getActiveWeapon()?.id === data.weapon) {
+            a.player.reloading = false;
+            a.viewmodel.stopReload();
+          }
+          a.updateHUD();
+          break;
+        }
+        case 'reload_cancelled':
           a.player.reloading = false;
+          a.player.reloadId = (a.player.reloadId || 0) + 1;
           a.viewmodel.stopReload();
-          a.updateHUD(); break;
+          a.updateHUD();
+          break;
         case 'shot': {
           if (data.shooter === this.myId || !this.started || !this.api.matchState.inMatch) break;
           const xyz = v => Array.isArray(v) && v.length === 3 && v.every(Number.isFinite);
           if (xyz(data.from) && xyz(data.to)) {
             const start = new THREE.Vector3(...data.from);
-            const end = new THREE.Vector3(...data.to);
             const gun = a.WEAPON_CATALOG[data.weapon];
-            a.spawnBulletTracer(start, end, gun?.color || 0xffd567);
+            const lines = Array.isArray(data.pellets) && data.pellets.length <= 16
+              ? data.pellets.filter(xyz) : [data.to];
+            // Render all shotgun pellets, but keep one WS event per trigger pull.
+            for (const coords of lines) {
+              const end = new THREE.Vector3(...coords);
+              a.spawnBulletTracer(start, end, gun?.color || 0xffd567);
+            }
           }
           break;
         }
@@ -404,8 +426,10 @@
       const now=performance.now()/1000;
       if(now-p.lastShotTime < w.fireRate || (w.slot !== 'knife' && w.mag<=0)) return;
       p.lastShotTime=now;
+      const pelletRotation = Math.random() * Math.PI * 2;
       if(w.slot!=='knife')w.mag--;
       a.viewmodel.fire();
+      window.markCrosshairFiring?.();
       if(w.slot==='knife') {
         a.sfx.playKnifeSlash();
       } else {
@@ -413,10 +437,11 @@
         a.muzzleFlashMesh.material.opacity=1;
         setTimeout(()=>{a.muzzleFlashMesh.material.opacity=0;},45);
         a.gunGroup.position.z=-0.32;
-        // Visual prediction for the shooter; the server broadcasts the authoritative shot to other clients.
-        a.drawLocalShot(w);
+        // Visual prediction for the shooter uses the same pellet rotation as
+        // the authoritative server and broadcasts a single event to others.
+        a.drawLocalShot(w, pelletRotation);
       }
-      this.send({type:'shoot',yaw:p.yaw,pitch:p.pitch});
+      this.send({type:'shoot',yaw:p.yaw,pitch:p.pitch,scatter:pelletRotation});
       if(w.slot!=='knife')p.pitch=Math.min(1.48,p.pitch+w.recoilPitch);
       a.updateHUD();
     },
@@ -438,14 +463,21 @@
       for (const b of this.peers.values()) { if (b.targetPosition) b.group.position.lerp(b.targetPosition, Math.min(1, (dt || 0.016)*13)); }
       if (!this.active || !this.started || !this.api?.matchState.inMatch) return;
       const now=performance.now();
-      if(now-this.lastSent < (this.rtt != null && this.rtt>140 ? 80 : 65))return;
-      this.lastSent=now;
       const p=this.api.player;
-      // Smaller packets, fewer allocations and no stalled networking backlog.
-      const q=n=>Math.round(n*1000)/1000;
-      this.send({type:'move',x:q(p.pos.x),y:q(p.pos.y),z:q(p.pos.z),footY:q(p.footY),yaw:q(p.yaw),pitch:q(p.pitch)});
       const held=!!this.api.getSpikeHeld();
-      if(held!==this.lastSpike) {this.send({type:'spike',held});this.lastSpike=held;}
+      if(held!==this.lastSpike) {
+        if (this.send({type:'spike',held})) this.lastSpike=held;
+      }
+      if(now-this.lastSent < (this.rtt != null && this.rtt>140 ? 80 : 65))return;
+      // Do not flood the room with identical stationary/aim-still packets.
+      // A periodic 600ms refresh keeps server presence and hold state alive.
+      const q=n=>Math.round(n*1000)/1000;
+      const move={type:'move',x:q(p.pos.x),y:q(p.pos.y),z:q(p.pos.z),
+        footY:q(p.footY),yaw:q(p.yaw),pitch:q(p.pitch)};
+      const key=`${move.x}|${move.y}|${move.z}|${move.footY}|${move.yaw}|${move.pitch}`;
+      if (key !== this.lastMoveKey || now-this.lastSent >= 600) {
+        if (this.send(move)) {this.lastMoveKey=key; this.lastSent=now;}
+      }
       const el=document.getElementById('hud-context-prompt');
       const box=document.getElementById('spike-action-box');
       const bar=document.getElementById('spike-action-bar');
