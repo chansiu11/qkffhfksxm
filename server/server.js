@@ -5,6 +5,7 @@ const { URL } = require('node:url');
 const catalog = require('./weapons.json');
 const blockers = require('./blockers.json');
 const ShotgunPellets = require('../shotgun-pellets.js');
+const {recordPosition, rayCharacter, MAX_REWIND_MS} = require('./hit-registry.js');
 const PORT = process.env.PORT == null ? 10000 : Number(process.env.PORT);
 const rooms = new Map();
 const clients = new Set();
@@ -143,12 +144,15 @@ function spawn(p, idx) {
   p.reserve = catalog.classic.resSize;
   p.reloading = false;
   p.reloadWeapon = null;
+  p.reloadEndsAt = 0;
   p.reloadSeq = (p.reloadSeq || 0) + 1;
   p.heldSpike = false;
   p.actionFrom = 0;
   p.actionBase = 0;
   p.lastPosAt = 0;
   p.lastShot = 0;
+  p.positionHistory=[];
+  recordPosition(p);
 }
 function createRoom(c, msg) {
   if (c.room) return notify(c, '이미 방에 참가했습니다.');
@@ -249,7 +253,7 @@ function fire(r, p, msg) {
   const w = catalog[p.weapon] || catalog.classic;
   const now = Date.now();
   if (now - p.lastShot < (w.fireRate * 1000 - 8)) return;
-  if (w.id !== 'knife' && p.mag <= 0) return;
+  if (w.id !== 'knife' && p.mag <= 0) {send(p.client,{type:'ammo_sync',weapon:p.weapon,mag:p.mag,reserve:p.reserve});return;}
   p.lastShot = now;
   if (w.id !== 'knife') p.mag--;
   if (p.ammo?.[p.weapon]) p.ammo[p.weapon].mag = p.mag;
@@ -257,7 +261,14 @@ function fire(r, p, msg) {
   const pitch = finite(msg.pitch, -1.48, 1.48, p.pitch);
   const spreadRotation = finite(msg.scatter, 0, Math.PI * 2, 0);
   const directions = ShotgunPellets.directions(yaw, pitch, w.pellets || 1, w.spreadBase || 0, spreadRotation);
-  const oy = p.y, ox = p.x, oz = p.z;
+  // Use the current camera origin if it is consistent with the last server move.
+  // The move packet can arrive up to one network tick after the shot.
+  const from=Array.isArray(msg.from)&&msg.from.length===3&&msg.from.every(Number.isFinite)?msg.from:null;
+  const useFrom=from && Math.hypot(from[0]-p.x,from[2]-p.z)<1.05 && Math.abs(from[1]-p.y)<.65;
+  const ox=useFrom?from[0]:p.x,oy=useFrom?from[1]:p.y,oz=useFrom?from[2]:p.z;
+  // Clients aim at the interpolated previous snapshot; rewind ONLY character
+  // positions, never walls, by a strictly bounded amount of server time.
+  const shotAt=finite(msg.seenAt,now-MAX_REWIND_MS,now,now);
   let totalDamage = 0, anyHeadshot = false, hitCount = 0;
   const ends = [];
   for (const [dx, dy, dz] of directions) {
@@ -269,19 +280,19 @@ function fire(r, p, msg) {
     let best = impactDistance, hit = null, headshot = false;
     for (const target of r.players.values()) {
       if (!target.alive || target.team === p.team) continue;
-      const head = raySphere(ox, oy, oz, dx, dy, dz,
-        target.x, target.footY + 1.48, target.z, .27);
-      const body = raySphere(ox, oy, oz, dx, dy, dz,
-        target.x, target.footY + .88, target.z, .54);
-      const t = Math.min(head, body);
-      if (t < best) {best = t; hit = target; headshot = head <= body;}
+      const intersection=rayCharacter(ox,oy,oz,dx,dy,dz,target,shotAt);
+      if(intersection && intersection.distance<best) {
+        best=intersection.distance;hit=target;headshot=intersection.headshot;
+      }
     }
     if (hit) {
       impactDistance = best;
       const rawDamage = headshot ? w.headDmg : w.bodyDmg;
       const shield = Math.min(hit.armor, Math.round(rawDamage * .55));
       hit.armor -= shield;
-      const damage = rawDamage - shield;
+      // An Operator center-body hit is a one-shot at full health even with
+      // heavy armor (150 base damage vs 100 health + 50 armor).
+      const damage = w.id==='operator' && !headshot ? Math.max(100,rawDamage-shield) : rawDamage-shield;
       hit.hp = Math.max(0, hit.hp - damage);
       totalDamage += damage; hitCount++; anyHeadshot ||= headshot;
       if (hit.hp === 0) {
@@ -330,9 +341,11 @@ function receive(c,m) {
     if(!item||!catalog[item])return;
     if (p.weapon !== item && p.reloading) {
       p.reloading = false;
+      const cancelledWeapon=p.reloadWeapon;
       p.reloadWeapon = null;
+      p.reloadEndsAt=0;
       p.reloadSeq = (p.reloadSeq || 0) + 1;
-      send(c, {type:'reload_cancelled'});
+      send(c, {type:'reload_cancelled',weapon:cancelledWeapon,reason:'switched'});
     }
     p.weapon=item;
     p.mag=p.ammo[item]?.mag ?? catalog[item].magSize;
@@ -346,9 +359,10 @@ function receive(c,m) {
     // Server bounds movement speed and does not accept arbitrary teleports.
     if(Math.hypot(x-p.x,z-p.z)<= 12.0*dt+0.8 && Math.abs(footY-p.footY)<4.0) {
       p.x=x;p.z=z;p.y=y;p.footY=footY;
+      p.yaw=finite(m.yaw,-1e6,1e6,p.yaw);
+      p.pitch=finite(m.pitch,-1.48,1.48,p.pitch);
+      recordPosition(p,now);
     }
-    p.yaw=finite(m.yaw,-1e6,1e6,p.yaw);
-    p.pitch=finite(m.pitch,-1.48,1.48,p.pitch);
     p.lastPosAt=now;
   } else if(m.type==='shoot' && r.started) fire(r,p,m);
   else if(m.type==='buy' && r.phase==='buy' && p.alive) {
@@ -363,29 +377,41 @@ function receive(c,m) {
       p.ammo[id]={mag:p.mag,reserve:p.reserve};
     }
     send(c,{type:'purchase',item:id,credits:p.credits,armor:p.armor,mag:p.mag,reserve:p.reserve});
-  } else if(m.type==='reload' && r.started && p.alive && !p.reloading) {
+  } else if(m.type==='reload' && r.started && p.alive) {
     const weaponId=p.weapon, w=catalog[weaponId];
-    if(!w || weaponId==='knife' || p.mag>=w.magSize || p.reserve<=0) {
-      send(c, {type:'reload_cancelled'});
+    // Return explicit start/cancel/complete events, never silently ignore R.
+    if(p.reloading){
+      send(c,{type:'reload_started',weapon:p.reloadWeapon,
+        remainingMs:Math.max(0,p.reloadEndsAt-now)});
+      return;
+    }
+    if(!w || weaponId==='knife' || p.mag>=w.magSize || p.reserve<=0 ||
+       (m.weapon && m.weapon!==weaponId)) {
+      send(c,{type:'reload_cancelled',weapon:weaponId,reason:'invalid'});
+      send(c,{type:'ammo_sync',weapon:weaponId,mag:p.mag,reserve:p.reserve});
       return;
     }
     p.reloading=true;
     p.reloadWeapon=weaponId;
+    const duration=1100;
+    p.reloadEndsAt=now+duration;
     const sequence=p.reloadSeq=(p.reloadSeq || 0)+1;
+    send(c,{type:'reload_started',weapon:weaponId,remainingMs:duration});
     const playerId=p.id,roomCode=r.code;
     setTimeout(()=>{
-      const room=rooms.get(roomCode), pl=room?.players.get(playerId);
+      const room=rooms.get(roomCode),pl=room?.players.get(playerId);
       if (!pl || !pl.reloading || pl.reloadSeq !== sequence ||
           pl.reloadWeapon !== weaponId || pl.weapon !== weaponId) return;
       const spec=catalog[weaponId];
       const current=pl.ammo[weaponId] || {mag:pl.mag,reserve:pl.reserve};
-      const take=Math.min(spec.magSize-current.mag,current.reserve);
-      current.mag+=take; current.reserve-=take;
+      const take=Math.max(0,Math.min(spec.magSize-current.mag,current.reserve));
+      current.mag+=take;current.reserve-=take;
       pl.ammo[weaponId]=current;
       pl.mag=current.mag;pl.reserve=current.reserve;
-      pl.reloading=false;pl.reloadWeapon=null;
+      pl.reloading=false;pl.reloadWeapon=null;pl.reloadEndsAt=0;
+      send(pl.client,{type:'reload_done',weapon:weaponId,mag:pl.mag,reserve:pl.reserve});
       send(pl.client,{type:'inventory',weapon:weaponId,mag:pl.mag,reserve:pl.reserve});
-    },1100);
+    },duration);
   } else if (m.type==='spike' && r.started) {
     p.heldSpike=!!m.held;
     if(!p.heldSpike) {p.actionFrom=0;p.actionBase=0;}
@@ -414,9 +440,9 @@ function snapshot(r) {
   const now=Date.now();
   // Quantize positions to centimetres, enough for FPS interpolation and smaller packets.
   const q=n=>Math.round(n*100)/100;
-  return {type:'state',code:r.code,round:r.round,phase:r.phase,timer:q(Math.max(0,(r.until-now)/1000)),
+  return {type:'state',serverAt:now,code:r.code,round:r.round,phase:r.phase,timer:q(Math.max(0,(r.until-now)/1000)),
     scores:r.scores,host:r.host,winRounds:r.winRounds,spike:r.spike,
-    players:roomUsers(r).map(p=>({id:p.id,name:p.name,team:p.team,x:q(p.x),y:q(p.y),z:q(p.z),footY:q(p.footY),yaw:q(p.yaw),pitch:q(p.pitch),hp:p.hp,armor:p.armor,alive:p.alive,credits:p.credits,weapon:p.weapon,mag:p.mag,reserve:p.reserve,spikeAction:spikeAction(r,p,now)}))};
+    players:roomUsers(r).map(p=>({id:p.id,name:p.name,team:p.team,x:q(p.x),y:q(p.y),z:q(p.z),footY:q(p.footY),yaw:q(p.yaw),pitch:q(p.pitch),hp:p.hp,armor:p.armor,alive:p.alive,credits:p.credits,weapon:p.weapon,mag:p.mag,reserve:p.reserve,reloading:p.reloading,reloadWeapon:p.reloadWeapon,spikeAction:spikeAction(r,p,now)}))};
 }
 function broadcastState(r) {
   if (!r.started) return;

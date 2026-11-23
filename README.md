@@ -97,3 +97,12 @@ node server/server.js
 - Tracers render as thin straight `THREE.Line` segments from shot origin to hit endpoint; there is no flying bullet geometry or travel-time animation.
 - Lines fade over 0.13s. Real hit detection was already immediate and remains unchanged.
 - Run `node --test tests/*.test.js` to verify effects and multiplayer regressions.
+
+## 명중 판정·재장전 안정화 (2026-11-23)
+
+- 온라인 상대의 머리/몸 판정은 화면에 보이는 Three.js 머리/몸 상자 모델의 크기 및 회전에 맞춰 처리합니다. 머리 상자의 가장자리와 몸통 하단도 서버에서 판정합니다.
+- 서버는 최근 750ms의 플레이어 위치 기록을 유지하고, 발사 클라이언트가 실제로 보던 보간 스냅샷 시각으로 적 위치를 **최대 320ms**까지 되돌려 검사합니다. 벽/장애물 판정은 현재 서버 상태를 기준으로 유지합니다. 이 보정은 네트워크 지연에 따른 시각적 불일치를 줄이지만, 패킷 손실이나 무기별 피해량을 무시해 무조건 명중시키는 기능은 아닙니다.
+- 클라이언트는 발사 시점의 좌표/조준 방향을 위치 패킷과 함께 서버에 전송합니다. 서버는 비정상적으로 멀리 떨어진 발사 원점은 인정하지 않습니다.
+- 온라인 재장전은 `reload_started`, `reload_done`, `reload_cancelled`로 상태를 구분해 처리합니다. 단순 장비/탄약 패킷으로 장전 모션이 중간에 취소되지 않게 했고, 장전 완료 시 서버 탄약량을 해당 무기에 동기화합니다. 탄약이 0발인 상태에서 발사를 시도하면 장전을 시작합니다.
+- 오퍼레이터는 몸통 150 기본 피해량을 유지하며 체력 100 + 방어구 50인 상대의 몸통 명중 시에도 한 발 처치가 되도록 서버 테스트를 추가했습니다. 일반 무기의 모든 머리 공격이 항상 한 발 처치인 것은 아니며 무기별 `headDmg`을 유지합니다.
+- 검증: `node --test tests/*.test.js` (27 tests). 온라인 다중 기기의 실제 회선 RTT와 3D 렌더링 정확도는 별도 실측이 필요합니다.

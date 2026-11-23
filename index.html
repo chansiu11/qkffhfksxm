@@ -2034,6 +2034,7 @@
       function startNewRound() {
         player.reloadId = (player.reloadId || 0) + 1;
         player.reloading = false;
+        player.pendingReloadWeapon = null;
         viewmodel.stopReload();
         isSpikeMobileToggleLock = false;
         isSpikeKeyHeld = false;
@@ -2394,8 +2395,8 @@
             try { document.exitPointerLock(); } catch (err) {}
           }
           syncCheatPermissionUI();
-          modal.classList.remove('hidden');
-        } else {          modal.classList.add('hidden');
+          modal.classList.remove('hidden');        } else {
+          modal.classList.add('hidden');
           if (matchState.inMatch) tryLockPointerSafe();
         }
         sfx.playUI();
@@ -2668,6 +2669,7 @@
         const w = getActiveWeapon();
         if (w.slot === 'knife' || w.mag >= w.magSize || w.reserve <= 0) return;
         player.reloading = true;
+        player.pendingReloadWeapon = w.id;
         const reloadId = (player.reloadId = (player.reloadId || 0) + 1);
         const reloadWeaponId = w.id;
         viewmodel.beginReload();
@@ -2675,6 +2677,7 @@
         if (window.MP.active) {
           if (!window.MP.send({type:'reload',weapon:reloadWeaponId})) {
             player.reloading = false;
+            player.pendingReloadWeapon = null;
             viewmodel.stopReload();
             return;
           }
@@ -2682,9 +2685,10 @@
           // not leave the reload lock engaged forever or change another weapon.
           setTimeout(() => {
             if (player.reloading && player.reloadId === reloadId) {
-              player.reloading = false; viewmodel.stopReload(); updateHUD();
+              player.reloading = false; player.pendingReloadWeapon = null;
+              viewmodel.stopReload(); updateHUD();
             }
-          }, 2500);
+          }, 4000);
           return;
         }
         setTimeout(() => {
@@ -2694,6 +2698,7 @@
           w.mag += take;
           w.reserve -= take;
           player.reloading = false;
+          player.pendingReloadWeapon = null;
           viewmodel.stopReload();
           updateHUD();
         }, 1100);
@@ -2704,6 +2709,7 @@
         if (slot !== player.activeSlot) {
           player.reloadId = (player.reloadId || 0) + 1;
           player.reloading = false;
+          player.pendingReloadWeapon = null;
           viewmodel.stopReload();
         }
         if (window.MP.active && window.MP.started) window.MP.send({type:'equip',slot});
@@ -3188,13 +3194,13 @@
             const knifeBonus = player.activeSlot === 'knife' ? 1.15 : 1.0;
             const baseSpeed = (isCrouching || isWalkingSlow) ? 4.3 : 7.6;
             const walkSpeed = baseSpeed * knifeBonus;
-
             player.vel.x = wishDir.x * walkSpeed;
             player.vel.z = wishDir.z * walkSpeed;
             player.pos.x += player.vel.x * dt;
             player.pos.z += player.vel.z * dt;
 
             resolveCollisions3D(player.pos, player.footY, 0.62, matchState.phase === 'buy', roomState.playerSide);
+
             const sup = getSurfaceSupport(player.pos.x, player.pos.z, player.footY);
             player.callout = sup.callout;
 

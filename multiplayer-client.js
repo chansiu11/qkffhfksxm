@@ -207,27 +207,47 @@
         case 'round': this.lastRound = 0; break;
         case 'state': this.applyState(data); break;
         case 'purchase': this.applyPurchase(data); break;
-        case 'inventory': {
-          // Apply ammo to the weapon named in the server message, even when the
-          // player changed slots during a reload or equip acknowledgment.
-          for (const slot of ['primary', 'secondary']) {
-            const w = a.player[slot];
-            if (w?.id === data.weapon) {
-              w.mag = data.mag;
-              w.reserve = data.reserve;
-            }
+        case 'inventory':
+        case 'ammo_sync': {
+          // Equip and combat snapshots must not accidentally finish a running
+          // reload; the server sends a dedicated reload_done event for that.
+          for (const slot of ['primary','secondary']) {
+            const w=a.player[slot];
+            if (w?.id === data.weapon) {w.mag=data.mag;w.reserve=data.reserve;}
           }
-          if (a.getActiveWeapon()?.id === data.weapon) {
-            a.player.reloading = false;
+          a.updateHUD();
+          break;
+        }
+        case 'reload_started': {
+          if (a.getActiveWeapon()?.id===data.weapon) {
+            a.player.reloading=true;
+            a.player.pendingReloadWeapon=data.weapon;
+            if (!a.viewmodel.isReloading) a.viewmodel.beginReload();
+          }
+          a.updateHUD();
+          break;
+        }
+        case 'reload_done': {
+          for (const slot of ['primary','secondary']) {
+            const w=a.player[slot];
+            if (w?.id===data.weapon){w.mag=data.mag;w.reserve=data.reserve;}
+          }
+          if (a.player.pendingReloadWeapon===data.weapon) {
+            a.player.pendingReloadWeapon=null;
+            a.player.reloading=false;
+            a.player.reloadId=(a.player.reloadId||0)+1;
             a.viewmodel.stopReload();
           }
           a.updateHUD();
           break;
         }
         case 'reload_cancelled':
-          a.player.reloading = false;
-          a.player.reloadId = (a.player.reloadId || 0) + 1;
-          a.viewmodel.stopReload();
+          if (!data.weapon || a.player.pendingReloadWeapon===data.weapon) {
+            a.player.pendingReloadWeapon=null;
+            a.player.reloading=false;
+            a.player.reloadId=(a.player.reloadId||0)+1;
+            a.viewmodel.stopReload();
+          }
           a.updateHUD();
           break;
         case 'shot': {
@@ -369,6 +389,12 @@
       a.player.credits = me.credits;
       const gun = a.getActiveWeapon();
       if (gun.id === me.weapon) { gun.mag = me.mag; gun.reserve = me.reserve; }
+      // The UI can be optimistic while waiting for a reload ack, but the
+      // authoritative server completion always unlocks it eventually.
+      if (me.reloading && me.reloadWeapon === gun.id) {
+        a.player.reloading=true;
+        a.player.pendingReloadWeapon=gun.id;
+      }
       // Honor server spawn on round start and server corrections for abnormal movement.
       if (state.phase === 'buy' && state.timer > 15.5) {
         a.player.pos.set(me.x, me.y, me.z);
@@ -400,6 +426,10 @@
         b.spotted = state.phase !== 'buy' && (isAlly || Math.hypot(rp.x - a.player.pos.x, rp.z - a.player.pos.z) < 20);
         if (!b.targetPosition) b.targetPosition = new THREE.Vector3();
         b.targetPosition.set(rp.x, rp.footY, rp.z);
+        if (Number.isFinite(state.serverAt)) {
+          b.targetAt=state.serverAt;
+          if (!b.hasServerPosition) b.renderAt=b.targetAt;
+        }
         if (!b.hasServerPosition) { b.group.position.copy(b.targetPosition); b.hasServerPosition=true; }
         b.group.rotation.y = rp.yaw;
         b.group.visible = rp.alive && state.phase !== 'buy';
@@ -420,13 +450,38 @@
       this.peers.clear();
     },
     fire() {
-      const a=this.api, p=a.player;
+      const a=this.api,p=a.player;
       if (!this.started || !p.alive || p.reloading || this.state?.phase === 'buy') return;
       const w=a.getActiveWeapon();
       const now=performance.now()/1000;
-      if(now-p.lastShotTime < w.fireRate || (w.slot !== 'knife' && w.mag<=0)) return;
+      if(now-p.lastShotTime < w.fireRate) return;
+      if(w.slot !== 'knife' && w.mag<=0){window.triggerReload?.();return;}
+      const pelletRotation=Math.random()*Math.PI*2;
+      // Clients render opponent positions slightly behind the latest server
+      // state to smooth 10 Hz snapshots. Send that visual timestamp so the
+      // server can evaluate the same historical pose, not a newer position.
+      const cp=Math.cos(p.pitch);
+      const aim=[-Math.sin(p.yaw)*cp,Math.sin(p.pitch),-Math.cos(p.yaw)*cp];
+      let seenAt=Number.isFinite(this.state?.serverAt)?this.state.serverAt:Date.now();
+      let bestScore=Infinity;
+      for(const b of this.peers.values()) {
+        if (b.team!=='enemy'||!b.alive||!Number.isFinite(b.renderAt)) continue;
+        const v=[b.group.position.x-p.pos.x,b.group.position.y+1.4-p.pos.y,b.group.position.z-p.pos.z];
+        const dist=Math.hypot(...v);
+        if (dist<.1||dist>225)continue;
+        const dot=v[0]*aim[0]+v[1]*aim[1]+v[2]*aim[2];
+        if(dot<=0)continue;
+        const offset=Math.sqrt(Math.max(0,dist*dist-dot*dot));
+        if(offset<Math.max(1,dist*.04) && offset<bestScore){bestScore=offset;seenAt=b.renderAt;}
+      }
+      const from=[p.pos.x,p.pos.y,p.pos.z];
+      // Update the authoritative firing origin before the fire request. WebSocket
+      // preserves message ordering; this avoids shooting from stale positions.
+      this.send({type:'move',x:p.pos.x,y:p.pos.y,z:p.pos.z,footY:p.footY,
+        yaw:p.yaw,pitch:p.pitch});
+      if(!this.send({type:'shoot',yaw:p.yaw,pitch:p.pitch,scatter:pelletRotation,
+        seenAt:Math.round(seenAt),from}))return;
       p.lastShotTime=now;
-      const pelletRotation = Math.random() * Math.PI * 2;
       if(w.slot!=='knife')w.mag--;
       a.viewmodel.fire();
       window.markCrosshairFiring?.();
@@ -437,12 +492,9 @@
         a.muzzleFlashMesh.material.opacity=1;
         setTimeout(()=>{a.muzzleFlashMesh.material.opacity=0;},45);
         a.gunGroup.position.z=-0.32;
-        // Visual prediction for the shooter uses the same pellet rotation as
-        // the authoritative server and broadcasts a single event to others.
-        a.drawLocalShot(w, pelletRotation);
+        a.drawLocalShot(w,pelletRotation);
+        p.pitch=Math.min(1.48,p.pitch+w.recoilPitch);
       }
-      this.send({type:'shoot',yaw:p.yaw,pitch:p.pitch,scatter:pelletRotation});
-      if(w.slot!=='knife')p.pitch=Math.min(1.48,p.pitch+w.recoilPitch);
       a.updateHUD();
     },
     buy(id) { this.send({type:'buy',item:id}); },
@@ -460,7 +512,13 @@
       const fb=document.getElementById('shop-feedback');if(fb)fb.textContent='SERVER: 구매 완료';
     },
     tick(dt) {
-      for (const b of this.peers.values()) { if (b.targetPosition) b.group.position.lerp(b.targetPosition, Math.min(1, (dt || 0.016)*13)); }
+      for (const b of this.peers.values()) {
+        if (!b.targetPosition) continue;
+        const alpha=Math.min(1,(dt||0.016)*13);
+        b.group.position.lerp(b.targetPosition,alpha);
+        if (Number.isFinite(b.targetAt) && Number.isFinite(b.renderAt))
+          b.renderAt+=(b.targetAt-b.renderAt)*alpha;
+      }
       if (!this.active || !this.started || !this.api?.matchState.inMatch) return;
       const now=performance.now();
       const p=this.api.player;
