@@ -5,6 +5,7 @@ const { URL } = require('node:url');
 const catalog = require('./weapons.json');
 const blockers = require('./blockers.json');
 const ShotgunPellets = require('../shotgun-pellets.js');
+const ShootingSpread = require('../shooting-spread.js');
 const MeleeRules = require('../melee-rules.js');
 const {recordPosition, samplePosition, rayCharacter, MAX_REWIND_MS} = require('./hit-registry.js');
 const PORT = process.env.PORT == null ? 10000 : Number(process.env.PORT);
@@ -152,6 +153,9 @@ function spawn(p, idx) {
   p.actionBase = 0;
   p.lastPosAt = 0;
   p.lastShot = 0;
+  p.spreadState = {};
+  p.movementSpeed = 0;
+  p.lastMovedAt = 0;
   p.positionHistory=[];
   recordPosition(p);
 }
@@ -263,7 +267,27 @@ function fire(r, p, msg) {
   const yaw = finite(msg.yaw, -100000, 100000, p.yaw);
   const pitch = finite(msg.pitch, -1.48, 1.48, p.pitch);
   const spreadRotation = finite(msg.scatter, 0, Math.PI * 2, 0);
-  const directions = ShotgunPellets.directions(yaw, pitch, w.pellets || 1, w.spreadBase || 0, spreadRotation);
+  // Virtual shooting spread is reconstructed from the same deterministic seed
+  // as the client. The room owns the burst history; clients cannot force an
+  // arbitrary high/low recoil state after a long sequence of shots.
+  let directions=[];
+  if(w.id!=='knife') {
+    const state=p.spreadState||(p.spreadState={});
+    const serverBurst=ShootingSpread.burstIndex(state,w,now);
+    const claimedBurst=finite(msg.burst,0,19,serverBurst);
+    const burst=Math.abs(claimedBurst-serverBurst)<=1?claimedBurst:serverBurst;
+    ShootingSpread.confirmShot(state,w,now,burst);
+    // Recent observed movement prevents zero-speed requests while running.
+    const recentMove=now-(p.lastMovedAt||0)<190?p.movementSpeed||0:0;
+    const clientMove=finite(msg.speed,0,8.5,recentMove);
+    const speed=Math.max(clientMove,recentMove*.70);
+    const roll=ShootingSpread.directions(w, {
+      yaw,pitch,shotIndex:burst,seed:finite(msg.seed,0,4294967295,0),
+      speed,airborne:msg.airborne===true,crouched:msg.crouched===true,
+      ads:msg.ads===true,scatter:spreadRotation
+    }, ShotgunPellets);
+    directions=roll.vectors;
+  }
   // Use the current camera origin if it is consistent with the last server move.
   // The move packet can arrive up to one network tick after the shot.
   const from=Array.isArray(msg.from)&&msg.from.length===3&&msg.from.every(Number.isFinite)?msg.from:null;
@@ -390,7 +414,12 @@ function receive(c,m) {
           footY=finite(m.footY,-2,9,p.footY),y=finite(m.y,-1,14,p.y);
     const dt=p.lastPosAt?clamp((now-p.lastPosAt)/1000,0.03,0.35):0.2;
     // Server bounds movement speed and does not accept arbitrary teleports.
-    if(Math.hypot(x-p.x,z-p.z)<= 12.0*dt+0.8 && Math.abs(footY-p.footY)<4.0) {
+    const moved=Math.hypot(x-p.x,z-p.z);
+    if(moved<=12.0*dt+0.8 && Math.abs(footY-p.footY)<4.0) {
+      if(moved>.015) {
+        p.movementSpeed=clamp(moved/dt,0,8.5);
+        p.lastMovedAt=now;
+      } else if(now-(p.lastMovedAt||0)>160) p.movementSpeed=0;
       p.x=x;p.z=z;p.y=y;p.footY=footY;
       p.yaw=finite(m.yaw,-1e6,1e6,p.yaw);
       p.pitch=finite(m.pitch,-1.48,1.48,p.pitch);

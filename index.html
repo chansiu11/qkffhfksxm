@@ -16,6 +16,7 @@
   <!-- Three.js r128 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="shotgun-pellets.js"></script>
+  <script src="shooting-spread.js?v=20261124-spread"></script>
   <script src="crosshair-profile.js"></script>
   <script src="crosshair-ui.js" defer></script>
   <script src="ads-system.js?v=20261124-ads100"></script>
@@ -2591,11 +2592,11 @@
 
       // Gameplay hit rays come from the crosshair; visible hitscan lines start
       // at the paper's far/muzzle edge and end at the hit-ray impact point.
-      function drawLocalShot(weapon, pelletRotation = 0) {
+      function drawLocalShot(weapon, pelletRotation = 0, spreadResult = null) {
         if (weapon.slot === 'knife') return;
         const maxDist = weapon.range || 200;
         const origin = player.pos.clone();
-        const pelletDirections = ShotgunPellets.directions(player.yaw, player.pitch,
+        const pelletDirections = spreadResult?.vectors || ShotgunPellets.directions(player.yaw, player.pitch,
           weapon.pellets || 1, weapon.spreadBase || 0, pelletRotation);
         scene.updateMatrixWorld(true);
         for (const vector of pelletDirections) {
@@ -2640,10 +2641,19 @@
           gunGroup.position.z = -0.32;
         }
 
-        // One fixed fan per trigger pull: real pellets and visible streaks use the same rays.
+        // Moving and sustained fire displace the virtual shot cone for every gun.
+        // A deterministic seed and the same module are also used online.
         const pelletRotation = Math.random() * Math.PI * 2;
-        const pelletDirections = ShotgunPellets.directions(player.yaw, player.pitch,
-          w.pellets || 1, w.spreadBase || 0, pelletRotation);
+        const shotAtMs = performance.now();
+        const burstState = w._spreadState || (w._spreadState = {});
+        const burst = ShootingSpread.burstIndex(burstState, w, shotAtMs);
+        const spreadResult = ShootingSpread.directions(w, {
+          yaw: player.yaw, pitch: player.pitch, ...ShootingSpread.motion(player),
+          shotIndex: burst, seed: (Math.random() * 4294967296) >>> 0,
+          scatter: pelletRotation
+        }, ShotgunPellets);
+        ShootingSpread.confirmShot(burstState, w, shotAtMs, burst);
+        const pelletDirections = spreadResult.vectors;
         // Update mesh world transforms so ray collision matches the visible geometry.
         scene.updateMatrixWorld(true);
 
@@ -3641,7 +3651,7 @@
           if (holdingAnyFire && player.alive && getActiveWeapon().auto) attemptFire();
           updateADSFrame(now);
           updatePlayerAndSpectatorCamera(dt);
-          window.updateCrosshairErrors?.((keys['KeyW'] || keys['KeyA'] || keys['KeyS'] || keys['KeyD']) ? 3 : 0, now);
+          window.updateCrosshairErrors?.(ShootingSpread.crosshairError(getActiveWeapon(), player, now), now);
           updateBotsAndTeamCombat(dt);
           updateSpikeAndMatchRules(dt);
           window.MP.tick(dt);

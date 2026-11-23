@@ -15,7 +15,7 @@ function newClient() {
     sfx:{playGunshot(){},playKnifeSlash(){}},muzzleFlashMesh:{material:{opacity:0}},
     gunGroup:{position:{z:0}},drawLocalShot(){},updateHUD(){},syncCheatPermissionUI(){}};
   const window={addEventListener(){},GAME_SERVER_URL:'https://example.test'};
-  const context={window,document:{getElementById:()=>null},WebSocket:{OPEN:1},
+  const context={window,ShootingSpread:require('../shooting-spread.js'),ShotgunPellets:require('../shotgun-pellets.js'),document:{getElementById:()=>null},WebSocket:{OPEN:1},
     console,performance,setTimeout,clearTimeout,setInterval:()=>0,clearInterval:()=>{},Map,Math,JSON};
   vm.createContext(context);
   vm.runInContext(fs.readFileSync(path.join(__dirname,'..','multiplayer-client.js'),'utf8'),context);
@@ -51,6 +51,9 @@ test('shot sends latest position before bullet and rewound rendering timestamp',
   assert.equal(packets[1].seenAt,123456789);
   assert.equal(packets[1].from[0],c.player.pos.x);
   assert.equal(c.gun.mag,1);
+  assert(Number.isInteger(packets[1].seed));
+  assert.equal(packets[1].burst,0);
+  assert.equal(typeof packets[1].speed,'number');
 });
 
 test('out-of-sync reload refusal unlocks input rather than trapping the player',()=>{

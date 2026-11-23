@@ -486,6 +486,13 @@
       if(now-p.lastShotTime < rate) return;
       if(w.slot !== 'knife' && w.mag<=0){window.triggerReload?.();return;}
       const pelletRotation=Math.random()*Math.PI*2;
+      const nowMs=performance.now();
+      const burstState=w._spreadState||(w._spreadState={});
+      const burst=ShootingSpread.burstIndex(burstState,w,nowMs);
+      const seed=(Math.random()*4294967296)>>>0;
+      const locomotion=ShootingSpread.motion(p);
+      const shotParams={yaw:p.yaw,pitch:p.pitch,...locomotion,shotIndex:burst,seed,scatter:pelletRotation};
+      const spreadResult=w.slot==='knife'?null:ShootingSpread.directions(w,shotParams,ShotgunPellets);
       // Clients render opponent positions slightly behind the latest server
       // state to smooth 10 Hz snapshots. Send that visual timestamp so the
       // server can evaluate the same historical pose, not a newer position.
@@ -509,9 +516,12 @@
       this.send({type:'move',x:p.pos.x,y:p.pos.y,z:p.pos.z,footY:p.footY,
         yaw:p.yaw,pitch:p.pitch});
       if(!this.send({type:'shoot',yaw:p.yaw,pitch:p.pitch,scatter:pelletRotation,
+        burst,seed,speed:Math.min(8.5,locomotion.speed),airborne:locomotion.airborne,
+        crouched:locomotion.crouched,ads:locomotion.ads,
         mode:w.slot === 'knife' ? MeleeRules.modeFor(knifeMode) : undefined,
         seenAt:Math.round(seenAt),from}))return;
       p.lastShotTime=now;
+      if(w.slot!=='knife')ShootingSpread.confirmShot(burstState,w,nowMs,burst);
       if(w.slot!=='knife')w.mag--;
       a.viewmodel.fire(knifeMode);
       window.markCrosshairFiring?.();
@@ -522,7 +532,7 @@
         a.muzzleFlashMesh.material.opacity=1;
         setTimeout(()=>{a.muzzleFlashMesh.material.opacity=0;},45);
         a.gunGroup.position.z=-0.32;
-        a.drawLocalShot(w,pelletRotation);
+        a.drawLocalShot(w,pelletRotation,spreadResult);
         p.pitch=Math.min(1.48,p.pitch+w.recoilPitch);
       }
       a.updateHUD();
