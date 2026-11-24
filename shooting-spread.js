@@ -95,5 +95,19 @@
     const moving=clamp(m.speed/7.6,0,1);
     return clamp((moving*7)+(m.airborne?3:0)+(Math.min(10,recent)*.45),0,10);
   }
-  return {profiles,weaponProfile,burstIndex,confirmShot,motion,sample,directions,crosshairError};
+  function applyRecoil(player,w,nowMs){
+    const step=w.recoilPitch;
+    const cap=Math.min(.15,step*(w.id==='frenzy'?5:6));
+    player.recoilOffset=Math.max(player.recoilOffset||0,Math.min(cap,(player.recoilOffset||0)+step,1.48-player.lookPitch));
+    player.recoilStart=player.recoilOffset;
+    player.recoilAt=nowMs;
+    player.recoilDelay=Math.min(150,w.fireRate*1000+15);
+    player.recoilDuration=weaponProfile(w).recovery;
+  }
+  function recoverRecoil(player,nowMs){
+    if(!player.recoilOffset)return;
+    const t=clamp((nowMs-player.recoilAt-player.recoilDelay)/player.recoilDuration,0,1);
+    player.recoilOffset=player.recoilStart*(1-t)*(1-t);
+  }
+  return {applyRecoil,recoverRecoil,profiles,weaponProfile,burstIndex,confirmShot,motion,sample,directions,crosshairError};
 });
