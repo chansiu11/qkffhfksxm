@@ -57,3 +57,15 @@ test('reload provides explicit started/done and replenishes the equipped magazin
 });
 
 after(async()=>{await new Promise(resolve=>server.close(resolve));});
+test('close Phantom headshot eliminates a full-health target with heavy armor',async()=>{
+  const f=await setup('74');
+  try {
+    gun(f.p,'phantom');
+    f.q.hp=100; f.q.armor=50;
+    const hit=next(f.a,'hit');
+    f.a.send(JSON.stringify({type:'shoot',yaw:Math.PI,pitch:0,from:[0,1.65,40]}));
+    assert.equal((await hit).headshot,true);
+    assert.equal(f.q.hp,0);
+    assert.equal(f.q.alive,false);
+  } finally { f.close(); }
+});

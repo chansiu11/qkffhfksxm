@@ -57,7 +57,7 @@ function rayCharacter(ox,oy,oz,dx,dy,dz,target,at) {
   const body=rayAabb(x,oy-fy,z,vx,dy,vz,-.42,.42,-.03,1.27,-.28,.28);
   // Favor the head where the two tolerance volumes meet at the neck.
   if(Number.isFinite(head) && (head<=body+.10))return {distance:head,headshot:true};
-  if(Number.isFinite(body))return {distance:body,headshot:false};
+  if(Number.isFinite(body))return {distance:body,headshot:false,legshot:oy+dy*body-fy<.62};
   if(Number.isFinite(head))return {distance:head,headshot:true};
   return null;
 }

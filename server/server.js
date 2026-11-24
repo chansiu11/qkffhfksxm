@@ -335,23 +335,17 @@ function fire(r, p, msg) {
       const wall = rayBox(ox, oy, oz, dx, dy, dz, b);
       if (wall > .06 && wall < impactDistance) impactDistance = wall;
     }
-    let best = impactDistance, hit = null, headshot = false;
+    let best = impactDistance, hit = null, headshot = false, legshot = false;
     for (const target of r.players.values()) {
       if (!target.alive || target.team === p.team) continue;
       const intersection=rayCharacter(ox,oy,oz,dx,dy,dz,target,shotAt);
       if(intersection && intersection.distance<best) {
-        best=intersection.distance;hit=target;headshot=intersection.headshot;
+        best=intersection.distance;hit=target;headshot=intersection.headshot;legshot=intersection.legshot;
       }
     }
     if (hit) {
       impactDistance = best;
-      const rawDamage = headshot ? w.headDmg : w.bodyDmg;
-      const shield = Math.min(hit.armor, Math.round(rawDamage * .55));
-      hit.armor -= shield;
-      // An Operator center-body hit is a one-shot at full health even with
-      // heavy armor (150 base damage vs 100 health + 50 armor).
-      const damage = w.id==='operator' && !headshot ? Math.max(100,rawDamage-shield) : rawDamage-shield;
-      hit.hp = Math.max(0, hit.hp - damage);
+      const damage=ShootingSpread.applyGunDamage(hit,w.id,best,headshot?'head':legshot?'leg':'body');
       taggedPlayers.add(hit);
       totalDamage += damage; hitCount++; anyHeadshot ||= headshot;
       if (hit.hp === 0) {

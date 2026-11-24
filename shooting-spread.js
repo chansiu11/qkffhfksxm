@@ -121,5 +121,34 @@
     const t=clamp((nowMs-player.recoilAt-player.recoilDelay)/player.recoilDuration,0,1);
     player.recoilOffset=player.recoilStart*(1-t)*(1-t);
   }
-  return {movementSpeed,tagMultiplier,applyRecoil,recoverRecoil,profiles,weaponProfile,burstIndex,confirmShot,motion,sample,directions,crosshairError};
+  // Range start in map meters, then head, body and leg damage per projectile.
+  const damageRanges={
+    vandal: [[0, 160, 40, 34]],
+    bulldog: [[0, 115.5, 35, 29.75]],
+    phantom: [[0, 156, 39, 33.15], [20, 140, 35, 29.75]],
+    judge: [[0, 34, 17, 14.45], [10, 20, 10, 8.5], [15, 14, 7, 5.95]],
+    bucky: [[0, 34, 17, 14], [8, 26, 13, 11.05], [12, 18, 9, 7.65]],
+    frenzy: [[0, 78, 26, 22.1], [20, 63, 21, 17.85]],
+    classic: [[0, 78, 26, 22.1], [30, 66, 22, 18.7]],
+    ghost: [[0, 105, 30, 25.5], [30, 87.5, 25, 21.25]],
+    sheriff: [[0, 159.5, 55, 46.75], [30, 145, 50, 42.5]],
+    shorty: [[0, 22, 11, 9.35], [7, 12, 6, 5.1], [15, 6, 3, 2.55]],
+    operator: [[0, 255, 150, 120]],
+    guardian: [[0, 195, 65, 48.75]],
+    outlaw: [[0, 238, 140, 119]],
+    marshal: [[0, 202, 101, 85.85]],
+    spectre: [[0, 78, 26, 22.1], [15, 66, 22, 18.7], [30, 60, 20, 17]],
+    stinger: [[0, 67.5, 27, 22.95], [15, 57, 23, 19]]
+  };
+  function applyGunDamage(target,id,distance,zone){
+    const ranges=damageRanges[id];
+    const band=ranges.findLast(row=>distance>=row[0]);
+    const raw=band[zone==='head'?1:zone==='leg'?3:2];
+    const absorbed=Math.min(target.armor,raw*.66);
+    const previous=target.hp;
+    target.armor=Math.round((target.armor-absorbed)*10000)/10000;
+    target.hp=Math.max(0,Math.round((target.hp-raw+absorbed)*10000)/10000);
+    return previous-target.hp;
+  }
+  return {applyGunDamage,movementSpeed,tagMultiplier,applyRecoil,recoverRecoil,profiles,weaponProfile,burstIndex,confirmShot,motion,sample,directions,crosshairError};
 });
