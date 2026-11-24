@@ -4,7 +4,7 @@ const crypto = require('node:crypto');
 const { URL } = require('node:url');
 const catalog = require('./weapons.json');
 const ground = require('../config.js');
-const ascentBlockers = require('./blockers.json');
+const ascentBlockers = require('./blockers.json').concat(ground.cover.ascent.map(entry=>entry[1]));
 const ShotgunPellets = require('../shotgun-pellets.js');
 const ShootingSpread = require('../shooting-spread.js');
 const MeleeRules = require('../melee-rules.js');
@@ -258,7 +258,7 @@ function rayBox(ox,oy,oz,dx,dy,dz,b) {
   }
   return near;
 }
-const havenBlockers = [...ground.haven.walls,...ground.haven.props];
+const havenBlockers = [...ground.haven.walls,...ground.haven.props,...ground.cover.haven.map(entry=>entry[1])];
 function fire(r, p, msg) {
   const blockers = r.map==='haven' ? havenBlockers : ascentBlockers;
   if (r.phase !== 'combat' && r.phase !== 'planted') return;
@@ -441,7 +441,9 @@ function receive(c,m) {
         p.movementSpeed=clamp(moved/dt,0,8.5);
         p.lastMovedAt=now;
       } else if(now-(p.lastMovedAt||0)>160) p.movementSpeed=0;
-      p.x=x;p.z=z;p.y=y;p.footY=footY;
+      const next={x,z};
+      if (r.phase==='buy') ground.stopAtGate(r.map,p.team,p.x,p.z,next,.62);
+      p.x=next.x;p.z=next.z;p.y=y;p.footY=footY;
       p.yaw=finite(m.yaw,-1e6,1e6,p.yaw);
       p.pitch=finite(m.pitch,-1.48,1.48,p.pitch);
       recordPosition(p,now);

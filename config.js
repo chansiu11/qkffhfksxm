@@ -33,7 +33,22 @@ if (typeof window !== "undefined") window.GAME_SERVER_URL = 'https://qkffhfksxm-
     }
     return null;
   }
-  const ground={height,hitDistance,haven,havenSite};
+  // Buy barriers are clipped to open passages in each floor plan.
+  const gates = {"ascent": [["z", 8, -26, -16, "attack"], ["x", -16, 8, 12, "attack"], ["z", 12, -16, -12, "attack"], ["z", 12, -8, 4, "attack"], ["z", 12, 20, 28, "attack"], ["x", 4, 12, 14, "attack"], ["z", 18, 6, 8, "attack"], ["z", -6, -28, -24, "defense"], ["z", -6, -20, -14, "defense"], ["z", -6, -4, 0, "defense"], ["z", 0, 12, 18, "defense"], ["z", 0, 32, 34, "defense"]], "haven": [["z", 12, -40, -36, "attack"], ["z", 14, -20, -14, "attack"], ["x", -14, 14, 16, "attack"], ["z", 16, -14, 4, "attack"], ["x", 4, 8, 16, "attack"], ["z", 8, 6, 20, "attack"], ["x", 20, 8, 10, "attack"], ["z", 10, 20, 28, "attack"], ["z", -4, -46, -30, "defense"], ["z", -4, 4, 14, "defense"], ["z", -4, 24, 32, "defense"], ["z", -4, 34, 36, "defense"], ["z", 2, -22, -14, "defense"], ["x", -14, -2, 2, "defense"], ["z", -6, -12, 0, "defense"]]};
+  const cover = {"ascent": [["wood", [-39.5, -36.5, 0, 1.7, -26.0, -24.0]], ["wood", [-36.0, -34.0, 0, 1.4, -26.0, -24.0]], ["crate", [33.0, 35.0, 0, 3.2, -9.0, -7.0]]], "haven": [["wood", [-44.5, -41.5, 0, 1.6, -15.0, -13.0]], ["crate", [-36.0, -34.0, 0, 2.8, -15.5, -12.5]], ["metal", [-8.5, -5.5, 0, 2.5, -18.0, -16.0]], ["wood", [25.5, 28.5, 0, 1.5, -18.0, -16.0]], ["crate", [32.5, 35.5, 0, 2.6, -18.0, -16.0]], ["wood", [-20.0, -18.0, 0, 1.6, -5.0, -3.0]]]};
+  function stopAtGate(map,team,oldX,oldZ,pos,radius) {
+    for (const [axis,line,start,end,side] of gates[map]) {
+      if (team !== side) continue;
+      const old = axis==='x' ? oldX : oldZ;
+      const delta = pos[axis]-old;
+      if (!delta) continue;
+      const edge = line-Math.sign(delta)*radius;
+      if ((edge-old)/delta < -0.00001 || (edge-old)/delta > 1) continue;
+      const along = axis==='x' ? pos.z : pos.x;
+      if (along >= start-radius && along <= end+radius) pos[axis]=edge;
+    }
+  }
+  const ground={gates,cover,stopAtGate,height,hitDistance,haven,havenSite};
   if (typeof module==='object') module.exports=ground;
   else window.AscentGround=ground;
 })();

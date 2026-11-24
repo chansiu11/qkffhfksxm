@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=Rajdhani:wght@600;700&family=Teko:wght@600;700&display=swap" rel="stylesheet">
-  <script src="config.js?v=haven1"></script>
+  <script src="config.js?v=map-gates"></script>
   <script src="multiplayer-client.js?v=lobbymap"></script>
   <link rel="stylesheet" href="menu.css" />
   <!-- Three.js r128 -->
@@ -1498,25 +1498,25 @@
         bRing.position.set(-32, 0.04, -23);
         ascentGroup.add(aRing, bRing);
 
-        /* --- OPAQUE GLOWING BUY PHASE BARRIERS (BLOCKS SIGHTLINES BEFORE ROUND STARTS) --- */
-        const bMat = new THREE.MeshBasicMaterial({
-          map: makeBuyBarrierTexture(),
-          transparent: true,
-          opacity: 0.96,
-          side: THREE.DoubleSide
-        });
-        [
-          [32, 5.5, 15.5, 32],   // A Main Attacker Spawn Barrier
-          [0, 5.5, 15.5, 28],    // Top Mid Attacker Spawn Barrier
-          [-32, 5.5, 15.5, 32],  // B Main Attacker Spawn Barrier
-          [26, 5.5, -13.5, 42],  // A Site / Garden Defender Spawn Barrier
-          [-8, 5.5, -11.5, 28],  // Mid Market / Courtyard Defender Barrier
-          [-32, 5.5, -11.5, 30]  // B Site Defender Spawn Barrier
-        ].forEach(([bx, by, bz, bw]) => {
-          const m = new THREE.Mesh(new THREE.PlaneGeometry(bw, 11), bMat);
-          m.position.set(bx, by, bz);
-          barrierGroup.add(m);
-        });
+        buildRoundObjects('ascent');
+      }
+
+      const gateMaterial = new THREE.MeshBasicMaterial({
+        map: makeBuyBarrierTexture(), transparent:true, opacity:.86, side:THREE.DoubleSide
+      });
+      function buildRoundObjects(map) {
+        const materials = {wood:matWoodFloor,crate:matRadianite,metal:matDarkMetal};
+        for (const [kind,[l,r,b,t,n,f]] of AscentGround.cover[map]) {
+          addSolidBox3D((l+r)/2,(n+f)/2,r-l,f-n,b,t,materials[kind]);
+        }
+        for (const [axis,line,start,end] of AscentGround.gates[map]) {
+          const mid=(start+end)/2;
+          const mesh=new THREE.Mesh(new THREE.PlaneGeometry(end-start,6),gateMaterial);
+          if (axis==='x') mesh.rotation.y=Math.PI/2;
+          const z=axis==='x'?mid:line;
+          mesh.position.set(axis==='x'?line:mid,3+(map==='ascent'?AscentGround.height(z):0),z);
+          barrierGroup.add(mesh);
+        }
       }
 
       let activeMap = 'ascent';
@@ -1536,6 +1536,7 @@
         }
         for (const list of [wallBoxes3D,walkableSurfaces,mapTargetMeshes,blastDoors,floatingStructures]) list.length=0;
         if (next === 'ascent') { buildAscentMap(); return; }
+        buildRoundObjects('haven');
         const map = AscentGround.haven;
         addWalkableSlab(-56,56,-56,56,0,.5,'HAVEN',matStoneFloor);
         for (const [l,r,b,t,n,f] of [...map.walls,...map.props]) {
@@ -1577,10 +1578,6 @@
       function resolveCollisions3D(pos, footY, radius, isBuyPhase, side) {
         pos.x = Math.max(-MAP_LIMIT + 1.6, Math.min(MAP_LIMIT - 1.6, pos.x));
         pos.z = Math.max(-MAP_LIMIT + 1.6, Math.min(MAP_LIMIT - 1.6, pos.z));
-        if (isBuyPhase) {
-          if (side === 'attack' && pos.z < 16.2) pos.z = 16.2;
-          if (side === 'defense' && pos.z > -14.2) pos.z = -14.2;
-        }
         const pMinY = footY + 0.15;
         const pMaxY = footY + 1.62;
         for (let i = 0; i < wallBoxes3D.length; i++) {
@@ -3208,10 +3205,10 @@
           rCtx.strokeStyle = '#38e2c7';
           rCtx.lineWidth = 2;
           rCtx.beginPath();
-          rCtx.moveTo(0, toRz(15.5));
-          rCtx.lineTo(w, toRz(15.5));
-          rCtx.moveTo(0, toRz(-12.5));
-          rCtx.lineTo(w, toRz(-12.5));
+          for (const [axis,line,start,end] of AscentGround.gates[activeMap]) {
+            rCtx.moveTo(toRx(axis==='x'?line:start),toRz(axis==='x'?start:line));
+            rCtx.lineTo(toRx(axis==='x'?line:end),toRz(axis==='x'?end:line));
+          }
           rCtx.stroke();
         }
 
@@ -3302,9 +3299,11 @@
 
             player.vel.x = wishDir.x * walkSpeed;
             player.vel.z = wishDir.z * walkSpeed;
+            const oldX=player.pos.x, oldZ=player.pos.z;
             player.pos.x += player.vel.x * dt;
             player.pos.z += player.vel.z * dt;
 
+            if (isBuy) AscentGround.stopAtGate(activeMap,roomState.playerSide,oldX,oldZ,player.pos,.62);
             resolveCollisions3D(player.pos, player.footY, 0.62, matchState.phase === 'buy', roomState.playerSide);
 
             const sup = getSurfaceSupport(player.pos.x, player.pos.z, player.footY);
