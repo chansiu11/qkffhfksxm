@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=Rajdhani:wght@600;700&family=Teko:wght@600;700&display=swap" rel="stylesheet">
   <script src="config.js"></script>
-  <script src="multiplayer-client.js?v=aim7"></script>
+  <script src="multiplayer-client.js?v=round9"></script>
   <link rel="stylesheet" href="menu.css" />
   <!-- Three.js r128 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -2109,6 +2109,11 @@
         const skipBtn = document.getElementById('hud-skip-buy-btn');
         if (skipBtn) skipBtn.classList.remove('hidden');
 
+        if (!player.alive) {
+          player.primary = null;
+          player.secondary = cloneWeaponInstance('classic');
+          player.activeSlot = 'secondary';
+        }
         if (player.primary) {
           player.primary.mag = player.primary.magSize;
           player.primary.reserve = player.primary.resSize;
