@@ -65,6 +65,7 @@
       this.disconnect();
       this.disconnecting = false;
       this.active = true;
+      this.initialDeadline=performance.now()+120000;
       this.connectRequest = {type,code,winRounds,map:document.getElementById('map-choice')?.value};
       this.roomCode = code;
       this.status('서버 연결 중... (최초 접속은 시간이 걸릴 수 있습니다)');
@@ -82,6 +83,7 @@
         if (this.socket === ws && ws.readyState !== WebSocket.OPEN) ws.close();
       }, recovering ? 13000 : 55000);
       ws.onopen = () => {
+        if(this.socket!==ws)return;
         opened = true;
         clearTimeout(timeout);
         this.lastSent = 0;
@@ -115,7 +117,12 @@
         this.status(message + ' 자동 재접속 중...', true);
         this.scheduleReconnect();
       } else {
-        // Connect failures before joining a room can be retried by the user.
+        if(this.connectRequest && performance.now()<this.initialDeadline){
+          this.status('서버 시작 대기 중 · 자동으로 다시 연결합니다.');
+          clearTimeout(this.reconnectTimer);
+          this.reconnectTimer=setTimeout(()=>{if(this.active&&!this.disconnecting&&!this.socket)this.openSocket(this.connectRequest,false);},2000);
+          return;
+        }
         this.active = false;
         this.started = false;
         this.status(message + ' 방 참가를 다시 시도하세요.', true);
@@ -506,7 +513,8 @@
       if (!this.started || !p.alive || p.reloading || this.state?.phase === 'buy') return;
       const w=a.getActiveWeapon();
       const now=performance.now()/1000;
-      const rate = w.slot === 'knife' ? MeleeRules.MODES[MeleeRules.modeFor(knifeMode)].cooldown : (p.isScoped?w.scopedInterval:0)||w.fireRate;
+      if(now-p.lastShotTime>.5)p.bulldogCount=0;
+      const rate = w.slot === 'knife' ? MeleeRules.MODES[MeleeRules.modeFor(knifeMode)].cooldown : (p.isScoped && w.id==='bulldog' ? (((p.bulldogCount||0)%3===2)?.325:.075) : ((p.isScoped?w.scopedInterval:0)||w.fireRate));
       if(now<p.equipUntil || now-p.lastShotTime < (p.lastInterval??rate)) return;
       if(w.slot !== 'knife' && w.mag<=0){window.triggerReload?.();return;}
       const pelletRotation=Math.random()*Math.PI*2;
@@ -544,7 +552,8 @@
         crouched:locomotion.crouched,ads:locomotion.ads,
         mode:w.slot === 'knife' ? MeleeRules.modeFor(knifeMode) : undefined,
         seenAt:Math.round(seenAt),from}))return;
-      p.lastShotTime=now;p.lastInterval=rate;
+      p.lastShotTime=now;
+      p.bulldogCount=p.isScoped&&w.id==='bulldog'?((p.bulldogCount||0)+1)%3:0;p.lastInterval=rate;
       a.afterScopedShot?.(w);
       if(w.slot!=='knife')ShootingSpread.confirmShot(burstState,w,nowMs,burst);
       if(w.slot!=='knife')w.mag--;
