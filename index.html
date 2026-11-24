@@ -10,18 +10,19 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=Rajdhani:wght@600;700&family=Teko:wght@600;700&display=swap" rel="stylesheet">
-  <script src="match-plans.js?v=metric1"></script>
-  <script src="config.js?v=metric1"></script>
-  <script src="multiplayer-client.js?v=chat-channels"></script>
+  <script src="match-plans.js?v=equipment2"></script>
+  <script src="config.js?v=equipment2"></script>
+  <script src="multiplayer-client.js?v=equipment2"></script>
   <link rel="stylesheet" href="menu.css" />
   <!-- Three.js r128 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="melee-rules.js?v=equipment2"></script>
   <script src="shotgun-pellets.js"></script>
   <script src="shooting-spread.js?v=spray16"></script>
   <script src="crosshair-profile.js"></script>
   <script src="crosshair-ui.js" defer></script>
   <script src="ads-system.js?v=20261124-ads100"></script>
-  <script src="weapon-viewmodels.js?v=left4"></script>
+  <script src="weapon-viewmodels.js?v=equipment2"></script>
 
   <style>
     :root {
@@ -423,7 +424,7 @@
 
       <button type="button" id="mob-door-btn"
               class="vm-btn val-cut-sm px-3 py-2 border border-[#38e2c7]/70 bg-[#0f1923]/85 min-w-[96px]">
-        <span class="font-num text-[10px] font-black tracking-widest text-[#38e2c7] pointer-events-none">DOOR [G]</span>
+        <span class="font-num text-[10px] font-black tracking-widest text-[#38e2c7] pointer-events-none">DOOR [F]</span>
         <span class="text-[9px] text-[#ece8e1]/75 font-bold pointer-events-none">철문 스위치</span>
       </button>
     </div>
@@ -1456,7 +1457,14 @@
           ascentGroup.add(group);mapTargetMeshes.push(group);
         }
         for(const [name,[x,z]] of Object.entries(map.sites)){
-          addWallCalloutSign(x+2,AscentGround.height(id,x,z)+2.6,z-2,0,name+' SITE',id.toUpperCase(),'#e4b86c');
+          const eye=new THREE.Vector3(x,AscentGround.height(id,x,z)+2.6,z);
+          ascentGroup.updateMatrixWorld(true);
+          const wall=new THREE.Raycaster(eye,new THREE.Vector3(0,0,-1),1,35).intersectObjects(mapTargetMeshes,false)[0];
+          if(wall && Math.abs(wall.face.normal.y)<.1){
+            const normal=wall.face.normal;
+            addWallCalloutSign(wall.point.x+.035*normal.x,eye.y,wall.point.z+.035*normal.z,
+              Math.atan2(normal.x,normal.z),name+' SITE',id.toUpperCase(),'#e4b86c');
+          }
         }
         for(const poly of Object.values(map.plant)){
           const points=[];
@@ -1587,22 +1595,22 @@
        * 5. FULL VALORANT WEAPON ROSTER & 4-SLOT PURE GUNPLAY LOADOUT
        * ========================================================================= */
       const WEAPON_CATALOG = {
-        knife:    { id: 'knife', slot: 'knife', name: 'MELEE KNIFE', cost: 0, headDmg: 150, bodyDmg: 50, fireRate: 0.42, magSize: 1, resSize: 0, spreadBase: 0, spreadMove: 0, recoilPitch: 0.01, auto: false, canScope: false, pellets: 1, range: 3.4, color: 0xf5c542 },        classic:  { id: 'classic', slot: 'secondary', name: 'CLASSIC', cost: 0, headDmg: 78, bodyDmg: 26, fireRate: 0.16, magSize: 12, resSize: 36, spreadBase: 0.004, spreadMove: 0.045, recoilPitch: 0.016, auto: false, canScope: false, pellets: 1, range: 220, color: 0x94a3b8 },
-        shorty:   { id: 'shorty', slot: 'secondary', name: 'SHORTY', cost: 300, headDmg: 22, bodyDmg: 11, fireRate: 0.28, magSize: 2, resSize: 6, spreadBase: 0.075, spreadMove: 0.09, recoilPitch: 0.045, auto: false, canScope: false, pellets: 15, range: 42, color: 0xf97316 },
-        frenzy:   { id: 'frenzy', slot: 'secondary', name: 'FRENZY', cost: 450, headDmg: 78, bodyDmg: 26, fireRate: 0.095, magSize: 13, resSize: 39, spreadBase: 0.012, spreadMove: 0.05, recoilPitch: 0.018, auto: true, canScope: false, pellets: 1, range: 220, color: 0xfacc15 },
-        ghost:    { id: 'ghost', slot: 'secondary', name: 'GHOST', cost: 500, headDmg: 105, bodyDmg: 30, fireRate: 0.15, magSize: 15, resSize: 45, spreadBase: 0.0025, spreadMove: 0.045, recoilPitch: 0.015, auto: false, canScope: false, pellets: 1, range: 220, color: 0x38e2c7 },
-        sheriff:  { id: 'sheriff', slot: 'secondary', name: 'SHERIFF', cost: 800, headDmg: 159.5, bodyDmg: 55, fireRate: 0.25, magSize: 6, resSize: 24, spreadBase: 0.0018, spreadMove: 0.08, recoilPitch: 0.045, auto: false, canScope: false, pellets: 1, range: 220, color: 0xfbbf24 },
-        stinger:  { id: 'stinger', slot: 'primary', name: 'STINGER', cost: 1100, headDmg: 67.5, bodyDmg: 27, fireRate: 0.068, magSize: 20, resSize: 60, spreadBase: 0.014, spreadMove: 0.045, recoilPitch: 0.014, auto: true, canScope: true, pellets: 1, range: 220, color: 0xa855f7 },
-        spectre:  { id: 'spectre', slot: 'primary', name: 'SPECTRE', cost: 1600, headDmg: 78, bodyDmg: 26, fireRate: 0.085, magSize: 30, resSize: 90, spreadBase: 0.010, spreadMove: 0.042, recoilPitch: 0.013, auto: true, canScope: true, pellets: 1, range: 220, color: 0x38bdf8 },
-        bucky:    { id: 'bucky', slot: 'primary', name: 'BUCKY', cost: 850, headDmg: 34, bodyDmg: 17, fireRate: 0.85, magSize: 5, resSize: 10, spreadBase: 0.058, spreadMove: 0.085, recoilPitch: 0.05, auto: false, canScope: false, pellets: 15, range: 50, color: 0xfb923c },
-        judge:    { id: 'judge', slot: 'primary', name: 'JUDGE', cost: 1850, headDmg: 34, bodyDmg: 17, fireRate: 0.32, magSize: 7, resSize: 21, spreadBase: 0.062, spreadMove: 0.09, recoilPitch: 0.038, auto: true, canScope: false, pellets: 12, range: 52, color: 0xf97316 },
-        bulldog:  { id: 'bulldog', slot: 'primary', name: 'BULLDOG', cost: 2050, headDmg: 115.5, bodyDmg: 35, fireRate: 0.10, magSize: 24, resSize: 72, spreadBase: 0.0035, spreadMove: 0.08, recoilPitch: 0.019, auto: true, canScope: true, pellets: 1, range: 220, color: 0x34d399 },
-        guardian: { id: 'guardian', slot: 'primary', name: 'GUARDIAN', cost: 2250, headDmg: 195, bodyDmg: 65, fireRate: 0.19, magSize: 12, resSize: 36, spreadBase: 0.001, spreadMove: 0.09, recoilPitch: 0.034, auto: false, canScope: true, pellets: 1, range: 220, color: 0x60a5fa },
-        phantom:  { id: 'phantom', slot: 'primary', name: 'PHANTOM', cost: 2900, headDmg: 156, bodyDmg: 39, fireRate: 0.09, magSize: 30, resSize: 90, spreadBase: 0.0026, spreadMove: 0.09, recoilPitch: 0.018, auto: true, canScope: true, pellets: 1, range: 220, color: 0x38e2c7 },
-        vandal:   { id: 'vandal', slot: 'primary', name: 'VANDAL', cost: 2900, headDmg: 160, bodyDmg: 40, fireRate: 0.10, magSize: 25, resSize: 75, spreadBase: 0.0020, spreadMove: 0.10, recoilPitch: 0.024, auto: true, canScope: true, pellets: 1, range: 220, color: 0xff4655 },
-        marshal:  { id: 'marshal', slot: 'primary', name: 'MARSHAL', cost: 950, headDmg: 202, bodyDmg: 101, fireRate: 0.95, magSize: 5, resSize: 15, spreadBase: 0.0015, spreadMove: 0.11, recoilPitch: 0.055, auto: false, canScope: true, pellets: 1, range: 220, color: 0xa3e635 },
-        outlaw:   { id: 'outlaw', slot: 'primary', name: 'OUTLAW', cost: 2400, headDmg: 238, bodyDmg: 140, fireRate: 0.45, magSize: 2, resSize: 10, spreadBase: 0.0008, spreadMove: 0.13, recoilPitch: 0.065, auto: false, canScope: true, pellets: 1, range: 220, color: 0xc084fc },
-        operator: { id: 'operator', slot: 'primary', name: 'OPERATOR', cost: 4700, headDmg: 255, bodyDmg: 150, fireRate: 1.15, magSize: 5, resSize: 10, spreadBase: 0.0004, spreadMove: 0.15, recoilPitch: 0.08, auto: false, canScope: true, pellets: 1, range: 220, color: 0xeab308 }
+        knife:    { id: 'knife', slot: 'knife', name: 'MELEE KNIFE', cost: 0, headDmg: 150, bodyDmg: 50, fireRate: 0.42, equipTime: 0.6, magSize: 1, resSize: 0, spreadBase: 0, spreadMove: 0, recoilPitch: 0.01, auto: true, canScope: false, pellets: 1, range: 2.5, color: 0xf5c542 },        classic:  { id: 'classic', slot: 'secondary', name: 'CLASSIC', cost: 0, headDmg: 78, bodyDmg: 26, fireRate: 0.1481481, equipTime: 0.75, magSize: 12, resSize: 36, spreadBase: 0.004, spreadMove: 0.045, recoilPitch: 0.016, auto: false, canScope: false, pellets: 1, range: 220, color: 0x94a3b8 },
+        shorty:   { id: 'shorty', slot: 'secondary', name: 'SHORTY', cost: 300, headDmg: 22, bodyDmg: 11, fireRate: 0.3333333, equipTime: 0.75, magSize: 2, resSize: 6, spreadBase: 0.075, spreadMove: 0.09, recoilPitch: 0.045, auto: false, canScope: false, pellets: 15, range: 42, color: 0xf97316 },
+        frenzy:   { id: 'frenzy', slot: 'secondary', name: 'FRENZY', cost: 450, headDmg: 78, bodyDmg: 26, fireRate: 0.1, equipTime: 1, magSize: 13, resSize: 39, spreadBase: 0.012, spreadMove: 0.05, recoilPitch: 0.018, auto: true, canScope: false, pellets: 1, range: 220, color: 0xfacc15 },
+        ghost:    { id: 'ghost', slot: 'secondary', name: 'GHOST', cost: 500, headDmg: 105, bodyDmg: 30, fireRate: 0.1481481, equipTime: 0.75, magSize: 15, resSize: 45, spreadBase: 0.0025, spreadMove: 0.045, recoilPitch: 0.015, auto: false, canScope: false, pellets: 1, range: 220, color: 0x38e2c7 },
+        sheriff:  { id: 'sheriff', slot: 'secondary', name: 'SHERIFF', cost: 800, headDmg: 159.5, bodyDmg: 55, fireRate: 0.25, equipTime: 1, magSize: 6, resSize: 24, spreadBase: 0.0018, spreadMove: 0.08, recoilPitch: 0.045, auto: false, canScope: false, pellets: 1, range: 220, color: 0xfbbf24 },
+        stinger:  { id: 'stinger', slot: 'primary', name: 'STINGER', cost: 1100, headDmg: 67.5, bodyDmg: 27, fireRate: 0.0625, equipTime: 0.75, magSize: 20, resSize: 60, spreadBase: 0.014, spreadMove: 0.045, recoilPitch: 0.014, auto: true, canScope: true, pellets: 1, range: 220, color: 0xa855f7 },
+        spectre:  { id: 'spectre', slot: 'primary', name: 'SPECTRE', cost: 1600, headDmg: 78, bodyDmg: 26, fireRate: 0.0750019, equipTime: 0.75, magSize: 30, resSize: 90, spreadBase: 0.010, spreadMove: 0.042, recoilPitch: 0.013, auto: true, canScope: true, pellets: 1, range: 220, color: 0x38bdf8 },
+        bucky:    { id: 'bucky', slot: 'primary', name: 'BUCKY', cost: 850, headDmg: 34, bodyDmg: 17, fireRate: 0.9090909, equipTime: 1, magSize: 5, resSize: 10, spreadBase: 0.058, spreadMove: 0.085, recoilPitch: 0.05, auto: false, canScope: false, pellets: 15, range: 50, color: 0xfb923c },
+        judge:    { id: 'judge', slot: 'primary', name: 'JUDGE', cost: 1850, headDmg: 34, bodyDmg: 17, fireRate: 0.2857143, equipTime: 1, magSize: 7, resSize: 21, spreadBase: 0.062, spreadMove: 0.09, recoilPitch: 0.038, auto: true, canScope: false, pellets: 12, range: 52, color: 0xf97316 },
+        bulldog:  { id: 'bulldog', slot: 'primary', name: 'BULLDOG', cost: 2050, headDmg: 115.5, bodyDmg: 35, fireRate: 0.1, equipTime: 1, magSize: 24, resSize: 72, spreadBase: 0.0035, spreadMove: 0.08, recoilPitch: 0.019, auto: true, canScope: true, pellets: 1, range: 220, color: 0x34d399 },
+        guardian: { id: 'guardian', slot: 'primary', name: 'GUARDIAN', cost: 2250, headDmg: 195, bodyDmg: 65, fireRate: 0.1904762, equipTime: 1, magSize: 12, resSize: 36, spreadBase: 0.001, spreadMove: 0.09, recoilPitch: 0.034, auto: false, canScope: true, pellets: 1, range: 220, color: 0x60a5fa },
+        phantom:  { id: 'phantom', slot: 'primary', name: 'PHANTOM', cost: 2900, headDmg: 156, bodyDmg: 39, fireRate: 0.0909091, equipTime: 1, magSize: 30, resSize: 90, spreadBase: 0.0026, spreadMove: 0.09, recoilPitch: 0.018, auto: true, canScope: true, pellets: 1, range: 220, color: 0x38e2c7 },
+        vandal:   { id: 'vandal', slot: 'primary', name: 'VANDAL', cost: 2900, headDmg: 160, bodyDmg: 40, fireRate: 0.1025641, equipTime: 1, magSize: 25, resSize: 75, spreadBase: 0.0020, spreadMove: 0.10, recoilPitch: 0.024, auto: true, canScope: true, pellets: 1, range: 220, color: 0xff4655 },
+        marshal:  { id: 'marshal', slot: 'primary', name: 'MARSHAL', cost: 950, headDmg: 202, bodyDmg: 101, fireRate: 0.6666667, equipTime: 1.25, scopedInterval: 1/1.2, magSize: 5, resSize: 15, spreadBase: 0.0015, spreadMove: 0.11, recoilPitch: 0.055, auto: false, canScope: true, pellets: 1, range: 220, color: 0xa3e635 },
+        outlaw:   { id: 'outlaw', slot: 'primary', name: 'OUTLAW', cost: 2400, headDmg: 238, bodyDmg: 140, fireRate: 0.3636364, equipTime: 1.25, magSize: 2, resSize: 10, spreadBase: 0.0008, spreadMove: 0.13, recoilPitch: 0.065, auto: false, canScope: true, pellets: 1, range: 220, color: 0xc084fc },
+        operator: { id: 'operator', slot: 'primary', name: 'OPERATOR', cost: 4700, headDmg: 255, bodyDmg: 150, fireRate: 1.6666667, equipTime: 1.5, magSize: 5, resSize: 10, spreadBase: 0.0004, spreadMove: 0.15, recoilPitch: 0.08, auto: false, canScope: true, pellets: 1, range: 220, color: 0xeab308 }
       };
 
       function cloneWeaponInstance(id) {
@@ -1969,7 +1977,8 @@
         document.getElementById('hud-weapon-title').textContent = w.name;
         document.getElementById('hud-ammo-mag').textContent = w.slot === 'knife' ? 'INF' : (((activeMap==='range' && setting('ammo').checked || roomState.allowCheats && cheats.infiniteAmmo) && !specTarget) ? 'INF' : w.mag);
         document.getElementById('hud-ammo-res').textContent = w.slot === 'knife' ? '-' : w.reserve;
-        viewmodel.setWeapon(w.id);
+        viewmodel.setWeapon(w.id,w.equipTime);
+        document.querySelector('#mob-ads-btn span').textContent=w.slot==='knife'?'강공격':'ADS';
 
         renderTopAlivePortraits();
       }
@@ -2283,7 +2292,11 @@
       const drill = {kills:0, shown:0, started:0, finished:false, board:null, marks:[], damage:0};
       const ledges=Array.from({length:10},(_,i)=>({x:18+(i%2)*2,z:15-i*3,y:.5+i*.6}));
       function buildPracticeHall() {
-        for(const {x,z,y} of ledges)addWalkableSlab(x-1.1,x+1.1,z-1,z+1,y,.3,'파쿠르',matWoodFloor);
+        for(const {x,z,y} of ledges){
+          addWalkableSlab(x-1.1,x+1.1,z-1,z+1,y,.3,'파쿠르',matWoodFloor);
+          addSolidBox3D(x,z,.55,.55,0,y-.3,matDarkMetal);
+        }
+        addSolidBox3D(0,11.72,8.4,.42,0,1.18,matDarkMetal);
         for(const [i,label] of ['START','PRACTICE','−0.10','−0.01','+0.01','+0.10'].entries()){
           const sign=new THREE.Mesh(new THREE.PlaneGeometry(1.2,.7),new THREE.MeshBasicMaterial({
             map:makeCalloutSignTexture(label,'RANGE CONTROL','#38e2c7'),side:THREE.DoubleSide}));
@@ -2308,6 +2321,8 @@
           pen.beginPath();pen.arc(128,128,i*24,0,Math.PI*2);pen.fill();
         }
         drill.board=new THREE.Mesh(new THREE.PlaneGeometry(3,3),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(face),side:THREE.DoubleSide}));
+        const stand=new THREE.Mesh(new THREE.BoxGeometry(.4,.2,.3),matDarkMetal);
+        stand.position.set(0,-1.55,-.12);drill.board.add(stand);
         ascentGroup.add(drill.board);mapTargetMeshes.push(drill.board);
         addWallCalloutSign(0,5,-44.4,0,'THE RANGE','SHOOTING TEST','#38e2c7');
       }
@@ -2676,9 +2691,9 @@
         }
       }
 
-      function attemptFire() {
+      function attemptFire(knifeMode='light') {
         if (!matchState.inMatch || (activeMap==='range' && rangeOptions.open)) return;
-        if (window.MP.active) { window.MP.fire(); return; }
+        if (window.MP.active) { window.MP.fire(knifeMode); return; }
         if (!player.alive) {
           window.cycleSpectator(1);
           return;
@@ -2687,7 +2702,7 @@
 
         const w = getActiveWeapon();
         const now = performance.now() / 1000;
-        if (now - player.lastShotTime < w.fireRate) return;
+        if (now < player.equipUntil || now-player.lastShotTime < (player.lastInterval??w.fireRate)) return;
 
         const infAmmo = (activeMap==='range' && setting('ammo').checked) || (roomState.allowCheats && cheats.infiniteAmmo) || w.slot === 'knife';
         if (!infAmmo && w.mag <= 0) {
@@ -2698,9 +2713,27 @@
         window.markCrosshairFiring?.();
         if (!infAmmo) w.mag--;
 
-        viewmodel.fire();
+        player.lastInterval=w.slot==='knife'?MeleeRules.MODES[knifeMode].cooldown:
+          (player.isScoped?w.scopedInterval:0)||w.fireRate;
+        viewmodel.fire(knifeMode);
         if (w.slot === 'knife') {
           sfx.playKnifeSlash();
+          scene.updateMatrixWorld(true);
+          const candidates=bots.filter(b=>b.alive && b.team==='enemy').map(bot=>({
+            bot,x:bot.group.position.x,z:bot.group.position.z,footY:bot.footY,yaw:bot.yaw
+          }));
+          const hit=MeleeRules.selectTarget(player.pos,player.yaw,player.pitch,knifeMode,candidates,(target,info)=>{
+            const dir=new THREE.Vector3(info.dx,info.bodyY-player.pos.y,info.dz);
+            const distance=dir.length();
+            return !new THREE.Raycaster(player.pos,dir.normalize(),0,Math.max(0,distance-.30)).intersectObjects(mapTargetMeshes,false).length;
+          });
+          if(hit){
+            const bot=hit.target.bot, absorbed=Math.min(bot.armor||0,Math.round(hit.damage*.55));
+            bot.armor-=absorbed;bot.hp=Math.max(0,bot.hp-hit.damage+absorbed);showHitmarker(false);
+            if(!bot.hp){bot.alive=false;bot.group.visible=false;player.credits=Math.min(9000,player.credits+200);addKillFeed('YOU',bot.name,w.name,false);}
+          }
+          updateHUD();
+          return;
         } else {
           sfx.playGunshot(w.id === 'operator' ? 92 : w.id === 'vandal' ? 145 : 190, 0.11);
           muzzleFlashMesh.material.opacity = 1;
@@ -2720,6 +2753,7 @@
           scatter: pelletRotation
         }, ShotgunPellets);
         ShootingSpread.confirmShot(burstState, w, shotAtMs, burst);
+        afterScopedShot(w);
         const pelletDirections = spreadResult.vectors;
         // Update mesh world transforms so ray collision matches the visible geometry.
         scene.updateMatrixWorld(true);
@@ -2768,8 +2802,7 @@
               const targetBot = firstHit.object.userData.bot;
               const isHead = firstHit.object.userData.isHead;
               const before=targetBot.hp+targetBot.armor;
-              if (w.slot === 'knife') targetBot.hp -= isHead ? w.headDmg : w.bodyDmg;
-              else {
+              {
                 const zone=isHead?'head':endPt.y-targetBot.footY<.62?'leg':'body';
                 ShootingSpread.applyGunDamage(targetBot,w.id,firstHit.distance,zone);
                 targetBot.taggedAt=performance.now();
@@ -2854,7 +2887,12 @@
         }
         if (window.MP.active && window.MP.started) window.MP.send({type:'equip',slot});
         player.activeSlot = slot;
-        viewmodel.setWeapon(getActiveWeapon().id);
+        const equipped=getActiveWeapon();
+        if(viewmodel.current!==equipped.id){
+          player.equipUntil=performance.now()/1000+equipped.equipTime;
+          player.scopeReadyAt=0;player.lastShotTime=0;player.lastInterval=0;
+        }
+        viewmodel.setWeapon(equipped.id,equipped.equipTime);
         resetADS();
 
         ['primary', 'secondary', 'knife'].forEach(s => {
@@ -2913,7 +2951,13 @@
           iron.style.transform=`translate(-50%, -2%) translateY(${((1-amount)*48).toFixed(1)}px) scale(${(.84+.16*amount).toFixed(3)})`;
         }
       }
+      function afterScopedShot(gun){
+        if((gun.id==='operator'||gun.id==='marshal') && player.adsRequested){
+          resetADS();player.scopeReadyAt=performance.now()+1000*player.lastInterval;
+        }
+      }
       window.toggleScope = function () {
+        if(performance.now()/1000<player.equipUntil || performance.now()<player.scopeReadyAt)return;
         if(!player.alive){window.cycleSpectator(-1);return;}
         const gun=getActiveWeapon();
         if(!GameADS.isEligible(gun))return; // pistols, shotguns, knife
@@ -3112,8 +3156,8 @@
         if (e.code === 'Digit1') window.switchWeaponSlot('primary');
         if (e.code === 'Digit2') window.switchWeaponSlot('secondary');
         if (e.code === 'Digit3') window.switchWeaponSlot('knife');
-        if (e.code === 'KeyG') window.toggleAscentDoor();
-        if (e.code === 'Digit4' || e.code === 'KeyF') isSpikeKeyHeld = true;
+        if (e.code === 'KeyF' && !e.repeat && !window.toggleAscentDoor()) isSpikeKeyHeld=true;
+        if (e.code === 'Digit4') isSpikeKeyHeld=true;
       });
 
       window.addEventListener('keyup', (e) => {
@@ -3145,7 +3189,7 @@
           isMouseFiring = true;
           if (getActiveWeapon().auto) attemptFire();
         } else if (e.button === 2) {
-          window.toggleScope();
+          if(getActiveWeapon().slot==='knife')attemptFire('heavy');else window.toggleScope();
         }
       });
 
@@ -3279,7 +3323,7 @@
         el.addEventListener('pointerdown', trigger);
       }
 
-      bindInstantTouchButton('mob-ads-btn', () => window.toggleScope());
+      bindInstantTouchButton('mob-ads-btn', () => getActiveWeapon().slot==='knife'?attemptFire('heavy'):window.toggleScope());
       bindInstantTouchButton('mob-jump-btn', () => window.triggerJump());
       bindInstantTouchButton('mob-crouch-btn', () => window.toggleCrouchMobile());
       bindInstantTouchButton('mob-reload-btn', () => window.triggerReload());
@@ -3856,7 +3900,7 @@
         renderer.render(scene, camera);
       }
 
-      window.MP.install({syncMapObjects,selectMap,resetChat,appendChat,roomState,matchState,player,bots,scene,spikeMesh,barrierGroup,gunGroup,muzzleFlashMesh,viewmodel,gameSpikeSiteAt,sfx,
+      window.MP.install({afterScopedShot,syncMapObjects,selectMap,resetChat,appendChat,roomState,matchState,player,bots,scene,spikeMesh,barrierGroup,gunGroup,muzzleFlashMesh,viewmodel,gameSpikeSiteAt,sfx,
         createTacticalBotMesh,setEnemyOutline,spawnBulletTracer,drawLocalShot,
         cloneWeaponInstance,WEAPON_CATALOG,getActiveWeapon,startNewRound,
         updateHUD,flashDamage,showHitmarker,showRoundBanner,addKillFeed,syncCheatPermissionUI,

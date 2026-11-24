@@ -54,16 +54,15 @@
   const FRONT_DEPTH=2.9, REAR_DEPTH=.76, FOV=75;
   function viewEndpoints(id,width,height){
     const kind=styles[id]?.kind||'rifle', cfg=VIEW_ENDPOINTS[kind]||VIEW_ENDPOINTS.rifle;
-    const portrait=width<=820&&height>width;
-    const front=portrait?[kind==='pistol'||kind==='revolver'||kind==='machine'?.67:.515,
-      kind==='blade'?.665:.650]:cfg.front;
-    const rear=portrait?[1.23,kind==='blade'?.92:.955]:cfg.rear;
-    // Foreshorten the gun horizontally around its stock.
-    const muzzleX = kind === 'blade' ? front[0] : front[0] + (rear[0] - front[0]) * .5;
-    const shift = kind === 'blade' ? 0 : width * .075;
-    return {front:{x:width*muzzleX-shift,y:height*front[1]},
-      edge:{x:width*rear[0]-shift,y:height*rear[1]},
-      frontDepth:FRONT_DEPTH,rearDepth:REAR_DEPTH,paperHeight:cfg.height};
+    // Anchor to the lower-right using one scale for both axes, including on tablets.
+    const span=Math.min(width,height*16/9), unit=span/(16/9);
+    const blade=kind==='blade',rearX=blade?.96:1.025;
+    const tipX=blade?.68:cfg.front[0]+.065;
+    const tipY=blade?.70:cfg.front[1]+.026;
+    return {front:{x:width-(1-tipX)*span,y:height-(1-tipY)*unit},
+      edge:{x:width-(1-rearX)*span,y:height-(1-(blade?.89:cfg.rear[1]))*unit},
+      frontDepth:blade?1.22:FRONT_DEPTH,rearDepth:REAR_DEPTH,paperHeight:cfg.height*unit/height};
+
   }
   function focalLength(screenH,fov=FOV){return screenH/(2*Math.tan(fov*Math.PI/360));}
   function atDepth(screen,depth,w,h,focal){
@@ -105,9 +104,9 @@
     const adsRear={x:w*.50,y:h*1.23};
     const front={x:mix(endpoints.front.x,adsFront.x)+motionX*(1-adsT)+4*recoil+swing,
       y:mix(endpoints.front.y,adsFront.y)+motionY*(1-adsT)-12*recoil+drop};
-    const rear={x:mix(endpoints.edge.x,adsRear.x)+motionX*(1-adsT)+12*recoil-swing*.3,
-      y:mix(endpoints.edge.y,adsRear.y)+motionY*(1-adsT)+15*recoil+drop};
-    const M=atDepth(front,FRONT_DEPTH,w,h,fl),R=atDepth(rear,REAR_DEPTH,w,h,fl);
+    const rear={x:mix(endpoints.edge.x,adsRear.x)+motionX*(1-adsT)+12*recoil+swing*.42,
+      y:mix(endpoints.edge.y,adsRear.y)+motionY*(1-adsT)+15*recoil+drop+(options.gripY||0)};
+    const M=atDepth(front,endpoints.frontDepth,w,h,fl),R=atDepth(rear,REAR_DEPTH,w,h,fl);
     const upright=endpoints.paperHeight*(1-.38*adsT);
     const point=(u,v)=>({
       // Turn the flat sheet toward the viewer during ADS; its vertical paper
@@ -122,7 +121,7 @@
     const [iw,ih]=sourceSize[id]||sourceSize.classic;
     const muzzle=project(actual(0,alpha),w,h,fl);
     return {matrix:quadToMatrix(corners,iw,ih),corners,muzzle,
-      frontDepth:FRONT_DEPTH,rearDepth:REAR_DEPTH,source:{width:iw,height:ih},front,rear};
+      frontDepth:endpoints.frontDepth,rearDepth:REAR_DEPTH,source:{width:iw,height:ih},front,rear};
   }
   function makeSvg(id){
     // Keep a compatibility SVG public method for existing tooling; the real HUD
@@ -139,9 +138,11 @@
     let shown='',photo=null,flashNode=null,fireAt=-100000,reloadAt=-100000,
       switchAt=-100000,reloading=false,fireMode='light',lastVisible=false,
       lastTransform='',lastViewport='',muzzleScreen=null;
-    function setWeapon(id){
+    let equipMs=750,combo=0;
+    function setWeapon(id,equipTime){
       id=Object.hasOwn(styles,id)?id:'classic';
       if(id===shown)return;
+      equipMs=(equipTime??(id==='knife'?.6:1))*1000;fireAt=-100000;combo=0;
       shown=id;switchAt=performance.now();reloading=false;
       const [w,h]=sourceSize[id];
       layer.innerHTML=`<img class="fps-paper-weapon" src="assets/weapons/${id}.webp" width="${w}" height="${h}" alt="" draggable="false" aria-hidden="true">`+
@@ -151,7 +152,11 @@
       muzzleScreen=null;lastTransform='';lastViewport='';
       layer.classList.toggle('weapon-knife',shown==='knife');
     }
-    function fire(mode='light'){fireMode=mode==='heavy'?'heavy':'light';fireAt=performance.now();}
+    function fire(mode='light'){
+      const now=performance.now();
+      combo=mode==='heavy'||now-fireAt>850?0:(combo+1)%3;
+      fireMode=mode==='heavy'?'heavy':'light';fireAt=now;
+    }
     function beginReload(){if(shown!=='knife'){reloadAt=performance.now();reloading=true;}}
     function stopReload(){reloading=false;}
     function update(dt,player,state){
@@ -165,11 +170,14 @@
       const firing=Math.max(0,1-(now-fireAt)/(shown==='knife'?255:135));
       const reloadProgress=reloading?Math.min(1,(now-reloadAt)/1170):0;
       const drop=reloading?Math.sin(Math.PI*reloadProgress)*78:0;
-      const draw=Math.max(0,1-(now-switchAt)/230)*64;
-      const swing=shown==='knife'?firing*(fireMode==='heavy'?-55:65):0;
+      const scale=Math.min(w,h*16/9)/1440;
+      const draw=Math.pow(Math.max(0,1-(now-switchAt)/equipMs),1.6)*180*scale;
+      const phase=Math.min(1,(now-fireAt)/(fireMode==='heavy'?560:330));
+      const stroke=shown==='knife'?Math.sin(Math.PI*phase)**2*scale:0;
+      const swing=stroke*(fireMode==='heavy'?-106:[-148,128,-80][combo]);
       const adsT=shown==='knife'?0:Math.max(0,Math.min(1,player.adsProgress||0));
       const args={recoil:shown==='knife'?0:firing,motionX:bob,
-        motionY:Math.abs(bob)+breath,drop:drop+draw*(1-adsT),swing,adsProgress:adsT};
+        gripY:stroke*18,motionY:Math.abs(bob)+breath-stroke*(fireMode==='heavy'?48:30),drop:drop+draw*(1-adsT),swing,adsProgress:adsT};
       const p=paperProjection(shown,w,h,args);
       if(p.matrix!==lastTransform){photo.style.transform=p.matrix;lastTransform=p.matrix;}
       const viewport=`${w}x${h}`;if(viewport!==lastViewport){

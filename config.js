@@ -93,10 +93,16 @@ if (typeof window !== "undefined") window.GAME_SERVER_URL = 'https://qkffhfksxm-
     }
     for(const [kind,x,z,w,d,h] of fixtures[id]){
       const y=height(id,x,z);
+      const bottom=Math.min(y,...[-1,1].flatMap(sx=>[-1,1].map(sz=>height(id,x+sx*w/2,z+sz*d/2))))-.25;
       if(kind==='stairs'){
-        for(let i=0;i<24;i++)box('step',x,z-d/2+(i+.5)*d/24,w,d/24+.01,y-.15,y+h*(1-i/24));
-      }else if(kind==='deck'||kind==='roof')box(kind,x,z,w,d,y+h-.4,y+h);
-      else box(kind,x,z,w,d,y-.25,y+h);
+        for(let i=0;i<24;i++)box('step',x,z-d/2+(i+.5)*d/24,w,d/24+.01,bottom,y+h*(1-i/24));
+      }else if(kind==='deck'||kind==='roof'){
+        box(kind,x,z,w,d,y+h-.4,y+h);
+        for(const sx of [-1,1])for(const sz of [-1,1]){
+          const px=x+sx*(w/2-.25),pz=z+sz*(d/2-.25);
+          box('beam',px,pz,.42,.42,height(id,px,pz)-.25,y+h-.4);
+        }
+      }else box(kind,x,z,w,d,bottom,y+h);
     }
     if(id==='ascent'){
       // Stone springers and a stepped arch frame the recessed boathouse entrance.
@@ -131,6 +137,15 @@ if (typeof window !== "undefined") window.GAME_SERVER_URL = 'https://qkffhfksxm-
     }
     function panel(x,z,w,d,b,h,extras={}){
       const y=height(id,x,z)+b;
+      const alongX=w>d, half=(alongX?w:d)/2;
+      for(const side of [-1,1]){
+        const px=x+(alongX?side*(half+.12):0),pz=z+(alongX?0:side*(half+.12));
+        box('beam',px,pz,.25,.25,height(id,px,pz)-.2,y+h+(extras.lift||0));
+      }
+      if(extras.switchAt){
+        const [sx,sz]=extras.switchAt,base=height(id,sx,sz);
+        box('beam',sx,sz,.28,.28,base-.2,base+1.4);
+      }
       return {box:[x-w/2,x+w/2,y,y+h,z-d/2,z+d/2],...extras};
     }
     interactives[id]=id==='ascent'?{

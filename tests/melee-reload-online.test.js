@@ -72,6 +72,11 @@ test('buying a gun during reload allows the new gun to fire, reload, and fire ag
     room.phase='combat';
     const shot={type:'shoot',yaw:0,pitch:0};
     const remoteShot=()=>{const seen=wait(f.b,'shot');a.send(JSON.stringify(shot));return seen;};
+    assert(p.equipUntil>Date.now());
+    a.send(JSON.stringify(shot));
+    await request({type:'ping',seq:3},'pong');
+    assert.equal(p.mag,catalog.ghost.magSize,'a shot during equip must not consume a bullet');
+    await new Promise(resolve=>setTimeout(resolve,catalog.ghost.equipTime*1000+15));
     await remoteShot();
     const full=catalog.ghost.magSize;
     assert.equal(p.mag,full-1);

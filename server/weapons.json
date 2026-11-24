@@ -12,11 +12,12 @@
     "spreadBase": 0,
     "spreadMove": 0,
     "recoilPitch": 0.01,
-    "auto": false,
+    "auto": true,
     "canScope": false,
     "pellets": 1,
     "range": 2.9,
-    "color": 0
+    "color": 0,
+    "equipTime": 0.6
   },
   "classic": {
     "id": "classic",
@@ -25,7 +26,7 @@
     "cost": 0,
     "headDmg": 78,
     "bodyDmg": 26,
-    "fireRate": 0.16,
+    "fireRate": 0.1481481,
     "magSize": 12,
     "resSize": 36,
     "spreadBase": 0.004,
@@ -35,7 +36,8 @@
     "canScope": false,
     "pellets": 1,
     "range": 220,
-    "color": 0
+    "color": 0,
+    "equipTime": 0.75
   },
   "shorty": {
     "id": "shorty",
@@ -44,7 +46,7 @@
     "cost": 300,
     "headDmg": 22,
     "bodyDmg": 11,
-    "fireRate": 0.28,
+    "fireRate": 0.3333333,
     "magSize": 2,
     "resSize": 6,
     "spreadBase": 0.075,
@@ -54,7 +56,8 @@
     "canScope": false,
     "pellets": 15,
     "range": 42,
-    "color": 0
+    "color": 0,
+    "equipTime": 0.75
   },
   "frenzy": {
     "id": "frenzy",
@@ -63,7 +66,7 @@
     "cost": 450,
     "headDmg": 78,
     "bodyDmg": 26,
-    "fireRate": 0.095,
+    "fireRate": 0.1,
     "magSize": 13,
     "resSize": 39,
     "spreadBase": 0.012,
@@ -73,7 +76,8 @@
     "canScope": false,
     "pellets": 1,
     "range": 220,
-    "color": 0
+    "color": 0,
+    "equipTime": 1
   },
   "ghost": {
     "id": "ghost",
@@ -82,7 +86,7 @@
     "cost": 500,
     "headDmg": 105,
     "bodyDmg": 30,
-    "fireRate": 0.15,
+    "fireRate": 0.1481481,
     "magSize": 15,
     "resSize": 45,
     "spreadBase": 0.0025,
@@ -92,7 +96,8 @@
     "canScope": false,
     "pellets": 1,
     "range": 220,
-    "color": 0
+    "color": 0,
+    "equipTime": 0.75
   },
   "sheriff": {
     "id": "sheriff",
@@ -111,7 +116,8 @@
     "canScope": false,
     "pellets": 1,
     "range": 220,
-    "color": 0
+    "color": 0,
+    "equipTime": 1
   },
   "stinger": {
     "id": "stinger",
@@ -120,7 +126,7 @@
     "cost": 1100,
     "headDmg": 67.5,
     "bodyDmg": 27,
-    "fireRate": 0.068,
+    "fireRate": 0.0625,
     "magSize": 20,
     "resSize": 60,
     "spreadBase": 0.014,
@@ -130,7 +136,8 @@
     "canScope": true,
     "pellets": 1,
     "range": 220,
-    "color": 0
+    "color": 0,
+    "equipTime": 0.75
   },
   "spectre": {
     "id": "spectre",
@@ -139,7 +146,7 @@
     "cost": 1600,
     "headDmg": 78,
     "bodyDmg": 26,
-    "fireRate": 0.085,
+    "fireRate": 0.0750019,
     "magSize": 30,
     "resSize": 90,
     "spreadBase": 0.01,
@@ -149,7 +156,8 @@
     "canScope": true,
     "pellets": 1,
     "range": 220,
-    "color": 0
+    "color": 0,
+    "equipTime": 0.75
   },
   "bucky": {
     "id": "bucky",
@@ -158,7 +166,7 @@
     "cost": 850,
     "headDmg": 34,
     "bodyDmg": 17,
-    "fireRate": 0.85,
+    "fireRate": 0.9090909,
     "magSize": 5,
     "resSize": 10,
     "spreadBase": 0.058,
@@ -168,7 +176,8 @@
     "canScope": false,
     "pellets": 15,
     "range": 50,
-    "color": 0
+    "color": 0,
+    "equipTime": 1
   },
   "judge": {
     "id": "judge",
@@ -177,7 +186,7 @@
     "cost": 1850,
     "headDmg": 34,
     "bodyDmg": 17,
-    "fireRate": 0.32,
+    "fireRate": 0.2857143,
     "magSize": 7,
     "resSize": 21,
     "spreadBase": 0.062,
@@ -187,7 +196,8 @@
     "canScope": false,
     "pellets": 12,
     "range": 52,
-    "color": 0
+    "color": 0,
+    "equipTime": 1
   },
   "bulldog": {
     "id": "bulldog",
@@ -206,7 +216,8 @@
     "canScope": true,
     "pellets": 1,
     "range": 220,
-    "color": 0
+    "color": 0,
+    "equipTime": 1
   },
   "guardian": {
     "id": "guardian",
@@ -215,7 +226,7 @@
     "cost": 2250,
     "headDmg": 195,
     "bodyDmg": 65,
-    "fireRate": 0.19,
+    "fireRate": 0.1904762,
     "magSize": 12,
     "resSize": 36,
     "spreadBase": 0.001,
@@ -225,7 +236,8 @@
     "canScope": true,
     "pellets": 1,
     "range": 220,
-    "color": 0
+    "color": 0,
+    "equipTime": 1
   },
   "phantom": {
     "id": "phantom",
@@ -234,7 +246,7 @@
     "cost": 2900,
     "headDmg": 156,
     "bodyDmg": 39,
-    "fireRate": 0.09,
+    "fireRate": 0.0909091,
     "magSize": 30,
     "resSize": 90,
     "spreadBase": 0.0026,
@@ -244,7 +256,8 @@
     "canScope": true,
     "pellets": 1,
     "range": 220,
-    "color": 0
+    "color": 0,
+    "equipTime": 1
   },
   "vandal": {
     "id": "vandal",
@@ -253,7 +266,7 @@
     "cost": 2900,
     "headDmg": 160,
     "bodyDmg": 40,
-    "fireRate": 0.1,
+    "fireRate": 0.1025641,
     "magSize": 25,
     "resSize": 75,
     "spreadBase": 0.002,
@@ -263,7 +276,8 @@
     "canScope": true,
     "pellets": 1,
     "range": 220,
-    "color": 0
+    "color": 0,
+    "equipTime": 1
   },
   "marshal": {
     "id": "marshal",
@@ -272,7 +286,7 @@
     "cost": 950,
     "headDmg": 202,
     "bodyDmg": 101,
-    "fireRate": 0.95,
+    "fireRate": 0.6666667,
     "magSize": 5,
     "resSize": 15,
     "spreadBase": 0.0015,
@@ -282,7 +296,9 @@
     "canScope": true,
     "pellets": 1,
     "range": 220,
-    "color": 0
+    "color": 0,
+    "equipTime": 1.25,
+    "scopedInterval": 0.8333333333333334
   },
   "outlaw": {
     "id": "outlaw",
@@ -291,7 +307,7 @@
     "cost": 2400,
     "headDmg": 238,
     "bodyDmg": 140,
-    "fireRate": 0.45,
+    "fireRate": 0.3636364,
     "magSize": 2,
     "resSize": 10,
     "spreadBase": 0.0008,
@@ -301,7 +317,8 @@
     "canScope": true,
     "pellets": 1,
     "range": 220,
-    "color": 0
+    "color": 0,
+    "equipTime": 1.25
   },
   "operator": {
     "id": "operator",
@@ -310,7 +327,7 @@
     "cost": 4700,
     "headDmg": 255,
     "bodyDmg": 150,
-    "fireRate": 1.15,
+    "fireRate": 1.6666667,
     "magSize": 5,
     "resSize": 10,
     "spreadBase": 0.0004,
@@ -320,6 +337,7 @@
     "canScope": true,
     "pellets": 1,
     "range": 220,
-    "color": 0
+    "color": 0,
+    "equipTime": 1.5
   }
 }

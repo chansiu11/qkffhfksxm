@@ -506,8 +506,8 @@
       if (!this.started || !p.alive || p.reloading || this.state?.phase === 'buy') return;
       const w=a.getActiveWeapon();
       const now=performance.now()/1000;
-      const rate = w.slot === 'knife' ? MeleeRules.MODES[MeleeRules.modeFor(knifeMode)].cooldown : w.fireRate;
-      if(now-p.lastShotTime < rate) return;
+      const rate = w.slot === 'knife' ? MeleeRules.MODES[MeleeRules.modeFor(knifeMode)].cooldown : (p.isScoped?w.scopedInterval:0)||w.fireRate;
+      if(now<p.equipUntil || now-p.lastShotTime < (p.lastInterval??rate)) return;
       if(w.slot !== 'knife' && w.mag<=0){window.triggerReload?.();return;}
       const pelletRotation=Math.random()*Math.PI*2;
       const nowMs=performance.now();
@@ -544,7 +544,8 @@
         crouched:locomotion.crouched,ads:locomotion.ads,
         mode:w.slot === 'knife' ? MeleeRules.modeFor(knifeMode) : undefined,
         seenAt:Math.round(seenAt),from}))return;
-      p.lastShotTime=now;
+      p.lastShotTime=now;p.lastInterval=rate;
+      a.afterScopedShot?.(w);
       if(w.slot!=='knife')ShootingSpread.confirmShot(burstState,w,nowMs,burst);
       if(w.slot!=='knife')w.mag--;
       a.viewmodel.fire(knifeMode);

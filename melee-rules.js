@@ -8,8 +8,8 @@
 })(typeof globalThis === 'object' ? globalThis : this, function () {
   'use strict';
   const MODES = Object.freeze({
-    light: Object.freeze({damage: 50, cooldown: .42, range: 2.9, halfAngle: .60, pitchMargin: .77}),
-    heavy: Object.freeze({damage: 75, cooldown: .80, range: 2.55, halfAngle: .48, pitchMargin: .66})
+    light: Object.freeze({damage: 50, cooldown: .42, range: 2.5, halfAngle: .60, pitchMargin: .77}),
+    heavy: Object.freeze({damage: 75, cooldown: .80, range: 2.25, halfAngle: .48, pitchMargin: .66})
   });
   const modeFor = name => name === 'heavy' ? 'heavy' : 'light';
   const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
@@ -27,10 +27,11 @@
       if (!target || target.alive === false) continue;
       const dx = target.x - ox, dz = target.z - oz;
       const flat = Math.hypot(dx, dz);
-      if (!Number.isFinite(flat) || flat < .25 || flat > spec.range + .30) continue;
+      if (!Number.isFinite(flat) || flat < .001 || flat > spec.range + .30) continue;
       const forward = (dx * fx + dz * fz) / flat;
       if (forward < Math.cos(spec.halfAngle)) continue;
-      const bodyY = target.footY + 1.23;
+      const bodyY = clamp(oy+Math.tan(pitch)*flat,target.footY+.34,target.footY+1.65);
+      if(Math.hypot(flat,bodyY-oy)-.30>spec.range)continue;
       const elevation = Math.atan2(bodyY - oy, flat);
       const verticalError = Math.abs(elevation - pitch);
       if (verticalError > spec.pitchMargin) continue;
