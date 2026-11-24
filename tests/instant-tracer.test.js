@@ -10,7 +10,7 @@ const html=fs.readFileSync(path.join(root,'index.html'),'utf8');
 function tracerHarness() {
   const body=html.match(/const TRACER_LIFETIME = ([\s\S]*?)\n      \/\/ Must match Three\.js camera/);
   assert(body, 'instant yellow tracer implementation is missing');
-  const update=html.match(/for \(let i = activeTracers\.length - 1; i >= 0; i--\) \{([\s\S]*?)\n        \}\n\n        \/\/ Animate floating/);
+  const update=html.match(/for \(let i = activeTracers\.length - 1; i >= 0; i--\) \{([\s\S]*?)\n        \}\n\n        renderer\.render/);
   assert(update, 'tracer lifetime cleanup implementation is missing');
   class Vector3 {
     constructor(x=0,y=0,z=0) {this.x=x;this.y=y;this.z=z;}

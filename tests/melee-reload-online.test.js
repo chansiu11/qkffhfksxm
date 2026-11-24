@@ -151,9 +151,9 @@ test('Haven room selection is shared and all three sites accept planting', async
     await started;
     await denied(host,'ascent','haven');
     const r=rooms.get('86'), p=r.players.get(info.id);
-    for (const [site,[x,z]] of Object.entries(require('../config.js').haven.sites)) {
+    for (const [site,[x,z]] of Object.entries(require('../config.js').maps.haven.sites)) {
       r.phase='combat';r.spike=null;r.until=Date.now()+60000;
-      p.team='attack';p.x=x;p.z=z;p.footY=0;p.actionFrom=Date.now()-4500;p.heldSpike=true;
+      p.team='attack';p.x=x;p.z=z;p.footY=require('../config.js').height('haven',x,z);p.actionFrom=Date.now()-4500;p.heldSpike=true;
       assert.equal((await wait(host,'spike_planted')).spike.site,site);
     }
   } finally {
@@ -171,8 +171,10 @@ test('Ascent door switch closes only from nearby and a glass hit removes the pan
       await ack;
     }
     await switchDoor();assert.equal(room.objects.A_DOOR.closed,false);
-    p.x=19.6;p.z=0;await switchDoor();assert.equal(room.objects.A_DOOR.closed,true);
-    p.x=15;p.z=-22.3;p.y=1.8;p.yaw=0;q.x=50;q.z=50;
+    const objects=require('../config.js').interactives.ascent;
+    [p.x,p.z]=objects.A_DOOR.switchAt;await switchDoor();assert.equal(room.objects.A_DOOR.closed,true);
+    const [l,r,b,t,n,far]=objects.GARDEN_GLASS.box;
+    p.x=(l+r)/2;p.z=far+.5;p.y=(b+t)/2;p.yaw=0;q.x=50;q.z=50;
     const seen=wait(f.b,'shot');a.send(JSON.stringify({type:'shoot',yaw:0,pitch:0}));await seen;
     assert.equal(room.objects.GARDEN_GLASS.hp,0);
   }finally{f.close();}

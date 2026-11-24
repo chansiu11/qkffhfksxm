@@ -75,7 +75,8 @@ test('Room creation/join, team capacity, start, synced player snapshots, damage'
   assert(down.to[1]<down.from[1], 'negative camera pitch must shoot downward');
 
   // SPIKE: B Site should be a valid plant site, and progress is server-authoritative.
-  p.x=-27;p.z=-23;p.footY=0;p.y=1.65;p.heldSpike=true;
+  const ground=require('../config.js');
+  [p.x,p.z]=ground.maps.ascent.sites.B;p.footY=ground.height('ascent',p.x,p.z);p.y=p.footY+1.65;p.heldSpike=true;
   p.actionFrom=Date.now()-4200;
   r.phase='combat';r.until=Date.now()+25000;
   await new Promise(resolve=>setTimeout(resolve,190));

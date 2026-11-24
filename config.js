@@ -1,49 +1,148 @@
 // After the Render service is deployed, use its HTTPS origin (without /ws).
 // This URL corresponds to the suggested Render service name in render.yaml.
 if (typeof window !== "undefined") window.GAME_SERVER_URL = 'https://qkffhfksxm-realtime.onrender.com';
-// Cross sections of the approach roads, in game metres (z, elevation).
 (function () {
-  const profile = [[-56,0],[-42,0],[-37,1.8],[-34,1.8],[-30,0],
-    [20,0],[24,1.6],[28,2.4],[31,2.4],[38,0],[56,0]];
-  function height(z) {
-    for (let i=1;i<profile.length;i++) {
-      const [end,high]=profile[i], [start,low]=profile[i-1];
-      if (z>=start && z<=end) return low+(high-low)*(z-start)/(end-start);
+  const maps = typeof module === 'object' ? require('./match-plans.js') : matchPlans;
+  const limit = 90, step = 2, count = limit * 2 / step + 1;
+  const gates = {range: []}, interactives = {};
+  // Decks, stairs, covered approaches and freestanding cover, in game metres.
+  const fixtures = {
+    ascent: [
+      ['generator',54,-31,2.6,6.3,3.7], ['crate',64,-29,2.4,2.4,2.4], ['crate',66.4,-28.4,2.4,2.4,2.4],
+      ['crate',-32,-36.5,2.1,2.1,2.2],['crate',-32,-38.6,2.1,2.1,3.8],['wood',-27,-45.5,2.2,2,1.6],
+      ['deck',60.7,-42.6,17,4.6,3.05],['stairs',54,-37.3,3.5,6,3.05],
+      ['roof',53,-7.6,8,7,5.5],['roof',-21,-19,8,8,5.2],['roof',10,-34,8,7,4.7],
+      ['roof',-45,-38,5,13,4.2],['wood',-19,-16,2,1.7,1.6]
+    ],
+    haven: [
+      ['crate',44,-27.5,4,2.4,3.8],['wood',47,-27.5,2,2.4,1.7],
+      ['generator',1,-27,8.8,5.2,3.9],['wood',1,-31,2.8,2,1.4],
+      ['tarp',-38,-26.7,7.5,3.3,3.4],['crate',-42.5,-27,2,2.8,2.1],
+      ['deck',49.8,-38.3,9,3.5,6],['stairs',49,-32.55,3,8,6],
+      ['roof',1,-28,17,15,7.6],['roof',-16,-14,9,12,5.3],['roof',17,-13,5,11,4.2],
+      ['deck',2,10.7,6,3,1.1],['wood',-19,-12,2,2,1.6]
+    ]
+  };
+  function height(map,x,z) {
+    if(!maps[map]) return 0;
+    const grid=maps[map].grid;
+    const gx=Math.max(0,Math.min(count-1.00001,(x+limit)/step));
+    const gz=Math.max(0,Math.min(count-1.00001,(z+limit)/step));
+    const i=Math.floor(gx), j=Math.floor(gz), a=gx-i, b=gz-j, idx=j*count+i;
+    const tl=grid[idx],tr=grid[idx+1],bl=grid[idx+count],br=grid[idx+count+1];
+    return a+b<=1 ? tl+(tr-tl)*a+(bl-tl)*b : br+(bl-br)*(1-a)+(tr-br)*(1-b);
+  }
+  function inside(points,x,z) {
+    let odd=false;
+    for(let i=0,j=points.length-1;i<points.length;j=i++){
+      const [a,b]=points[i],[c,d]=points[j];
+      if((b>z)!==(d>z) && x<(c-a)*(z-b)/(d-b)+a)odd=!odd;
     }
-    return 0;
+    return odd;
   }
-  function hitDistance(x,y,z,dx,dy,dz,range) {
-    let best=range;
-    for (let i=1;i<profile.length;i++) {
-      const [end,high]=profile[i], [start,low]=profile[i-1];
-      const slope=(high-low)/(end-start);
-      const denominator=dy-slope*dz;
-      if (denominator>=0) continue;
-      const t=(low+slope*(z-start)-y)/denominator;
-      const at=z+dz*t;
-      if (t>=0 && t<best && at>=start && at<=end && Math.abs(x+dx*t)<=56) best=t;
+  function siteAt(map,x,z,y) {
+    if(!maps[map] || Math.abs(y-height(map,x,z))>1.25)return null;
+    return Object.keys(maps[map].plant).find(k=>inside(maps[map].plant[k],x,z))||null;
+  }
+  function hitDistance(map,x,y,z,dx,dy,dz,range) {
+    if(Math.min(y,y+dy*range)>maps[map].maxHeight)return range;
+    for(let t=0;t<=range;t+=.5){
+      if(y+dy*t>height(map,x+dx*t,z+dz*t))continue;
+      let a=Math.max(0,t-.5),b=t;
+      for(let i=0;i<10;i++){const m=(a+b)/2;if(y+dy*m>height(map,x+dx*m,z+dz*m))a=m;else b=m;}
+      return b;
     }
-    return best;
+    return range;
   }
-  const haven = {"walls":[[-56,56,0,9,-56,-52],[-56,0,0,9,-52,-50],[6,56,0,8,-52,-50],[-56,-2,0,9,-50,-48],[-56,-4,0,9,-48,-46],[8,56,0,8,-50,-42],[-56,-8,0,9,-46,-42],[-56,-14,0,9,-42,-34],[14,56,0,9,-42,-34],[-56,-26,0,9,-34,-32],[-4,4,0,10,-36,-30],[30,56,0,8,-34,-28],[-56,-24,0,9,-32,-28],[-20,10,0,7,-30,-28],[16,26,0,9,-30,-28],[16,20,0,9,-28,-26],[32,56,0,8,-28,-26],[-4,10,0,10,-28,-26],[-56,-36,0,9,-28,-24],[-20,-10,0,7,-28,-22],[26,28,0,7,-28,-22],[36,56,0,9,-26,-22],[-2,10,0,10,-26,-22],[-56,-52,0,9,-24,-22],[16,22,0,9,-24,-20],[-16,-14,0,8,-22,-20],[2,10,0,7,-22,-20],[2,12,0,7,-20,-18],[-30,-26,0,10,-24,-16],[38,56,0,9,-22,-16],[2,4,0,7,-18,-16],[16,18,0,9,-20,-14],[-16,-14,0,8,-16,-14],[-56,-50,0,9,-22,-12],[-28,-26,0,10,-16,-12],[4,14,0,7,-12,-10],[-30,-24,0,10,-12,-8],[4,18,0,7,-10,-8],[40,56,0,9,-16,-6],[12,14,0,9,-8,-6],[-56,-48,0,9,-12,-4],[-14,-12,0,8,-14,-2],[36,56,0,9,-6,-2],[0,4,0,7,-6,-2],[14,24,0,9,-4,-2],[-30,-22,0,10,-4,-2],[-56,-46,0,9,-4,-2],[32,34,0,8,-4,0],[12,26,0,9,-2,0],[0,6,0,7,-2,0],[38,56,0,9,-2,0],[12,32,0,9,0,2],[-38,-22,0,8,-2,4],[12,30,0,9,2,4],[-56,-42,0,9,-2,6],[-12,-8,0,9,0,6],[0,8,0,7,0,6],[-36,-22,0,9,4,6],[20,26,0,10,4,6],[12,14,0,9,4,6],[42,56,0,10,0,8],[-32,-22,0,9,6,8],[4,6,0,7,6,8],[32,56,0,8,8,10],[-56,-40,0,9,6,12],[-32,-20,0,9,8,12],[28,56,0,7,10,12],[-36,-20,0,9,12,14],[24,56,0,7,12,16],[-32,-30,0,9,14,16],[-56,-44,0,9,12,18],[6,8,0,8,16,18],[-22,-20,0,7,14,20],[-8,2,0,9,18,20],[-4,4,0,10,20,22],[-56,-42,0,9,18,24],[-22,-16,0,7,20,24],[-30,-28,0,10,22,24],[-4,2,0,10,22,24],[-56,-28,0,9,24,26],[16,56,0,9,16,28],[-56,-30,0,9,26,30],[18,56,0,10,28,30],[2,56,0,7,30,32],[-10,0,0,9,28,36],[4,56,0,7,32,36],[-56,-14,0,9,30,42],[10,56,0,8,36,44],[-56,-12,0,9,42,44],[-56,-10,0,9,44,46],[8,56,0,8,44,46],[-56,-8,0,9,46,48],[6,56,0,8,46,48],[-56,56,0,9,48,56]],"props":[[33,35,0,2,-14,-11],[-3,-1,0,2,-14,-11],[-37,-35,0,2,-12,-9],[-9,-1,5,5.6,-18,-8],[-21,-13,5,5.6,-8,2],[-5,3,5,5.6,12,22]],"sites":{"A":[31,-13],"B":[-5,-13],"C":[-39,-11]},"routes":[[[-1,39],[1,39],[1,29],[15,29],[15,15],[23,15],[23,11],[27,11],[27,9],[31,9],[31,5],[35,5],[35,-13],[31,-13]],[[-1,39],[1,39],[1,29],[9,29],[9,-3],[13,-3],[13,-5],[31,-5],[31,-13]],[[-1,39],[1,39],[1,29],[5,29],[5,9],[3,9],[3,7],[-3,7],[-3,-13],[-5,-13]],[[-1,39],[-1,37],[-11,37],[-11,7],[-13,7],[-13,-1],[-15,-1],[-15,-3],[-17,-3],[-17,-7],[-31,-7],[-31,-11],[-39,-11]],[[-1,39],[-1,37],[-11,37],[-11,25],[-23,25],[-23,17],[-33,17],[-33,15],[-37,15],[-37,13],[-43,13],[-39,13],[-39,-11]]],"labels":{"A Garden":[9,23],"A Link":[13,-25],"A Lobby":[11,11],"A Long":[31,5],"A Sewer":[9,-3],"A Site":[31,-13],"Attacker Side Spawn":[-1,41],"B Back":[-5,-25],"B Site":[-5,-13],"C Link":[-21,-19],"C Lobby":[-29,15],"C Long":[-43,13],"C Garage":[-17,-3],"C Window":[-21,-11],"C Site":[-39,-11],"C Cubby":[-35,9],"Defender Side Spawn":[-1,-41],"Mid Doors":[-17,11],"Mid Courtyard":[-3,7],"Mid Window":[-1,17],"A Tower":[33,-23]}};
-  haven.roofs=haven.walls.map(box=>{
-    const [l,r,b,t,n,f]=box, thin=Math.min(r-l,f-n)<=2 && Math.max(r-l,f-n)<=16;
-    if(thin)box[3]=3.5;
-    return [l-.18,r+.18,box[3],box[3]+(thin?.3:.8),n-.18,f+.18];
-  });
-  for(const [l,r,b,t,n,f] of haven.walls){
-    if(Math.min(r-l,f-n)>=6)haven.roofs.push([l+.15,r-.15,t+.8,t+1.55,n+.15,f-.15]);
-  }
-  function havenSite(x,z,y) {
-    if (y < -.4 || y > 1.2) return null;
-    for (const [site,[cx,cz]] of Object.entries(haven.sites)) {
-      if (Math.hypot(x-cx,z-cz)<5) return site;
+  for(const [id,map] of Object.entries(maps)){
+    gates[id]=map.gates;
+    map.grid=new Float32Array(count*count);
+    const anchors=Object.entries(map.floor).map(([name,h])=>[...map.labels[name].slice(0,2),h]);
+    for(let j=0;j<count;j++)for(let i=0;i<count;i++){
+      const x=i*step-limit,z=j*step-limit; let sum=0,weights=0;
+      for(const [ax,az,h] of anchors){
+        const d=Math.max(.12,Math.hypot(x-ax,z-az)-3.5),w=1/(d*d*d*d);
+        sum+=w*h;weights+=w;
+      }
+      map.grid[j*count+i]=sum/weights;
     }
-    return null;
+    map.maxHeight=Math.max(...map.grid);
+    map.parts=[];
+    function box(kind,x,z,w,d,b,t,angle=0,slope=0) {
+      map.parts.push({kind,x,z,w,d,b,t,angle,slope});
+    }
+    for(const loop of map.outlines){
+      for(let i=0;i<loop.length;i++){
+        const [ax,az]=loop[i],[bx,bz]=loop[(i+1)%loop.length];
+        const dx=bx-ax,dz=bz-az,len=Math.hypot(dx,dz);
+        if(len<.04)continue;
+        const x=(ax+bx)/2,z=(az+bz)/2,nx=dz/len,nz=-dx/len,angle=-Math.atan2(dz,dx);
+        const low=id==='ascent'? x>18&&x<31&&z>-12&&z<18 : x< -30&&z>0&&z<17;
+        const style=low?'wall':id==='haven'?'temple':x<0?'brick':x>40?'ochre':'pink';
+        const thick=low?.55:2.4;
+        const h=Math.max(height(id,ax,az),height(id,bx,bz))+(low?3.1:id==='haven'?7.6:9.2);
+        const cx=x+nx*thick/2,cz=z+nz*thick/2;
+        box(style,cx,cz,len+.04,thick,-5,h,angle);
+        box(low?'stonecap':id==='haven'?'eave':'tiles',cx,cz,len+.24,thick+.5,h,h+(low?.24:.48),angle);
+        if(!low){
+          // The ridge rises away from the street. Local +Z points into the street.
+          box(id==='haven'?'shingles':'tiles',x+nx*1.85,z+nz*1.85,len+.18,4.35,h+1.22,h+1.48,angle,-.42);
+        }
+        if(!low)box(id==='haven'?'beam':'stonecap',cx,cz,len+.08,thick+.12,h-.95,h-.68,angle);
+      }
+    }
+    for(const [kind,x,z,w,d,h] of fixtures[id]){
+      const y=height(id,x,z);
+      if(kind==='stairs'){
+        for(let i=0;i<24;i++)box('step',x,z-d/2+(i+.5)*d/24,w,d/24+.01,y-.15,y+h*(1-i/24));
+      }else if(kind==='deck'||kind==='roof')box(kind,x,z,w,d,y+h-.4,y+h);
+      else box(kind,x,z,w,d,y-.25,y+h);
+    }
+    if(id==='ascent'){
+      // Stone springers and a stepped arch frame the recessed boathouse entrance.
+      const x=-40.4,z=-38.5,y=height(id,x,z),span=5;
+      for(let i=0;i<18;i++){
+        const offset=(i+.5)*span/18-span/2;
+        const arch=y+2.1+Math.sqrt(Math.max(0,(span/2)**2-offset**2));
+        box('stonecap',x,z+offset,.72,span/18+.01,arch,arch+.38);
+        box('brick',x-.08,z+offset,.55,span/18+.01,arch+.38,y+5.4);
+      }
+      for(const side of [-1,1])box('stonecap',x,z+side*2.7,.72,.42,y-.2,y+2.7);
+    }
+    // Towers behind the playable boundary give each skyline its own profile.
+    if(id==='ascent'){
+      for(const [x,z,w,d,h] of [[-56,-37,10,12,13],[78,-37,12,14,14],[33,-75,6,6,20]]){
+        box('ochre',x,z,w,d,-4,h);
+        box('stonecap',x,z,w+.7,d+.7,h,h+.65);
+        for(const side of [-1,1]){
+          box('tiles',x,z+side*d/4,w+1,d/2+.5,h+1.15,h+1.55,0,-side*.35);
+        }
+      }
+    }else{
+      for(const [x,z,w,h] of [[-62,-32,10,12],[63,-40,12,16],[30,-70,9,18]]){
+        box('temple',x,z,w,w,-4,h);
+        for(let level=0;level<2;level++){
+          const span=w+3-level*2,base=h+level*2;
+          box('beam',x,z,span,span,base,base+.4);
+          box('shingles',x,z,span-.5,span-.5,base+.4,base+.85);
+          box('temple',x,z,span-3,span-3,base+.85,base+2);
+        }
+      }
+    }
+    function panel(x,z,w,d,b,h,extras={}){
+      const y=height(id,x,z)+b;
+      return {box:[x-w/2,x+w/2,y,y+h,z-d/2,z+d/2],...extras};
+    }
+    interactives[id]=id==='ascent'?{
+      A_DOOR:panel(43,-25,5,.44,0,3.6,{switchAt:[44,-26.2],lift:3.6,hp:500}),
+      B_DOOR:panel(3,-34,.44,4.5,0,3.6,{switchAt:[4,-33],lift:4.2,hp:500}),
+      MID_PANEL:panel(20,4,2.8,.18,.2,2.2,{hp:400}),LINK_PANEL:panel(-4,-3,2,.18,.2,2.2,{hp:400}),
+      GARDEN_GLASS:panel(39.6,-42.3,2.8,.15,.7,2.2,{hp:1})
+    }:{
+      GARAGE_LEFT:panel(-17,3.8,1.8,.18,.4,2.2,{hp:400}),GARAGE_RIGHT:panel(-15,3.8,1.8,.18,.4,2.2,{hp:400}),
+      WINDOW_PANEL:panel(2,9.2,2.8,.18,1,1.8,{hp:400})
+    };
   }
-  // Buy barriers are clipped to open passages in each floor plan.
-  const gates = {"ascent": [["z", 8, -26, -16, "attack"], ["x", -16, 8, 12, "attack"], ["z", 12, -16, -12, "attack"], ["z", 12, -8, 4, "attack"], ["z", 12, 20, 28, "attack"], ["x", 4, 12, 14, "attack"], ["z", 18, 6, 8, "attack"], ["z", -6, -28, -24, "defense"], ["z", -6, -20, -14, "defense"], ["z", -6, -4, 0, "defense"], ["z", 0, 12, 18, "defense"], ["z", 0, 32, 34, "defense"]], "haven": [["z", 12, -40, -36, "attack"], ["z", 14, -20, -14, "attack"], ["x", -14, 14, 16, "attack"], ["z", 16, -14, 4, "attack"], ["x", 4, 8, 16, "attack"], ["z", 8, 6, 20, "attack"], ["x", 20, 8, 10, "attack"], ["z", 10, 20, 28, "attack"], ["z", -4, -46, -30, "defense"], ["z", -4, 4, 14, "defense"], ["z", -4, 24, 32, "defense"], ["z", -4, 34, 36, "defense"], ["z", 2, -22, -14, "defense"], ["x", -14, -2, 2, "defense"], ["z", -6, -12, 0, "defense"]]};
-  const cover = {"ascent": [["wood", [-39.5, -36.5, 0, 1.7, -26.0, -24.0]], ["wood", [-36.0, -34.0, 0, 1.4, -26.0, -24.0]], ["crate", [33.0, 35.0, 0, 3.2, -9.0, -7.0]]], "haven": [["wood", [-44.5, -41.5, 0, 1.6, -15.0, -13.0]], ["crate", [-36.0, -34.0, 0, 2.8, -15.5, -12.5]], ["metal", [-8.5, -5.5, 0, 2.5, -18.0, -16.0]], ["wood", [25.5, 28.5, 0, 1.5, -18.0, -16.0]], ["crate", [32.5, 35.5, 0, 2.6, -18.0, -16.0]], ["wood", [-20.0, -18.0, 0, 1.6, -5.0, -3.0]]]};
   function stopAtGate(map,team,oldX,oldZ,pos,radius) {
     for (const [axis,line,start,end,side] of gates[map]) {
       if (team !== side) continue;
@@ -56,22 +155,31 @@ if (typeof window !== "undefined") window.GAME_SERVER_URL = 'https://qkffhfksxm-
       if (along >= start-radius && along <= end+radius) pos[axis]=edge;
     }
   }
-  // Dimensions in game metres, matching the collision volumes in each room.
-  const interactives={
-    ascent:{
-      A_DOOR:{box:[18.175,18.625,0,3.6,-5.4,-.6],switchAt:[19.6,0],lift:3.6,hp:500},
-      B_DOOR:{box:[-3.125,-2.675,0,3.6,-22.3,-17.5],switchAt:[-1.7,-17.2],lift:4.2,hp:500},
-      MID_PANEL:{box:[-8,-5,.2,2.4,6,6.2],hp:400},
-      LINK_PANEL:{box:[-10,-8,.2,2.4,8,8.2],hp:400},
-      GARDEN_GLASS:{box:[14,16,1,3,-23,-22.85],hp:1}
-    },
-    haven:{
-      GARAGE_LEFT:{box:[-19,-17.2,.4,2.6,8,8.18],hp:400},
-      GARAGE_RIGHT:{box:[-17,-15.2,.4,2.6,8,8.18],hp:400},
-      WINDOW_PANEL:{box:[-2.5,.5,1,2.8,16,16.18],hp:400}
+  for(const map of Object.values(maps)){
+    map.blockers=map.parts.map(({x,z,w,d,b,t,angle,slope})=>{
+      const box=[-w/2,w/2,b,t,-d/2,d/2];
+      box.frame={x,z,c:Math.cos(angle),s:Math.sin(angle),slope,radius:Math.hypot(w,d)/2};
+      return box;
+    });
+  }
+  function resolve(map,pos,y,r){
+    for(const box of maps[map]?.blockers||[]){
+      const {x,z,c,s,radius}=box.frame,dx=pos.x-x,dz=pos.z-z;
+      if(Math.abs(dx)>radius+r||Math.abs(dz)>radius+r)continue;
+      const lx=c*dx-s*dz,lz=s*dx+c*dz;
+      const offset=box.frame.slope*lz;
+      if(y+1.62<=box[2]+offset||y+.33>=box[3]+offset)continue;
+      const vx=lx-Math.max(box[0],Math.min(lx,box[1])),vz=lz-Math.max(box[4],Math.min(lz,box[5]));
+      const dist=Math.hypot(vx,vz);
+      if(dist>=r)continue;
+      let px,pz;
+      if(dist>.00001){px=vx*(r/dist-1);pz=vz*(r/dist-1);}
+      else if(box[1]-Math.abs(lx)<box[5]-Math.abs(lz)){px=(lx<0?-1:1)*(box[1]+r-Math.abs(lx));pz=0;}
+      else{px=0;pz=(lz<0?-1:1)*(box[5]+r-Math.abs(lz));}
+      pos.x+=c*px+s*pz;pos.z+=-s*px+c*pz;
     }
-  };
-  const ground={interactives,gates,cover,stopAtGate,height,hitDistance,haven,havenSite};
-  if (typeof module==='object') module.exports=ground;
+  }
+  const ground={resolve,maps,gates,interactives,stopAtGate,height,hitDistance,siteAt,limit};
+  if(typeof module==='object')module.exports=ground;
   else window.AscentGround=ground;
 })();
