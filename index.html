@@ -298,8 +298,13 @@
     <div class="mx-auto my-6 max-w-lg bg-[#0f1923] border border-[#38e2c7]/50 p-5 sm:p-7 shadow-2xl">
       <div class="flex items-start justify-between gap-3 mb-4">
         <div><div class="text-xs font-num font-bold text-[#38e2c7] tracking-widest">CROSSHAIR // PROFILE IMPORT</div>
-          <h2 id="crosshair-dialog-title" class="text-xl sm:text-2xl font-black text-white">발로란트 조준점 코드 가져오기</h2></div>
+          <h2 id="crosshair-dialog-title" class="text-xl sm:text-2xl font-black text-white">감도 · 조준점 설정</h2></div>
         <button type="button" id="crosshair-close" class="px-3 py-2 border border-white/30 text-white cursor-pointer">닫기 ×</button>
+      </div>
+      <div class="mb-5 text-white">
+        <label for="look-sensitivity">시점 감도 (마우스 · 터치)</label>
+        <output id="look-value" for="look-sensitivity">1.00×</output>
+        <input id="look-sensitivity" class="block w-full" type="range" min="0.25" max="3" step="0.05" value="1">
       </div>
       <p class="text-sm text-slate-300 mb-4">발로란트에서 복사한 <code>0;P;...</code> 프로필 코드를 그대로 붙여넣으세요. 조준점 디자인만 변경되고 명중 방향은 유지됩니다.</p>
       <div class="bg-[#202c3a] border border-white/20 min-h-[160px] grid place-items-center mb-4" aria-label="조준점 미리보기">
@@ -511,7 +516,7 @@
           </button>
           <button type="button" onclick="window.openCrosshairSettings(event)"
                   class="val-cut-sm px-2.5 py-1 bg-[#0f1923]/95 border border-[#38e2c7]/70 text-[#38e2c7] font-num font-black text-[11px] cursor-pointer">
-            CROSSHAIR [P]
+            설정 [P]
           </button>
           <button type="button" onclick="window.toggleMobileMode(event)" id="hud-touch-toggle-btn"
                   class="val-cut-sm px-2.5 py-1 bg-[#38e2c7]/20 border border-[#38e2c7] text-[#38e2c7] font-num font-black text-[11px] cursor-pointer">
@@ -653,7 +658,7 @@
           <div class="menu-section-line"><span>EPISODE // 001</span><span>PC &amp; MOBILE</span></div>
           <div class="menu-hero-copy"><div class="menu-hero-overline"><span class="menu-hero-dash"></span> WELCOME TO THE FIELD</div><h1 class="menu-hero-title">PLAY<br><em>ASCENT</em><span class="menu-title-stop">.</span></h1><p class="menu-hero-desc">하나의 선택이 승부를 바꾼다.<br>전략적인 5대5 전투에 참여하세요.</p></div>
           <button type="button" onclick="window.openCrosshairSettings(event)"
-                  class="mt-2 mb-3 px-4 py-2 text-sm font-bold border border-[#38e2c7]/60 text-[#38e2c7] hover:bg-[#38e2c7]/10 cursor-pointer">⊕ 조준점 코드 설정</button>
+                  class="mt-2 mb-3 px-4 py-2 text-sm font-bold border border-[#38e2c7]/60 text-[#38e2c7] hover:bg-[#38e2c7]/10 cursor-pointer">감도 · 조준점 설정</button>
           <div class="menu-feature-row"><span>◈ &nbsp; REALTIME 5 VS 5</span><span>◈ &nbsp; CUSTOM ROOMS</span><span>◈ &nbsp; CROSS PLATFORM</span></div>
           <button type="button" class="menu-practice-btn" onclick="window.quickStartMatch(event)"><span class="menu-practice-icon">↗</span><span><b>혼자 연습하기</b><small>OFFLINE · AI TRAINING</small></span><span class="menu-practice-arrow">→</span></button>
           <div class="menu-hero-foot"><span>MAP 01&nbsp; / &nbsp;ASCENT</span><span>MOVE WITH PURPOSE.</span></div>
@@ -904,6 +909,22 @@
   </div>
 
   <!-- ==================== MAIN GAME ENGINE SCRIPT ==================== -->
+  <script>
+    const sensitivityControl = document.getElementById('look-sensitivity');
+    const sensitivityKey = 'ascent-look-sensitivity';
+    try {
+      const saved = Number(localStorage.getItem(sensitivityKey));
+      if (saved >= 0.25 && saved <= 3) sensitivityControl.value = saved;
+    } catch (_) {}
+    function showSensitivity() {
+      document.getElementById('look-value').value = sensitivityControl.valueAsNumber.toFixed(2) + '×';
+    }
+    showSensitivity();
+    sensitivityControl.addEventListener('input', () => {
+      showSensitivity();
+      try { localStorage.setItem(sensitivityKey, sensitivityControl.value); } catch (_) {}
+    });
+  </script>
   <script>
     (function () {
       'use strict';
@@ -2955,7 +2976,7 @@
 
       window.addEventListener('pointermove', (e) => {
         if (document.pointerLockElement === canvas && matchState.inMatch && player.alive) {
-          const sens = player.isScoped ? 0.0011 : 0.0022;
+          const sens = (player.isScoped ? 0.0011 : 0.0022) * sensitivityControl.valueAsNumber;
           player.yaw -= e.movementX * sens;
           player.pitch = Math.max(-1.48, Math.min(1.48, player.pitch - e.movementY * sens));
         }
@@ -3029,7 +3050,7 @@
       let lookPointerId = null, lastLookX = 0, lastLookY = 0;
       function applyLookDelta(dx, dy, scale = 1) {
         if (!player.alive) return;
-        const sens = (player.isScoped ? 0.0028 : 0.0058) * scale;
+        const sens = (player.isScoped ? 0.0028 : 0.0058) * scale * sensitivityControl.valueAsNumber;
         player.yaw -= dx * sens;
         player.pitch = Math.max(-1.46, Math.min(1.46, player.pitch - dy * sens));
       }
