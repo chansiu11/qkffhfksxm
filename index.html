@@ -10,8 +10,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=Rajdhani:wght@600;700&family=Teko:wght@600;700&display=swap" rel="stylesheet">
-  <script src="config.js?v=map-gates"></script>
-  <script src="multiplayer-client.js?v=lobbymap"></script>
+  <script src="config.js?v=map-objects"></script>
+  <script src="multiplayer-client.js?v=map-objects"></script>
   <link rel="stylesheet" href="menu.css" />
   <!-- Three.js r128 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -1290,6 +1290,9 @@
       const wallBoxes3D = [];
       const mapTargetMeshes = [];
       const blastDoors = [];
+      const mapObjects = new Map();
+      const masonry=new THREE.MeshStandardMaterial({color:0xbaaa92,roughness:.92});
+      const parapet=new THREE.MeshStandardMaterial({color:0x70685e,roughness:.85});
       const floatingStructures = [];
 
       const ascentGroup = new THREE.Group();
@@ -1436,6 +1439,11 @@
         const footprints = [[-56,56,0,10,-56,-52],[6,56,0,12,-52,-42],[-56,-6,0,9,-52,-40],[10,56,0,12,-42,-40],[20,56,0,13,-40,-36],[-56,-24,0,9,-40,-36],[6,8,0,9,-36,-34],[-16,-12,0,8,-36,-34],[-56,-22,0,9,-36,-32],[-18,-6,0,10,-34,-32],[22,56,0,13,-36,-30],[12,18,0,11,-36,-30],[-56,-38,0,8,-32,-30],[4,8,0,9,-34,-28],[-18,-4,0,10,-32,-28],[-26,-24,0,7,-30,-28],[12,14,0,9,-30,-26],[-14,-4,0,10,-28,-26],[-56,-44,0,8,-30,-24],[-2,8,0,11,-28,-24],[-14,-12,0,8,-26,-24],[12,16,0,9,-26,-24],[18,28,0,12,-26,-24],[-6,-4,0,11,-26,-24],[36,56,0,11,-30,-22],[18,24,0,13,-24,-22],[2,10,0,10,-24,-22],[-38,-36,0,7,-22,-20],[4,10,0,10,-22,-18],[4,14,0,10,-18,-16],[-56,-42,0,9,-24,-14],[20,24,0,13,-22,-14],[-38,-36,0,7,-18,-14],[-26,-24,0,8,-16,-14],[4,16,0,10,-16,-12],[22,24,0,13,-14,-8],[-6,-4,0,9,-14,-8],[-14,-12,0,9,-12,-8],[-56,-36,0,9,-14,-6],[0,16,0,10,-12,-6],[-14,-4,0,9,-8,-6],[20,26,0,11,-8,-6],[38,56,0,12,-22,-4],[-56,-28,0,8,-6,0],[4,12,0,11,-6,0],[40,56,0,13,-4,0],[-12,-6,0,9,-6,2],[18,32,0,11,0,2],[34,56,0,13,0,2],[-22,-18,0,7,0,2],[36,56,0,13,2,4],[-22,-6,0,7,2,4],[24,32,0,12,2,4],[18,20,0,11,2,6],[10,14,0,11,4,6],[-22,-4,0,7,4,6],[44,56,0,13,4,8],[10,22,0,11,6,8],[-16,-12,0,7,6,8],[38,40,0,12,6,8],[26,56,0,11,8,10],[10,20,0,11,8,10],[-56,-26,0,8,0,14],[-12,-8,0,10,10,14],[12,20,0,12,10,14],[-12,4,0,11,14,16],[28,56,0,11,10,20],[-56,-24,0,9,14,20],[12,22,0,12,14,22],[-10,6,0,11,16,22],[-56,-14,0,9,20,26],[-10,8,0,9,22,26],[30,56,0,12,20,28],[-8,18,0,10,26,28],[-8,20,0,10,28,30],[22,56,0,11,28,32],[8,20,0,10,30,32],[-56,-12,0,7,26,36],[24,56,0,12,32,36],[26,56,0,12,36,40],[20,56,0,12,40,42],[-56,-10,0,8,36,44],[6,56,0,12,42,44],[4,56,0,12,44,50],[2,56,0,12,50,52],[-56,-4,0,9,44,54],[0,56,0,12,52,54],[-56,56,0,10,54,56]];
         
         footprints.forEach(([left,right,bottom,top,near,far]) => {
+          if(Math.min(right-left,far-near)<=2 && Math.max(right-left,far-near)<=16){
+            addSolidBox3D((left+right)/2,(near+far)/2,right-left,far-near,0,3.5,masonry);
+            addSolidBox3D((left+right)/2,(near+far)/2,right-left+.8,far-near+.8,3.5,3.85,parapet);
+            return;
+          }
           addVenetianBuilding((left+right)/2,(near+far)/2,right-left,far-near,bottom,top,right+left > 28 ? matVenetianOchre : right+left < -24 ? matBrickWall : matVenetianPink);
         });
         addWalkableSlab(15.4,21.4,-6.0,0.0,0,1,'A TREE',null,false);
@@ -1514,6 +1522,12 @@
         bRing.position.set(-32, 0.04, -23);
         ascentGroup.add(aRing, bRing);
 
+        // The planted tree marks the A connector from ground level as well as on radar.
+        const treeTop = new THREE.Mesh(new THREE.IcosahedronGeometry(2.05,1),
+          new THREE.MeshStandardMaterial({color:0x718d59,roughness:1}));
+        treeTop.position.set(16,4.6,-5.5);ascentGroup.add(treeTop);
+        addSolidBox3D(16,-5.5,.65,.65,0,3.35,matWoodFloor);
+        registerMapObjects('ascent');
         buildRoundObjects('ascent');
       }
 
@@ -1535,6 +1549,27 @@
         }
       }
 
+      function registerMapObjects(map) {
+        for(const [id,item] of Object.entries(AscentGround.interactives[map])){
+          const [l,r,b,t,n,f]=item.box;
+          const door=blastDoors.find(d=>d.id===id);
+          const part=door || addSolidBox3D((l+r)/2,(n+f)/2,r-l,f-n,b,t,
+            id.includes('GLASS')?matGlassRoof:matGenerator);
+          mapObjects.set(id,{...part,item});
+        }
+      }
+      function syncMapObjects(states) {
+        if(!states)return;
+        for(const [id,{mesh,collider,item,switchMesh}] of mapObjects){
+          const state=states[id];if(!state)continue;
+          const intact=state.hp>0, offset=(!state.closed && item.lift)||0;
+          mesh.visible=intact;
+          collider.minY=intact?item.box[2]+offset:-100;
+          collider.maxY=intact?item.box[3]+offset:-99;
+          mesh.position.y=(collider.minY+collider.maxY)/2;
+          if(switchMesh)switchMesh.material.color.setHex(!intact?0x555555:state.closed?0xff4655:0x38e2c7);
+        }
+      }
       let activeMap = 'ascent';
       buildAscentMap();
       function selectMap(id) {
@@ -1546,6 +1581,7 @@
         document.querySelector('[onclick^="window.teleportTo"]').parentElement.parentElement.hidden=next==='haven';
         if (activeMap === next) return;
         activeMap = next;
+        mapObjects.clear();
         for (const group of [ascentGroup,barrierGroup]) {
           group.traverse(obj => obj.geometry?.dispose());
           group.clear();
@@ -1553,10 +1589,20 @@
         for (const list of [wallBoxes3D,walkableSurfaces,mapTargetMeshes,blastDoors,floatingStructures]) list.length=0;
         if (next === 'range') { buildPracticeHall();return; }
         if (next === 'ascent') { buildAscentMap(); return; }
+        registerMapObjects('haven');
         buildRoundObjects('haven');
         const map = AscentGround.haven;
         addWalkableSlab(-56,56,-56,56,0,.5,'HAVEN',matStoneFloor);
-        for (const [l,r,b,t,n,f] of [...map.walls,...map.props]) {
+        for(const [l,r,b,t,n,f] of map.walls){
+          const thin=Math.min(r-l,f-n)<=2 && Math.max(r-l,f-n)<=16;
+          addSolidBox3D((l+r)/2,(n+f)/2,r-l,f-n,b,t,thin?masonry:matVenetianOchre);
+          addSolidBox3D((l+r)/2,(n+f)/2,r-l+.36,f-n+.36,t,t+(thin?.3:.8),thin?parapet:matDarkMetal);
+          if(!thin && Math.min(r-l,f-n)>=6){
+            const upper=addSolidBox3D((l+r)/2,(n+f)/2,r-l-.3,f-n-.3,t+.8,t+1.55,matWoodFloor);
+            upper.mesh.receiveShadow=true;
+          }
+        }
+        for (const [l,r,b,t,n,f] of map.props) {
           const mat = b>0 ? matWoodFloor : t<3 ? matRadianite : l>12 ? matVenetianOchre : matVenetianWall;
           addSolidBox3D((l+r)/2,(n+f)/2,r-l,f-n,b,t,mat);
         }
@@ -2638,12 +2684,12 @@
       // All three segments are present instantly: there is no travel time or moving projectile.
       const TRACER_LIFETIME = 0.13;
       const TRACER_COLOR = 0xffe331;
-      const TRACER_WIDTH_PIXEL_OFFSETS = [-0.7, 0, 0.7];
+      const TRACER_WIDTH_PIXEL_OFFSETS = [-1.4, -.7, 0, .7, 1.4];
       function spawnBulletTracer(startPos, endPos, _originalColor) {
         const start = startPos.clone(), end = endPos.clone();
         const distance = start.distanceTo(end);
         if (!(distance > 0.05) || !Number.isFinite(distance)) return;
-        // Build three parallel line segments with offsets measured in screen pixels.
+        // Build five parallel line segments with offsets measured in screen pixels.
         // Unlike linewidth: 2, this remains visible in common WebGL mobile browsers.
         const eye = camera.getWorldPosition(new THREE.Vector3());
         const forward = camera.getWorldDirection(new THREE.Vector3()).normalize();
@@ -2993,7 +3039,7 @@
 
       window.toggleAscentDoor = function () {
         let nearest = null;
-        let minDist = 11.0;
+        let minDist = 3.0;
         blastDoors.forEach(d => {
           const dist = player.pos.distanceTo(d.switchPos);
           if (dist < minDist) {
@@ -3002,7 +3048,8 @@
           }
         });
         if (!nearest) return false;
-        nearest.closed = !nearest.closed;
+        if(window.MP.active)return window.MP.send({type:'use_door',id:nearest.id});
+        nearest.closed = true;
         nearest.targetMinY = nearest.closed ? 0.0 : (nearest.id === 'A_DOOR' ? 3.6 : 4.2);
         if (nearest.switchMesh) {
           nearest.switchMesh.material.color.setHex(nearest.closed ? 0xff4655 : 0x38e2c7);
@@ -3888,7 +3935,7 @@
         renderer.render(scene, camera);
       }
 
-      window.MP.install({selectMap,resetChat,appendChat,roomState,matchState,player,bots,scene,spikeMesh,barrierGroup,gunGroup,muzzleFlashMesh,viewmodel,gameSpikeSiteAt,sfx,
+      window.MP.install({syncMapObjects,selectMap,resetChat,appendChat,roomState,matchState,player,bots,scene,spikeMesh,barrierGroup,gunGroup,muzzleFlashMesh,viewmodel,gameSpikeSiteAt,sfx,
         createTacticalBotMesh,setEnemyOutline,spawnBulletTracer,drawLocalShot,
         cloneWeaponInstance,WEAPON_CATALOG,getActiveWeapon,startNewRound,
         updateHUD,flashDamage,showHitmarker,showRoundBanner,addKillFeed,syncCheatPermissionUI,

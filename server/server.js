@@ -212,6 +212,7 @@ function resumeRoom(c, msg) {
   broadcastLobby(r);
 }
 function resetRound(r) {
+  r.objects=Object.fromEntries(Object.entries(ground.interactives[r.map]||{}).map(([id,item])=>[id,{hp:item.hp,closed:false}]));
   r.phase = 'buy';
   r.until = Date.now() + 16000;
   r.spike = null;
@@ -258,7 +259,7 @@ function rayBox(ox,oy,oz,dx,dy,dz,b) {
   }
   return near;
 }
-const havenBlockers = [...ground.haven.walls,...ground.haven.props,...ground.cover.haven.map(entry=>entry[1])];
+const havenBlockers = [...ground.haven.walls,...ground.haven.roofs,...ground.haven.props,...ground.cover.haven.map(entry=>entry[1])];
 function fire(r, p, msg) {
   const blockers = r.map==='haven' ? havenBlockers : ascentBlockers;
   if (r.phase !== 'combat' && r.phase !== 'planted') return;
@@ -344,6 +345,14 @@ function fire(r, p, msg) {
       const wall = rayBox(ox, oy, oz, dx, dy, dz, b);
       if (wall < impactDistance) impactDistance = wall;
     }
+    let struck=null;
+    for(const [id,state] of Object.entries(r.objects||{})){
+      if(state.hp<=0)continue;
+      const obj=ground.interactives[r.map][id], box=[...obj.box];
+      if(obj.lift && !state.closed){box[2]+=obj.lift;box[3]+=obj.lift;}
+      const distance=rayBox(ox,oy,oz,dx,dy,dz,box);
+      if(distance<impactDistance){impactDistance=distance;struck=state;}
+    }
     let best = impactDistance, hit = null, headshot = false, legshot = false;
     for (const target of r.players.values()) {
       if (!target.alive || target.team === p.team) continue;
@@ -364,6 +373,7 @@ function fire(r, p, msg) {
           endRound(r, p.team, 'TEAM ELIMINATED');
       }
     }
+    if(!hit && struck)struck.hp=Math.max(0,struck.hp-w.bodyDmg);
     ends.push([Math.round((ox + dx * impactDistance) * 100) / 100,
       Math.round((oy + dy * impactDistance) * 100) / 100,
       Math.round((oz + dz * impactDistance) * 100) / 100]);
@@ -402,6 +412,13 @@ function receive(c,m) {
   if (m.type === 'create' || m.type === 'join') { createRoom(c,m); return; }
   const r=c.room, p=r?.players.get(c.id);
   if (!r || !p) return;
+  if (m.type==='use_door') {
+    const item=Object.hasOwn(ground.interactives[r.map],m.id) && ground.interactives[r.map][m.id];
+    const door=r.objects?.[m.id];
+    if (r.started && p.alive && ['buy','combat','planted'].includes(r.phase) && item?.switchAt && door?.hp>0 &&
+        Math.hypot(p.x-item.switchAt[0],p.z-item.switchAt[1])<=3) door.closed=true;
+    return;
+  }
   if (m.type === 'set_map') {
     if (r.host !== p.id || r.started || !['ascent','haven'].includes(m.map)) return;
     r.map = m.map;
@@ -533,7 +550,7 @@ function snapshot(r) {
   const now=Date.now();
   // Quantize positions to centimetres, enough for FPS interpolation and smaller packets.
   const q=n=>Math.round(n*100)/100;
-  return {type:'state',serverAt:now,code:r.code,round:r.round,phase:r.phase,timer:q(Math.max(0,(r.until-now)/1000)),
+  return {type:'state',objects:r.objects,serverAt:now,code:r.code,round:r.round,phase:r.phase,timer:q(Math.max(0,(r.until-now)/1000)),
     scores:r.scores,host:r.host,winRounds:r.winRounds,spike:r.spike,
     players:roomUsers(r).map(p=>({id:p.id,name:p.name,team:p.team,x:q(p.x),y:q(p.y),z:q(p.z),footY:q(p.footY),yaw:q(p.yaw),pitch:q(p.pitch),hp:p.hp,armor:p.armor,alive:p.alive,credits:p.credits,inventory:p.inventory,weapon:p.weapon,mag:p.mag,reserve:p.reserve,reloading:p.reloading,reloadWeapon:p.reloadWeapon,spikeAction:spikeAction(r,p,now)}))};
 }
