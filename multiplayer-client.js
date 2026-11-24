@@ -280,6 +280,7 @@
           const xyz = v => Array.isArray(v) && v.length === 3 && v.every(Number.isFinite);
           if (xyz(data.from) && xyz(data.to)) {
             const start = new THREE.Vector3(...data.from);
+            a.gameSound?.('shot',start.x,start.z,false,start.y);
             const gun = a.WEAPON_CATALOG[data.weapon];
             const lines = Array.isArray(data.pellets) && data.pellets.length <= 16
               ? data.pellets.filter(xyz) : [data.to];
@@ -291,6 +292,7 @@
           }
           break;
         }
+        case 'world_sound': a.gameSound(data.kind,data.x,data.z,data.source===this.myId,data.y);break;
         case 'bullet_tag': if(a.player.alive) a.player.taggedAt=performance.now(); break;
         case 'hit': a.showHitmarker(!!data.headshot); if (data.headshot) a.sfx.playHeadshotDing(); break;
         case 'kill': {
@@ -603,7 +605,7 @@
       // Do not flood the room with identical stationary/aim-still packets.
       // A periodic 600ms refresh keeps server presence and hold state alive.
       const q=n=>Math.round(n*1000)/1000;
-      const move={type:'move',x:q(p.pos.x),y:q(p.pos.y),z:q(p.pos.z),
+      const move={type:'move',running:!!p.running,x:q(p.pos.x),y:q(p.pos.y),z:q(p.pos.z),
         footY:q(p.footY),yaw:q(p.yaw),pitch:q(p.lookPitch??p.pitch)};
       const key=`${move.x}|${move.y}|${move.z}|${move.footY}|${move.yaw}|${move.pitch}`;
       if (key !== this.lastMoveKey || now-this.lastSent >= 600) {

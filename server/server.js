@@ -279,10 +279,18 @@ function mapImpact(r,ox,oy,oz,dx,dy,dz,range){
     }
     return {impactDistance,struck};
 }
+function worldSound(r,p,kind){
+  for(const q of r.players.values()){
+    if(kind==='step'&&q===p)continue;
+    if(Math.hypot(q.x-p.x,q.z-p.z)<(kind==='step'?40:60))
+      send(q.client,{type:'world_sound',source:p.id,kind,x:p.x,z:p.z,y:kind==='step'?p.footY+.12:p.footY+.8});
+  }
+}
+function planting(r,p){return p.heldSpike&&r.phase==='combat'&&p.team==='attack'&&spikeSite(p.x,p.z,p.footY,r.map);}
 function fire(r, p, msg) {
   const blockers = ground.maps[r.map].blockers;
   if (r.phase !== 'combat' && r.phase !== 'planted') return;
-  if (!p.alive || p.reloading) return;
+  if (!p.alive || p.reloading || planting(r,p)) return;
   const w = catalog[p.weapon] || catalog.classic;
   const now = Date.now();
   const meleeMode = MeleeRules.modeFor(msg.mode);
@@ -472,6 +480,7 @@ function receive(c,m) {
     send(c, {type:'inventory',weapon:item,mag:p.mag,reserve:p.reserve});
   }
   else if(m.type==='move' && r.started && p.alive && ['combat','buy','planted'].includes(r.phase)) {
+    if(planting(r,p)){p.y=p.footY+1.2;return;}
     const x=finite(m.x,-LIMIT,LIMIT,p.x),z=finite(m.z,-LIMIT,LIMIT,p.z),
           footY=finite(m.footY,-5,16,p.footY),y=finite(m.y,-4,20,p.y);
     const dt=p.lastPosAt?clamp((now-p.lastPosAt)/1000,0.03,0.35):0.2;
@@ -494,6 +503,10 @@ function receive(c,m) {
           next.x=p.x;next.z=p.z;break;
         }
       }
+      if(m.running&&Math.abs(footY-p.footY)<.58){
+        p.stepDistance=(p.stepDistance||0)+Math.hypot(next.x-p.x,next.z-p.z);
+        if(p.stepDistance>=1.9){p.stepDistance%=1.9;worldSound(r,p,'step');}
+      }else p.stepDistance=0;
       p.x=next.x;p.z=next.z;p.y=y;p.footY=footY;
       p.yaw=finite(m.yaw,-1e6,1e6,p.yaw);
       p.pitch=finite(m.pitch,-1.48,1.48,p.pitch);
@@ -625,7 +638,7 @@ function step(r,now){
       if(p.team==='attack' && r.phase==='combat') {
         const site=spikeSite(p.x,p.z,p.footY,r.map);
         if(!site){p.actionFrom=0;continue;}
-        if(!p.actionFrom)p.actionFrom=now;
+        if(!p.actionFrom){p.actionFrom=now;worldSound(r,p,'plant');}
         if(now-p.actionFrom>=4000){
           r.spike={x:p.x,y:p.footY,z:p.z,site};r.phase='planted';r.until=now+45000;
           p.actionFrom=0;p.heldSpike=false;p.credits=clamp(p.credits+300,0,9000);
@@ -633,7 +646,7 @@ function step(r,now){
         }
       } else if(p.team==='defense' && r.phase==='planted' && r.spike){
         if(Math.hypot(p.x-r.spike.x,p.z-r.spike.z)>4.5){p.actionFrom=0;continue;}
-        if(!p.actionFrom){p.actionFrom=now;p.actionBase=r.halfDefused?0.5:0;}
+        if(!p.actionFrom){worldSound(r,p,r.halfDefused?'half':'defuse');p.actionFrom=now;p.actionBase=r.halfDefused?0.5:0;}
         const progress=p.actionBase+(now-p.actionFrom)/7000;
         if(progress>=0.5)r.halfDefused=true;
         // A continuous defuse always takes 7s. On interrupted defuse, the saved

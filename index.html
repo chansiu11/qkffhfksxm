@@ -12,7 +12,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=Rajdhani:wght@600;700&family=Teko:wght@600;700&display=swap" rel="stylesheet">
   <script src="match-plans.js?v=equipment2"></script>
   <script src="config.js?v=haven-door-health"></script>
-  <script src="multiplayer-client.js?v=burst-connect"></script>
+  <script src="multiplayer-client.js?v=spike-audio"></script>
   <link rel="stylesheet" href="menu.css" />
   <!-- Three.js r128 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -278,7 +278,12 @@
 #scope-overlay[data-weapon] div:last-child{width:4px;height:4px;border:0;background:#ea5954}
 #scope-overlay[data-weapon="outlaw"]{background:radial-gradient(circle,transparent 30%,#292d30 30.5%,#06080a 33%)!important}
 #scope-overlay[data-weapon="operator"]{background:radial-gradient(circle,transparent 34%,#1e2023 34.5%,#030406 36%)!important}
-</style>
+#plant-device{display:none;position:fixed;pointer-events:none;left:50%;bottom:2%;width:min(18vw,145px);height:min(27vh,210px);z-index:15;background:linear-gradient(105deg,#2d3840 18%,#708089 19% 28%,#1d292d 29% 67%,#728087 68% 75%,#344650 76%);clip-path:polygon(25% 0,75% 0,94% 28%,100% 100%,0 100%,6% 28%);border-top:7px solid #8bd8ce}
+      #plant-device:after{content:'';position:absolute;inset:22% 38% 16%;background:repeating-linear-gradient(0deg,#65efdd 0 5px,#294345 6px 15px)}
+      .planting-spike #plant-device{display:block;animation:seat-spike 4s linear both}
+      .planting-spike #fps-weapon-sprite-layer{visibility:hidden}
+      @keyframes seat-spike{0%{transform:translate(5%,90%) rotate(24deg)}20%{transform:translate(-48%,5%) rotate(-6deg)}75%{transform:translate(-50%,8%)}90%,100%{transform:translate(-50%,70%) rotateX(25deg)}}
+      </style>
 </head>
 <body>
 
@@ -286,7 +291,7 @@
   <canvas id="game-canvas"></canvas>
 
   <!-- 2D illustrated weapon: foreground only, no 3D weapon mesh -->
-  <div id="fps-weapon-sprite-layer" aria-hidden="true"></div>
+  <div id="plant-device" aria-hidden="true"></div><div id="fps-weapon-sprite-layer" aria-hidden="true"></div>
 
   <!-- Damage Vignette -->
   <div id="damage-vignette" class="fixed inset-0 pointer-events-none"></div>
@@ -2860,6 +2865,7 @@
 
       function drawLocalShot(weapon, pelletRotation = 0, spreadResult = null) {
         if (weapon.slot === 'knife') return;
+        soundRadius=100;soundCircleUntil=performance.now()+550;
         const maxDist = weapon.range || 200;
         const origin = player.pos.clone();
         const pelletDirections = spreadResult?.vectors || ShotgunPellets.directions(player.yaw, player.pitch,
@@ -2876,6 +2882,7 @@
       }
 
       function attemptFire(knifeMode='light') {
+        if(planting())return;
         if (!matchState.inMatch || (activeMap==='range' && rangeOptions.open)) return;
         if (window.MP.active) { window.MP.fire(knifeMode); return; }
         if (!player.alive) {
@@ -2927,6 +2934,7 @@
           updateHUD();
           return;
         } else {
+          soundRadius=100;soundCircleUntil=performance.now()+550;
           sfx.playGunshot(w.id === 'operator' ? 92 : w.id === 'vandal' ? 145 : 190, 0.11);
           muzzleFlashMesh.material.opacity = 1;
           setTimeout(() => { muzzleFlashMesh.material.opacity = 0; }, 45);
@@ -3179,6 +3187,7 @@
       };
 
       window.triggerJump = function () {
+        if(planting())return;
         if (!matchState.inMatch || !player.alive) return;
         if (roomState.allowCheats && cheats.ghost) {
           player.pos.y += 2.2;
@@ -3569,6 +3578,43 @@
       const radarCanvas = document.getElementById('radar-canvas');
       const rCtx = radarCanvas.getContext('2d');
 
+      let soundCircleUntil=0,soundRadius=0,stepDistance=0,lastAction='';
+      function orientAudio(){
+        const listener=sfx.ctx?.listener;if(!listener)return;
+        const forward=camera.getWorldDirection(audioForward);
+        const up=audioUp.set(0,1,0).applyQuaternion(camera.quaternion);
+        listener.setPosition(camera.position.x,camera.position.y,camera.position.z);
+        listener.setOrientation(forward.x,forward.y,forward.z,up.x,up.y,up.z);
+      }
+      const audioForward=new THREE.Vector3(),audioUp=new THREE.Vector3();
+      function gameSound(kind,x,z,own=false,y=AscentGround.height(activeMap,x,z)+.8){
+        const step=kind==='step',radius=step?40:kind==='shot'?100:60;
+        const d=own?0:Math.hypot(x-camera.position.x,y-camera.position.y,z-camera.position.z);
+        if(own){soundCircleUntil=performance.now()+550;soundRadius=radius;}
+        if(d>=radius)return;
+        sfx.init();const ctx=sfx.ctx;if(!ctx)return;
+        const t=ctx.currentTime,osc=ctx.createOscillator(),gain=ctx.createGain(),pan=ctx.createPanner();
+        osc.type=kind==='shot'?'sawtooth':step?'triangle':'square';
+        const freq=kind==='shot'?180:step?130:kind==='plant'?680:kind==='half'?1400:970;
+        osc.frequency.setValueAtTime(freq,t);osc.frequency.exponentialRampToValueAtTime(step?48:freq*1.45,t+.14);
+        gain.gain.setValueAtTime((step?.21:.13)*(1-d/radius),t);
+        gain.gain.exponentialRampToValueAtTime(.00001,t+(step?.14:.32));
+        pan.panningModel='HRTF';pan.rolloffFactor=0;
+        pan.setPosition(x,y,z);orientAudio();
+        osc.connect(gain);
+        if(own)gain.connect(ctx.destination);
+        else {gain.connect(pan);pan.connect(ctx.destination);}
+        if(step||kind==='shot'){
+          const length=Math.ceil(ctx.sampleRate*(step?.085:.12)),buffer=ctx.createBuffer(1,length,ctx.sampleRate);
+          const samples=buffer.getChannelData(0);
+          for(let i=0;i<length;i++)samples[i]=(Math.random()*2-1)*Math.exp(-5*i/length);
+          const noise=ctx.createBufferSource();noise.buffer=buffer;noise.connect(gain);noise.start(t);
+        }
+        osc.start(t);osc.stop(t+.33);
+      }
+      function planting(){
+        return matchState.inMatch&&player.alive&&player.onGround&&isSpikeKeyHeld&&matchState.phase==='combat'&&roomState.playerSide==='attack'&&gameSpikeSiteAt(player.pos.x,player.pos.z,player.footY);
+      }
       function drawAscentRadar() {
         const w = radarCanvas.width, h = radarCanvas.height;
         rCtx.clearRect(0, 0, w, h);
@@ -3594,6 +3640,10 @@
             }
             rCtx.fill('evenodd');
           }
+        }
+        if(performance.now()<soundCircleUntil){
+          rCtx.strokeStyle='rgba(255,255,255,.8)';rCtx.beginPath();
+          rCtx.arc(toRx(player.pos.x),toRz(player.pos.z),soundRadius*w/(2*MAP_LIMIT),0,2*Math.PI);rCtx.stroke();
         }
         // Draw Buy Phase Barrier lines on Radar during Buy Phase
         if (matchState.phase === 'buy') {
@@ -3673,6 +3723,7 @@
           const forward = new THREE.Vector3(-Math.sin(player.yaw), 0, -Math.cos(player.yaw));
           const right = new THREE.Vector3(Math.cos(player.yaw), 0, -Math.sin(player.yaw));
           const wishDir = new THREE.Vector3().addScaledVector(forward, moveF).addScaledVector(right, moveR);
+          if(planting())wishDir.set(0,0,0);
           if (wishDir.lengthSq() > 1) wishDir.normalize();
 
           if (roomState.allowCheats && cheats.ghost) {
@@ -3682,7 +3733,7 @@
             if (keys['ControlLeft'] || keys['ShiftLeft']) player.pos.y -= 14 * dt;
             player.footY = player.pos.y - EYE_HEIGHT;
           } else {
-            const isCrouching = keys['ControlLeft'] || player.crouchToggle;
+            const isCrouching = planting() || keys['ControlLeft'] || player.crouchToggle;
             const isWalkingSlow = keys['ShiftLeft'] || player.walkToggle || (joyState.active && joyState.distRatio < 0.52);
             const walkSpeed = ShootingSpread.movementSpeed(getActiveWeapon().id,isCrouching,isWalkingSlow)
               * ShootingSpread.tagMultiplier(player,performance.now());
@@ -3707,6 +3758,11 @@
             } else {
               player.onGround = false;
             }
+            player.running=player.onGround&&!isCrouching&&!isWalkingSlow&&wishDir.lengthSq()>.01;
+            if(player.running){
+              stepDistance+=Math.hypot(player.pos.x-oldX,player.pos.z-oldZ);
+              if(stepDistance>=1.9){stepDistance%=1.9;gameSound('step',player.pos.x,player.pos.z,true);}
+            }else stepDistance=0;
             const crouchOffset = isCrouching ? -0.45 : 0;
             player.pos.y = player.footY + EYE_HEIGHT + crouchOffset;
           }
@@ -3772,10 +3828,13 @@
             if (toTarget.length() > 1.4) {
               toTarget.normalize();
               const botSpeed = 5.2 * ShootingSpread.tagMultiplier(b,performance.now());
+              const prevX=b.group.position.x,prevZ=b.group.position.z;
               b.group.position.x += toTarget.x * botSpeed * dt;
               b.group.position.z += toTarget.z * botSpeed * dt;
               resolveCollisions3D(b.group.position, b.footY, 0.55, false, 'attack');
               const sup = getSurfaceSupport(b.group.position.x, b.group.position.z, b.footY);
+              b.stride=(b.stride||0)+Math.hypot(b.group.position.x-prevX,b.group.position.z-prevZ);
+              if(b.stride>=1.9){b.stride%=1.9;gameSound('step',b.group.position.x,b.group.position.z,false,sup.y+.12);}
               b.footY = sup.y;
               b.callout = sup.callout;
               b.group.position.y = b.footY;
@@ -3811,6 +3870,7 @@
                   b.yaw = Math.atan2(-dx, -dz);
                   const startP = b.group.position.clone().add(new THREE.Vector3(0, 1.45, 0));
                   const endP = nearestEnemy.group.position.clone().add(new THREE.Vector3(0, 1.35, 0));
+                  gameSound('shot',startP.x,startP.z,false,startP.y);
                   spawnBulletTracer(startP, endP, 0x38e2c7);
 
                   if (!player.alive && getCurrentSpectatedAlly() === b) {
@@ -3852,6 +3912,7 @@
 
                 if (targetIsPlayer && player.alive) {
                   const startP = b.group.position.clone().add(new THREE.Vector3(0, 1.45, 0));
+                  gameSound('shot',startP.x,startP.z,false,startP.y);
                   spawnBulletTracer(startP, player.pos.clone().add(new THREE.Vector3(0, -0.2, 0)), 0xff4655);
 
                   if (!(roomState.allowCheats && cheats.invincible)) {
@@ -3877,6 +3938,7 @@
                 } else if (nearestAllyBot) {
                   const startP = b.group.position.clone().add(new THREE.Vector3(0, 1.45, 0));
                   const endP = nearestAllyBot.group.position.clone().add(new THREE.Vector3(0, 1.35, 0));
+                  gameSound('shot',startP.x,startP.z,false,startP.y);
                   spawnBulletTracer(startP, endP, 0xff4655);
                   nearestAllyBot.taggedAt = performance.now();
                   ShootingSpread.applyGunDamage(nearestAllyBot,b.weapon.id,bestD,'body');
@@ -3934,15 +3996,6 @@
         const s = String(sec % 60).padStart(2, '0');
         document.getElementById('hud-timer-text').textContent = matchState.spikePlanted ? `SPIKE ${sec}s` : `${m}:${s}`;
 
-        if (matchState.spikePlanted && matchState.phase === 'planted') {
-          const interval = matchState.timer < 10 ? 0.22 : matchState.timer < 20 ? 0.45 : 0.9;
-          matchState.beepAccum += dt;
-          if (matchState.beepAccum >= interval) {
-            matchState.beepAccum = 0;
-            sfx.playBeep(1040);
-          }
-        }
-
         const inSite = gameSpikeSiteAt(player.pos.x, player.pos.z, player.footY);
         const promptEl = document.getElementById('hud-context-prompt');
         const boxEl = document.getElementById('spike-action-box');
@@ -3954,7 +4007,7 @@
         if (player.alive && matchState.phase === 'combat' && isAtk && inSite) {
           promptEl.textContent = `[SPIKE] 버튼 또는 [4/F] 키를 길게 눌러 ${inSite} 사이트에 스파이크 설치 (4초)`;
           promptEl.classList.remove('hidden');
-          if (isSpikeKeyHeld) {
+          if (planting()) {
             boxEl.classList.remove('hidden');
             lblEl.textContent = `PLANTING SPIKE (${inSite} SITE)...`;
             matchState.plantProgress += dt / 4.0;
@@ -4066,6 +4119,11 @@
         prevTime = now;
         updateRenderQuality(now, frameMs);
 
+        const plant=planting();
+        document.body.classList.toggle('planting-spike',!!plant);
+        const action=plant?'plant':matchState.inMatch&&player.alive&&isSpikeKeyHeld&&matchState.phase==='planted'&&roomState.playerSide==='defense'&&player.pos.distanceTo(matchState.spikePos)<4.5?'defuse':'';
+        if(!window.MP.active&&action&&action!==lastAction)gameSound(action,player.pos.x,player.pos.z,true);
+        lastAction=action;
         if (matchState.inMatch) {
           const holdingAnyFire = isMouseFiring || isKeyboardFiring || isLeftTouchFiring || isRightTouchFiring;
           if ((holdingAnyFire || (player.bulldogCount && player.isScoped && getActiveWeapon().id==='bulldog')) && player.alive && getActiveWeapon().auto) attemptFire();
@@ -4074,7 +4132,16 @@
           window.updateCrosshairErrors?.(ShootingSpread.crosshairError(getActiveWeapon(), player, now), now);
           if(activeMap==='range')updateRange(now);
           else {updateBotsAndTeamCombat(dt);updateSpikeAndMatchRules(dt);}
-          window.MP.tick(dt);
+        if (matchState.spikePlanted && matchState.phase === 'planted') {
+          const interval = matchState.timer < 10 ? 0.22 : matchState.timer < 20 ? 0.45 : 0.9;
+          matchState.beepAccum += dt;
+          if (matchState.beepAccum >= interval) {
+            matchState.beepAccum = 0;
+            gameSound('beep',matchState.spikePos.x,matchState.spikePos.z);
+          }
+        }
+
+          window.MP.tick(dt);orientAudio();
           if (now - lastRadarAt > 75) {drawAscentRadar();lastRadarAt = now;}
         } else {
           if(player.adsRequested||player.adsProgress)resetADS();
@@ -4100,12 +4167,12 @@
         renderer.render(scene, camera);
       }
 
-      window.MP.install({afterScopedShot,syncMapObjects,selectMap,resetChat,appendChat,roomState,matchState,player,bots,scene,spikeMesh,barrierGroup,gunGroup,muzzleFlashMesh,viewmodel,gameSpikeSiteAt,sfx,
+      window.MP.install({gameSound,afterScopedShot,syncMapObjects,selectMap,resetChat,appendChat,roomState,matchState,player,bots,scene,spikeMesh,barrierGroup,gunGroup,muzzleFlashMesh,viewmodel,gameSpikeSiteAt,sfx,
         createTacticalBotMesh,setEnemyOutline,spawnBulletTracer,drawLocalShot,
         cloneWeaponInstance,WEAPON_CATALOG,getActiveWeapon,startNewRound,
         updateHUD,flashDamage,showHitmarker,showRoundBanner,addKillFeed,syncCheatPermissionUI,
         launchAscentMatchImmediate,openWaitingLobby:window.openWaitingLobby,openEntryScreen:window.openEntryScreen,
-        switchWeaponSlot:window.switchWeaponSlot,getSpikeHeld:()=>isSpikeKeyHeld});
+        switchWeaponSlot:window.switchWeaponSlot,getSpikeHeld:()=>isSpikeKeyHeld&&(roomState.playerSide!=='attack'||!!planting())});
       window.onload = function () {
         refreshInputUI();
         syncCheatPermissionUI();
