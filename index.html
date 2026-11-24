@@ -10,7 +10,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=Rajdhani:wght@600;700&family=Teko:wght@600;700&display=swap" rel="stylesheet">
-  <script src="config.js?v=map-objects"></script>
+  <script src="match-plans.js?v=metric1"></script>
+  <script src="config.js?v=metric1"></script>
   <script src="multiplayer-client.js?v=spray16"></script>
   <link rel="stylesheet" href="menu.css" />
   <!-- Three.js r128 -->
@@ -921,12 +922,12 @@
         <div class="pt-2 border-t border-white/10">
           <div class="text-xs font-bold text-slate-300 mb-2">ASCENT ELEVATION TELEPORT (어센트 주요 지형 즉시 순간이동)</div>
           <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
-            <button type="button" onclick="window.teleportTo(29, 3.2, -29, 'A HEAVEN (+3.2m)')" class="p-2 bg-[#142230] hover:bg-slate-700 text-xs font-bold text-[#38e2c7] border border-[#38e2c7]/40 cursor-pointer">A HEAVEN (+3.2m)</button>
-            <button type="button" onclick="window.teleportTo(29, 0.0, -29, 'A HELL (0.0m)')" class="p-2 bg-[#142230] hover:bg-slate-700 text-xs font-bold text-rose-300 border border-rose-400/40 cursor-pointer">A HELL UNDERPASS (0.0m)</button>
-            <button type="button" onclick="window.teleportTo(10.5, 0.0, -14, 'A GARDEN / TREE (0.0m)')" class="p-2 bg-[#142230] hover:bg-slate-700 text-xs font-bold text-pink-300 border border-pink-400/40 cursor-pointer">A GARDEN / TREE (0.0m)</button>
-            <button type="button" onclick="window.teleportTo(7.5, 1.4, 4, 'MID CATWALK (+1.4m)')" class="p-2 bg-[#142230] hover:bg-slate-700 text-xs font-bold text-amber-300 border border-amber-400/40 cursor-pointer">MID CATWALK (+1.4m)</button>
-            <button type="button" onclick="window.teleportTo(-21, 1.6, -8, 'B 2F TERRACE (+1.6m)')" class="p-2 bg-[#142230] hover:bg-slate-700 text-xs font-bold text-[#38e2c7] border border-[#38e2c7]/40 cursor-pointer">B 2F TERRACE (+1.6m)</button>
-            <button type="button" onclick="window.teleportTo(-32, 0.0, -22, 'B SITE PIT / SHED (0.0m)')" class="p-2 bg-[#142230] hover:bg-slate-700 text-xs font-bold text-emerald-300 border border-emerald-400/40 cursor-pointer">B SITE PIT / SHED (0.0m)</button>
+            <button type="button" onclick="window.teleportTo(60.7, 6.15, -42.6, 'A HEAVEN (+3.2m)')" class="p-2 bg-[#142230] hover:bg-slate-700 text-xs font-bold text-[#38e2c7] border border-[#38e2c7]/40 cursor-pointer">A HEAVEN (+3.2m)</button>
+            <button type="button" onclick="window.teleportTo(60.7, 3.1, -42.6, 'A HELL (0.0m)')" class="p-2 bg-[#142230] hover:bg-slate-700 text-xs font-bold text-rose-300 border border-rose-400/40 cursor-pointer">A HELL UNDERPASS (0.0m)</button>
+            <button type="button" onclick="window.teleportTo(39.21, 2.1, -19.89, 'A GARDEN / TREE (0.0m)')" class="p-2 bg-[#142230] hover:bg-slate-700 text-xs font-bold text-pink-300 border border-pink-400/40 cursor-pointer">A GARDEN / TREE (0.0m)</button>
+            <button type="button" onclick="window.teleportTo(22.56, 2.26, -1.77, 'MID CATWALK (+1.4m)')" class="p-2 bg-[#142230] hover:bg-slate-700 text-xs font-bold text-amber-300 border border-amber-400/40 cursor-pointer">MID CATWALK (+1.4m)</button>
+            <button type="button" onclick="window.teleportTo(-20.44, -.9, -18.91, 'B 2F TERRACE (+1.6m)')" class="p-2 bg-[#142230] hover:bg-slate-700 text-xs font-bold text-[#38e2c7] border border-[#38e2c7]/40 cursor-pointer">B 2F TERRACE (+1.6m)</button>
+            <button type="button" onclick="window.teleportTo(-24.04, -.91, -35.99, 'B SITE PIT / SHED (0.0m)')" class="p-2 bg-[#142230] hover:bg-slate-700 text-xs font-bold text-emerald-300 border border-emerald-400/40 cursor-pointer">B SITE PIT / SHED (0.0m)</button>
           </div>
         </div>
       </div>
@@ -1169,13 +1170,15 @@
         const c = document.createElement('canvas');
         c.width = c.height = 256;
         const ctx = c.getContext('2d');
-        ctx.fillStyle = '#0d3b38';
+        const glow=ctx.createLinearGradient(0,0,256,256);
+        glow.addColorStop(0,'#428c78');glow.addColorStop(.55,'#a8e7a1');glow.addColorStop(1,'#56a58d');
+        ctx.fillStyle = glow;
         ctx.fillRect(0, 0, 256, 256);
-        ctx.strokeStyle = '#38e2c7';
-        ctx.lineWidth = 10;
+        ctx.strokeStyle = '#263934';
+        ctx.lineWidth = 17;
         ctx.strokeRect(8, 8, 240, 240);
-        ctx.strokeStyle = '#5eead4';
-        ctx.lineWidth = 4;
+        ctx.strokeStyle = '#32453f';
+        ctx.lineWidth = 9;
         ctx.beginPath(); ctx.moveTo(24, 24); ctx.lineTo(232, 232); ctx.stroke();
         ctx.beginPath(); ctx.moveTo(232, 24); ctx.lineTo(24, 232); ctx.stroke();
         return new THREE.CanvasTexture(c);
@@ -1292,7 +1295,7 @@
       /* =========================================================================
        * 4. AUTHENTIC ASCENT (어센트) GEOMETRY, INDOOR HALLS & MULTI-LAYER PHYSICS
        * ========================================================================= */
-      const MAP_LIMIT = 56;
+      const MAP_LIMIT = AscentGround.limit;
       const EYE_HEIGHT = 1.65;
       const STEP_HEIGHT = 0.58;
 
@@ -1303,7 +1306,7 @@
       const mapObjects = new Map();
       const masonry=new THREE.MeshStandardMaterial({color:0xbaaa92,roughness:.92});
       const parapet=new THREE.MeshStandardMaterial({color:0x70685e,roughness:.85});
-      const floatingStructures = [];
+
 
       const ascentGroup = new THREE.Group();
       scene.add(ascentGroup);
@@ -1346,29 +1349,6 @@
         }
       }
 
-      function addWalkableRamp(minX, maxX, minZ, maxZ, yStart, yEnd, slopeAxis, callout, mat) {
-        walkableSurfaces.push({
-          minX, maxX, minZ, maxZ,
-          yStart, yEnd, slopeAxis,
-          bottomY: Math.min(yStart, yEnd) - 0.5,
-          callout
-        });
-        const steps = 10;
-        const w = maxX - minX, d = maxZ - minZ;
-        for (let i = 0; i < steps; i++) {
-          const tMid = (i + 0.5) / steps;
-          const stepTopY = yStart + (yEnd - yStart) * tMid;
-          let sx = (minX + maxX) / 2, sz = (minZ + maxZ) / 2, sw = w, sd = d;
-          if (slopeAxis === 'x') { sw = w / steps; sx = minX + w * tMid; }
-          else { sd = d / steps; sz = minZ + d * tMid; }
-          const stepMesh = new THREE.Mesh(new THREE.BoxGeometry(sw, 0.35, sd), mat || matWoodFloor);
-          stepMesh.position.set(sx, stepTopY - 0.175, sz);
-          stepMesh.receiveShadow = true;
-          ascentGroup.add(stepMesh);
-          mapTargetMeshes.push(stepMesh);
-        }
-      }
-
       function addSolidBox3D(cx, cz, w, d, minY, maxY, mat, walkableTopCallout = null) {
         const h = maxY - minY;
         const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat || matVenetianWall);
@@ -1392,26 +1372,6 @@
         return { mesh, collider };
       }
 
-      function addVenetianBuilding(cx, cz, w, d, minY, maxY, facadeMat) {
-        const facade = addSolidBox3D(cx, cz, w, d, minY, maxY, facadeMat || matVenetianWall);
-        // Keep window and brick courses at a consistent physical scale on each face.
-        const geometry = facade.mesh.geometry;
-        const uv = geometry.attributes.uv;
-        for (let i=0;i<uv.count;i++) {
-          const face = Math.floor(i/4);
-          uv.setXY(i,uv.getX(i)*(face<2 ? d : w)/12,uv.getY(i)*(maxY-minY)/8);
-        }
-        if (w>=6 && d>=6) {
-          addSolidBox3D(cx,cz,w+.38,d+.38,maxY-.72,maxY-.42,matVenetianWall);
-          addSolidBox3D(cx,cz,w*.82,d*.82,maxY+.85,maxY+1.55,matTerracottaRoof);
-          addSolidBox3D(cx,cz,w*.62,d*.62,maxY+1.55,maxY+2.1,matTerracottaRoof);
-        }
-        const roof = new THREE.Mesh(new THREE.BoxGeometry(w + 0.8, 0.85, d + 0.8), matTerracottaRoof);
-        roof.position.set(cx, maxY + 0.42, cz);
-        ascentGroup.add(roof);
-        mapTargetMeshes.push(roof);
-      }
-
       function addIndoorCeiling(minX, maxX, minZ, maxZ, bottomY, thickness = 0.7, isGlass = false) {
         const w = maxX - minX, d = maxZ - minZ, cx = (minX + maxX) / 2, cz = (minZ + maxZ) / 2;
         addSolidBox3D(cx, cz, w, d, bottomY, bottomY + thickness, isGlass ? matGlassRoof : matCeiling);
@@ -1433,128 +1393,87 @@
         ascentGroup.add(signMesh);
       }
 
-      function buildAscentMap() {
-        const road = new THREE.PlaneGeometry(2*MAP_LIMIT, 2*MAP_LIMIT, 1, 2*MAP_LIMIT);
-        road.rotateX(-Math.PI/2);
-        const vertices = road.attributes.position;
-        for (let i=0;i<vertices.count;i++) vertices.setY(i, AscentGround.height(vertices.getZ(i)));
-        road.computeVertexNormals();
-        const baseGround = new THREE.Mesh(road, matStoneFloor);
-        baseGround.receiveShadow = true;
-        ascentGroup.add(baseGround);
-        mapTargetMeshes.push(baseGround);
-
-        addWalkableSlab(-56,56,-56,56,0,1,'ASCENT',null,false);
-        // Rectangular footprints sampled from the Ascent overhead map.
-        const footprints = [[-56,56,0,10,-56,-52],[6,56,0,12,-52,-42],[-56,-6,0,9,-52,-40],[10,56,0,12,-42,-40],[20,56,0,13,-40,-36],[-56,-24,0,9,-40,-36],[6,8,0,9,-36,-34],[-16,-12,0,8,-36,-34],[-56,-22,0,9,-36,-32],[-18,-6,0,10,-34,-32],[22,56,0,13,-36,-30],[12,18,0,11,-36,-30],[-56,-38,0,8,-32,-30],[4,8,0,9,-34,-28],[-18,-4,0,10,-32,-28],[-26,-24,0,7,-30,-28],[12,14,0,9,-30,-26],[-14,-4,0,10,-28,-26],[-56,-44,0,8,-30,-24],[-2,8,0,11,-28,-24],[-14,-12,0,8,-26,-24],[12,16,0,9,-26,-24],[18,28,0,12,-26,-24],[-6,-4,0,11,-26,-24],[36,56,0,11,-30,-22],[18,24,0,13,-24,-22],[2,10,0,10,-24,-22],[-38,-36,0,7,-22,-20],[4,10,0,10,-22,-18],[4,14,0,10,-18,-16],[-56,-42,0,9,-24,-14],[20,24,0,13,-22,-14],[-38,-36,0,7,-18,-14],[-26,-24,0,8,-16,-14],[4,16,0,10,-16,-12],[22,24,0,13,-14,-8],[-6,-4,0,9,-14,-8],[-14,-12,0,9,-12,-8],[-56,-36,0,9,-14,-6],[0,16,0,10,-12,-6],[-14,-4,0,9,-8,-6],[20,26,0,11,-8,-6],[38,56,0,12,-22,-4],[-56,-28,0,8,-6,0],[4,12,0,11,-6,0],[40,56,0,13,-4,0],[-12,-6,0,9,-6,2],[18,32,0,11,0,2],[34,56,0,13,0,2],[-22,-18,0,7,0,2],[36,56,0,13,2,4],[-22,-6,0,7,2,4],[24,32,0,12,2,4],[18,20,0,11,2,6],[10,14,0,11,4,6],[-22,-4,0,7,4,6],[44,56,0,13,4,8],[10,22,0,11,6,8],[-16,-12,0,7,6,8],[38,40,0,12,6,8],[26,56,0,11,8,10],[10,20,0,11,8,10],[-56,-26,0,8,0,14],[-12,-8,0,10,10,14],[12,20,0,12,10,14],[-12,4,0,11,14,16],[28,56,0,11,10,20],[-56,-24,0,9,14,20],[12,22,0,12,14,22],[-10,6,0,11,16,22],[-56,-14,0,9,20,26],[-10,8,0,9,22,26],[30,56,0,12,20,28],[-8,18,0,10,26,28],[-8,20,0,10,28,30],[22,56,0,11,28,32],[8,20,0,10,30,32],[-56,-12,0,7,26,36],[24,56,0,12,32,36],[26,56,0,12,36,40],[20,56,0,12,40,42],[-56,-10,0,8,36,44],[6,56,0,12,42,44],[4,56,0,12,44,50],[2,56,0,12,50,52],[-56,-4,0,9,44,54],[0,56,0,12,52,54],[-56,56,0,10,54,56]];
-        
-        footprints.forEach(([left,right,bottom,top,near,far]) => {
-          if(Math.min(right-left,far-near)<=2 && Math.max(right-left,far-near)<=16){
-            addSolidBox3D((left+right)/2,(near+far)/2,right-left,far-near,0,3.5,masonry);
-            addSolidBox3D((left+right)/2,(near+far)/2,right-left+.8,far-near+.8,3.5,3.85,parapet);
-            return;
-          }
-          addVenetianBuilding((left+right)/2,(near+far)/2,right-left,far-near,bottom,top,right+left > 28 ? matVenetianOchre : right+left < -24 ? matBrickWall : matVenetianPink);
-        });
-        addWalkableSlab(15.4,21.4,-6.0,0.0,0,1,'A TREE',null,false);
-        addWalkableSlab(22.6,28.6,15.0,21.0,0,1,'A LOBBY',null,false);
-        addWalkableSlab(26.0,32.0,2.8,8.8,0,1,'A MAIN',null,false);
-        addWalkableSlab(12.7,18.7,-31.4,-25.4,0,1,'A WINDOW',null,false);
-        addWalkableSlab(29.0,35.0,-11.0,-5.0,0,1,'A SITE',null,false);
-        addWalkableSlab(-3.0,3.0,37.0,43.0,0,1,'ATTACKER SIDE SPAWN',null,false);
-        addWalkableSlab(-15.3,-9.3,26.7,32.7,0,1,'B LOBBY',null,false);
-        addWalkableSlab(-24.5,-18.5,-5.3,0.7,0,1,'B MAIN',null,false);
-        addWalkableSlab(-43.8,-37.8,-27.8,-21.8,0,1,'B BOAT HOUSE',null,false);
-        addWalkableSlab(-3.8,2.2,-6.1,-0.1,0,1,'MID BOTTOM',null,false);
-        addWalkableSlab(-29.2,-23.2,-25.9,-19.9,0,1,'B SITE',null,false);
-        addWalkableSlab(6.6,12.6,7.0,13.0,0,1,'MID CATWALK',null,false);
-        addWalkableSlab(12.4,18.4,-0.2,5.8,0,1,'MID CUBBY',null,false);
-        addWalkableSlab(-3.0,3.0,-45.0,-39.0,0,1,'DEFENDER SIDE SPAWN',null,false);
-        addWalkableSlab(11.8,17.8,-26.0,-20.0,0,1,'A GARDEN',null,false);
-        addWalkableSlab(-5.9,0.1,-22.9,-16.9,0,1,'MID MARKET',null,false);
-        addWalkableSlab(-1.3,4.7,3.7,9.7,0,1,'MID COURTYARD',null,false);
-        addWalkableSlab(-13.4,-7.4,5.9,11.9,0,1,'MID LINK',null,false);
-        addWalkableSlab(-1.0,5.0,-21.3,-15.3,0,1,'MID PIZZA',null,false);
-        addWalkableSlab(26.7,32.7,-31.7,-25.7,0,1,'A RAFTERS',null,false);
-        addWalkableSlab(12.2,18.2,21.3,27.3,0,1,'MID TOP',null,false);
-        addWalkableSlab(39.6,45.6,3.0,9.0,0,1,'A WINE',null,false);
-        addSolidBox3D(26,-10,3,4,0,2.8,matGenerator);
-        addSolidBox3D(33,-5,2,2,0,2,matRadianite);
-        addSolidBox3D(-30,-25,3,3,0,2,matRadianite);
-        addWalkableSlab(27,34,-31,-24,3,0.35,'A RAFTERS',matWoodFloor);
-        addWalkableRamp(27,34,-24,-18,3,0,'z','A RAFTERS STAIRS',matWoodFloor);
-        addWalkableSlab(7,12,6,14,1.2,0.35,'MID CATWALK',matUpperFloor);
-        addWalkableRamp(7,12,14,20,1.2,0,'z','MID CATWALK STAIRS',matUpperFloor);
-        addWalkableSlab(-25,-19,-6,0,1,0.35,'B MAIN',matTilesFloor);
-        addWalkableRamp(-25,-19,0,6,1,0,'z','B MAIN STAIRS',matTilesFloor);
-        addIndoorCeiling(25,33,3,10,5,0.6,false);
-        addIndoorCeiling(-26,-17,-6,2,6,0.6,false);
-        addIndoorCeiling(-7,2,-23,-17,4.6,0.6,false);
-        addIndoorCeiling(15,22,-7,0,6.5,0.6,true);
-        const aDoorObj = addSolidBox3D(18.4,-3.0, 0.45, 4.8, 3.6, 7.2, matDarkMetal);
-        const aSwitch = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.65, 0.45), new THREE.MeshBasicMaterial({ color: 0x38e2c7 }));
-        aSwitch.position.set(19.4,1.5,0.0);
-        ascentGroup.add(aSwitch);
-        blastDoors.push({
-          id: 'A_DOOR', name: 'A GARDEN DOOR', closed: false, targetMinY: 3.6,
-          mesh: aDoorObj.mesh, collider: aDoorObj.collider, switchMesh: aSwitch, switchPos: new THREE.Vector3(19.6,1.4,0.0)
-        });
-        const bDoorObj = addSolidBox3D(-2.9,-19.9, 0.45, 4.8, 4.2, 7.8, matDarkMetal);
-        const bSwitch = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.65, 0.45), new THREE.MeshBasicMaterial({ color: 0x38e2c7 }));
-        bSwitch.position.set(-2.0,2.0,-17.2);
-        ascentGroup.add(bSwitch);
-        blastDoors.push({
-          id: 'B_DOOR', name: 'B MARKET DOOR', closed: false, targetMinY: 4.2,
-          mesh: bDoorObj.mesh, collider: bDoorObj.collider, switchMesh: bSwitch, switchPos: new THREE.Vector3(-1.7,1.6,-17.2)
-        });
-        /* --- FLOATING VENETIAN SKY ISLAND ROCKS & RADIANITE CRYSTALS --- */
-        const rockMat = new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.85 });
-        const crystalMat = new THREE.MeshStandardMaterial({ color: 0x38e2c7, emissive: 0x0d9488, emissiveIntensity: 0.7, roughness: 0.2 });
-        [
-          [66, 26, -32, 7.5], [-68, 22, -26, 8.2], [62, 31, 28, 6.4], [-64, 28, 30, 7.0], [0, 36, -68, 9.0]
-        ].forEach(([fx, fy, fz, r], idx) => {
-          const holder = new THREE.Group();
-          holder.position.set(fx, fy, fz);
-          const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(r, 0), rockMat);
-          const crystal = new THREE.Mesh(new THREE.OctahedronGeometry(r * 0.45, 0), crystalMat);
-          crystal.position.y = r * 0.95;
-          holder.add(rock, crystal);
-          ascentGroup.add(holder);
-          floatingStructures.push({ group: holder, baseY: fy, phase: idx * 1.3 });
-        });
-
-        const ringMat = new THREE.MeshBasicMaterial({ color: 0xf5c542, side: THREE.DoubleSide, transparent: true, opacity: 0.65 });
-        const aRing = new THREE.Mesh(new THREE.RingGeometry(8.2, 8.6, 40), ringMat);
-        aRing.rotation.x = -Math.PI / 2;
-        aRing.position.set(29, 0.04, -8);
-        const bRing = new THREE.Mesh(new THREE.RingGeometry(8.2, 8.6, 40), ringMat);
-        bRing.rotation.x = -Math.PI / 2;
-        bRing.position.set(-32, 0.04, -23);
-        ascentGroup.add(aRing, bRing);
-
-        // The planted tree marks the A connector from ground level as well as on radar.
-        const treeTop = new THREE.Mesh(new THREE.IcosahedronGeometry(2.05,1),
-          new THREE.MeshStandardMaterial({color:0x718d59,roughness:1}));
-        treeTop.position.set(16,4.6,-5.5);ascentGroup.add(treeTop);
-        addSolidBox3D(16,-5.5,.65,.65,0,3.35,matWoodFloor);
-        registerMapObjects('ascent');
-        buildRoundObjects('ascent');
+      function templeMaterial(){
+        const c=document.createElement('canvas'); c.width=512;c.height=256;
+        const ctx=c.getContext('2d');
+        ctx.fillStyle='#c9b79a';ctx.fillRect(0,0,512,256);
+        ctx.fillStyle='#7d705f';ctx.fillRect(0,195,512,61);
+        ctx.fillStyle='#735039';
+        for(const x of [0,248,500])ctx.fillRect(x,0,12,220);
+        for(const y of [20,92,190])ctx.fillRect(0,y,512,9);
+        for(let x=24;x<512;x+=60){
+          ctx.fillStyle='#654b38';ctx.fillRect(x,36,43,48);
+          ctx.fillStyle='#3e3731';ctx.fillRect(x+4,41,35,38);
+          ctx.fillStyle='#987552';ctx.fillRect(x+19,40,4,40);
+        }
+        const tex=new THREE.CanvasTexture(c);tex.wrapS=tex.wrapT=THREE.RepeatWrapping;
+        return new THREE.MeshStandardMaterial({map:tex,roughness:.94});
       }
+      const templeFacade=templeMaterial();
+      const cloth=new THREE.MeshStandardMaterial({color:0x78857d,roughness:1});
+      function buildMatchMap(id) {
+        const map=AscentGround.maps[id], floor=new THREE.PlaneGeometry(180,180,90,90);
+        floor.rotateX(-Math.PI/2);
+        const pos=floor.attributes.position;
+        for(let i=0;i<pos.count;i++)pos.setY(i,AscentGround.height(id,pos.getX(i),pos.getZ(i)));
+        floor.computeVertexNormals();
+        const mesh=new THREE.Mesh(floor,id==='haven'?matTilesFloor:matStoneFloor);
+        mesh.receiveShadow=true;ascentGroup.add(mesh);mapTargetMeshes.push(mesh);
 
+        const materials={ochre:matVenetianOchre,pink:matVenetianPink,brick:matBrickWall,temple:templeFacade,
+          shingles:matDarkMetal,tiles:matTerracottaRoof,eave:matDarkMetal,beam:matWoodFloor,wall:masonry,stonecap:parapet,
+          generator:matGenerator,crate:matRadianite,wood:matWoodFloor,tarp:cloth,step:matUpperFloor,
+          deck:matWoodFloor,roof:id==='haven'?matWoodFloor:matCeiling};
+        // Batch static faces by material while preserving metre-based facade UVs.
+        const batches=new Map(),cube=new THREE.BoxGeometry().toNonIndexed(),vertex=new THREE.Vector3();
+        for(const part of map.parts){
+          const {x,z,w,d,b,t,angle,slope,kind}=part,mat=materials[kind];
+          if(!batches.has(mat))batches.set(mat,{positions:[],uvs:[]});
+          const batch=batches.get(mat),cs=Math.cos(angle),sn=Math.sin(angle);
+          for(let i=0;i<cube.attributes.position.count;i++){
+            vertex.fromBufferAttribute(cube.attributes.position,i);
+            const vx=vertex.x*w,vz=vertex.z*d,vy=(vertex.y+.5)*(t-b)+b+slope*vz;
+            batch.positions.push(x+cs*vx+sn*vz,vy,z-sn*vx+cs*vz);
+            const facade=['ochre','pink','brick','temple'].includes(kind);
+            batch.uvs.push(cube.attributes.uv.getX(i)*(facade?(i<12?d:w)/10:1),
+              facade?vy/7:cube.attributes.uv.getY(i));
+          }
+          if(['step','deck','crate','wood','generator','tarp'].includes(kind))
+            addWalkableSlab(x-w/2,x+w/2,z-d/2,z+d/2,t,t-b,kind.toUpperCase(),null,false);
+        }
+        cube.dispose();
+        for(const [mat,{positions,uvs}] of batches){
+          const geom=new THREE.BufferGeometry();
+          geom.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));
+          geom.setAttribute('uv',new THREE.Float32BufferAttribute(uvs,2));geom.computeVertexNormals();
+          const group=new THREE.Mesh(geom,mat);group.castShadow=group.receiveShadow=true;
+          ascentGroup.add(group);mapTargetMeshes.push(group);
+        }
+        for(const [name,[x,z]] of Object.entries(map.sites)){
+          addWallCalloutSign(x+2,AscentGround.height(id,x,z)+2.6,z-2,0,name+' SITE',id.toUpperCase(),'#e4b86c');
+        }
+        for(const poly of Object.values(map.plant)){
+          const points=[];
+          poly.forEach(([x,z],i)=>{
+            const [nx,nz]=poly[(i+1)%poly.length],n=Math.ceil(Math.hypot(nx-x,nz-z));
+            for(let j=0;j<n;j++){const px=x+(nx-x)*j/n,pz=z+(nz-z)*j/n;points.push(new THREE.Vector3(px,AscentGround.height(id,px,pz)+.05,pz));}
+          });
+          ascentGroup.add(new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(points),plantMark));
+        }
+        registerMapObjects(id);
+        buildRoundObjects(id);
+      }
+      const plantMark=new THREE.LineBasicMaterial({color:0xf2c889});
       const gateMaterial = new THREE.MeshBasicMaterial({
         map: makeBuyBarrierTexture(), transparent:true, opacity:.86, side:THREE.DoubleSide
       });
       function buildRoundObjects(map) {
-        const materials = {wood:matWoodFloor,crate:matRadianite,metal:matDarkMetal};
-        for (const [kind,[l,r,b,t,n,f]] of AscentGround.cover[map]) {
-          addSolidBox3D((l+r)/2,(n+f)/2,r-l,f-n,b,t,materials[kind]);
-        }
         for (const [axis,line,start,end] of AscentGround.gates[map]) {
           const mid=(start+end)/2;
           const mesh=new THREE.Mesh(new THREE.PlaneGeometry(end-start,6),gateMaterial);
           if (axis==='x') mesh.rotation.y=Math.PI/2;
           const z=axis==='x'?mid:line;
-          mesh.position.set(axis==='x'?line:mid,3+(map==='ascent'?AscentGround.height(z):0),z);
+          mesh.position.set(axis==='x'?line:mid,3+AscentGround.height(map,axis==='x'?line:mid,z),z);
           barrierGroup.add(mesh);
         }
       }
@@ -1562,9 +1481,16 @@
       function registerMapObjects(map) {
         for(const [id,item] of Object.entries(AscentGround.interactives[map])){
           const [l,r,b,t,n,f]=item.box;
-          const door=blastDoors.find(d=>d.id===id);
-          const part=door || addSolidBox3D((l+r)/2,(n+f)/2,r-l,f-n,b,t,
-            id.includes('GLASS')?matGlassRoof:matGenerator);
+          const lift=item.lift||0;
+          const part=addSolidBox3D((l+r)/2,(n+f)/2,r-l,f-n,b+lift,t+lift,
+            id.includes('GLASS')?matGlassRoof:lift?matDarkMetal:matGenerator);
+          if(lift){
+            const [x,z]=item.switchAt;
+            const switchMesh=new THREE.Mesh(new THREE.BoxGeometry(.38,.6,.38),new THREE.MeshBasicMaterial({color:0x38e2c7}));
+            switchMesh.position.set(x,AscentGround.height(map,x,z)+1.4,z);ascentGroup.add(switchMesh);
+            Object.assign(part,{id,name:id,closed:false,targetMinY:b+lift,base:b,lift,switchMesh,switchPos:switchMesh.position});
+            blastDoors.push(part);
+          }
           mapObjects.set(id,{...part,item});
         }
       }
@@ -1581,7 +1507,7 @@
         }
       }
       let activeMap = 'ascent';
-      buildAscentMap();
+      buildMatchMap('ascent');
       function selectMap(id) {
         const next = ['haven','range'].includes(id) ? id : 'ascent';
         document.querySelector('.room-map-card h3').textContent = next.toUpperCase();
@@ -1596,42 +1522,22 @@
           group.traverse(obj => obj.geometry?.dispose());
           group.clear();
         }
-        for (const list of [wallBoxes3D,walkableSurfaces,mapTargetMeshes,blastDoors,floatingStructures]) list.length=0;
+        for (const list of [wallBoxes3D,walkableSurfaces,mapTargetMeshes,blastDoors]) list.length=0;
         if (next === 'range') { buildPracticeHall();return; }
-        if (next === 'ascent') { buildAscentMap(); return; }
-        registerMapObjects('haven');
-        buildRoundObjects('haven');
-        const map = AscentGround.haven;
-        addWalkableSlab(-56,56,-56,56,0,.5,'HAVEN',matStoneFloor);
-        for(const [l,r,b,t,n,f] of map.walls){
-          const thin=Math.min(r-l,f-n)<=2 && Math.max(r-l,f-n)<=16;
-          addSolidBox3D((l+r)/2,(n+f)/2,r-l,f-n,b,t,thin?masonry:matVenetianOchre);
-          addSolidBox3D((l+r)/2,(n+f)/2,r-l+.36,f-n+.36,t,t+(thin?.3:.8),thin?parapet:matDarkMetal);
-          if(!thin && Math.min(r-l,f-n)>=6){
-            const upper=addSolidBox3D((l+r)/2,(n+f)/2,r-l-.3,f-n-.3,t+.8,t+1.55,matWoodFloor);
-            upper.mesh.receiveShadow=true;
-          }
-        }
-        for (const [l,r,b,t,n,f] of map.props) {
-          const mat = b>0 ? matWoodFloor : t<3 ? matRadianite : l>12 ? matVenetianOchre : matVenetianWall;
-          addSolidBox3D((l+r)/2,(n+f)/2,r-l,f-n,b,t,mat);
-        }
-        for (const [name,[x,z]] of Object.entries(map.labels))
-          addWalkableSlab(x-3,x+3,z-3,z+3,0,.1,name.toUpperCase(),null,false);
-        for (const [name,[x,z]] of Object.entries(map.sites)) {
-          const ring=new THREE.Mesh(new THREE.RingGeometry(4.8,5,40),new THREE.MeshBasicMaterial({color:0xe7ba62,side:THREE.DoubleSide}));
-          ring.rotation.x=-Math.PI/2; ring.position.set(x,.035,z); ascentGroup.add(ring);
-          addWallCalloutSign(x+3,1.3,z+2.01,0,name+' SITE','HAVEN','#38e2c7');
-        }
+        buildMatchMap(next);
       }
 
       function getSurfaceSupport(x, z, currentFootY) {
-        let bestY = activeMap !== 'ascent' ? 0 : AscentGround.height(z);
-        let bestCallout = activeMap.toUpperCase();
+        let bestY = AscentGround.height(activeMap,x,z);
+        let bestCallout = activeMap.toUpperCase(), nearest=Infinity;
+        for(const [name,[cx,cz]] of Object.entries(AscentGround.maps[activeMap]?.labels||{})){
+          const dist=(x-cx)**2+(z-cz)**2;
+          if(dist<nearest){nearest=dist;bestCallout=name.toUpperCase();}
+        }
         for (let i = 0; i < walkableSurfaces.length; i++) {
           const s = walkableSurfaces[i];
           if (x >= s.minX && x <= s.maxX && z >= s.minZ && z <= s.maxZ) {
-            let surfY = s.yStart === 0 && s.yEnd === 0 ? (activeMap !== 'ascent' ? 0 : AscentGround.height(z)) : s.yStart;
+            let surfY = s.yStart === 0 && s.yEnd === 0 ? (AscentGround.height(activeMap,x,z)) : s.yStart;
             if (s.slopeAxis === 'x') {
               const t = Math.max(0, Math.min(1, (x - s.minX) / (s.maxX - s.minX)));
               surfY = s.yStart + (s.yEnd - s.yStart) * t;
@@ -1651,6 +1557,7 @@
       function resolveCollisions3D(pos, footY, radius, isBuyPhase, side) {
         pos.x = Math.max(-MAP_LIMIT + 1.6, Math.min(MAP_LIMIT - 1.6, pos.x));
         pos.z = Math.max(-MAP_LIMIT + 1.6, Math.min(MAP_LIMIT - 1.6, pos.z));
+        AscentGround.resolve(activeMap,pos,footY,radius);
         const pMinY = footY + 0.15;
         const pMaxY = footY + 1.62;
         for (let i = 0; i < wallBoxes3D.length; i++) {
@@ -1813,28 +1720,19 @@
         parts.forEach(part => { part.visible = !!isEnemy; });
       }
 
-      const ATK_PATROL_ROUTES = [[[-1, 39], [21, 39], [21, 27], [25, 27], [25, 7], [29, 7], [29, 5], [33, 5], [33, -9]], [[-1, 39], [-1, 31], [-9, 31], [-9, 27], [-11, 27], [-11, 17], [-13, 17], [-13, 9], [-17, 9], [-17, 7], [-23, 7], [-23, -1], [-21, -1], [-21, -3], [-21, -23], [-27, -23]], [[-1, 39], [21, 39], [21, 23], [11, 23], [11, 11], [9, 11], [9, 3], [17, 3], [17, -1], [19, -1], [19, -3]], [[-1, 39], [-1, 31], [-9, 31], [-9, 27], [-11, 27], [-11, 17], [-13, 17], [-13, 9], [1, 9], [1, 7], [1, -5], [-1, -5], [-1, -19], [-3, -19]]].map(route => route.map(([x,z]) => new THREE.Vector3(x,0,z)));
-      const DEF_PATROL_ROUTES = ATK_PATROL_ROUTES.map(route => [...route].reverse());
-
-      const havenAttack = AscentGround.haven.routes.map(route => route.map(([x,z])=>new THREE.Vector3(x,0,z)));
-      const havenDefense = havenAttack.map(route=>[...route].reverse());
       function spawnTeamsForRound() {
-        const attackRoutes=activeMap==='haven'?havenAttack:ATK_PATROL_ROUTES;
-        const defenseRoutes=activeMap==='haven'?havenDefense:DEF_PATROL_ROUTES;
+        const map=AscentGround.maps[activeMap]||AscentGround.maps.ascent;
+        const worldRoute=r=>r.map(([x,z])=>new THREE.Vector3(x,AscentGround.height(activeMap,x,z),z));
+        const attackRoutes=map.routes.attack.map(worldRoute);
+        const defenseRoutes=map.routes.defense.map(worldRoute);
         bots.forEach(b => scene.remove(b.group));
         bots.length = 0;
 
         const isAtk = roomState.playerSide === 'attack';
-        if (isAtk) {
-          player.pos.set(0, EYE_HEIGHT, 40);
-          player.yaw = 0;
-        } else {
-          player.pos.set(0, EYE_HEIGHT, -42);
-          player.yaw = Math.PI;
-        }
-        player.pitch = 0;
-        player.taggedAt = undefined;
-        player.footY = 0.0;
+        const [x,z]=map.labels[isAtk?'Attacker Side Spawn':'Defender Side Spawn'];
+        player.footY=AscentGround.height(activeMap,x,z);
+        player.pos.set(x,player.footY+EYE_HEIGHT,z);
+        player.yaw=isAtk?0:Math.PI;player.pitch=0;player.taggedAt=undefined;
         player.vel.set(0, 0, 0);
         player.hp = 100;
         player.alive = true;
@@ -1843,7 +1741,7 @@
 
         blastDoors.forEach(d => {
           d.closed = false;
-          d.targetMinY = d.id === 'A_DOOR' ? 3.6 : 4.2;
+          d.targetMinY = d.base+d.lift;
         });
 
         const allyCallsigns = ['ALLY ALPHA #1', 'ALLY BRAVO #2', 'ALLY CHARLIE #3', 'ALLY DELTA #4'];
@@ -1851,9 +1749,9 @@
         for (let i = 0; i < 4; i++) {
           const m = createTacticalBotMesh(true);
           const route = isAtk ? attackRoutes[i % attackRoutes.length] : defenseRoutes[i % defenseRoutes.length];
-          const sx = isAtk ? (-9 + i * 6) : route[0].x;
-          const sz = isAtk ? 39 : route[0].z;
-          const sy = isAtk ? 0 : route[0].y;
+          const sx = route[0].x + (i-1.5)*.75;
+          const sz = route[0].z;
+          const sy = route[0].y;
           m.group.position.set(sx, sy, sz);
           bots.push({
             id: 'ally_' + i,
@@ -1881,9 +1779,9 @@
         for (let i = 0; i < 5; i++) {
           const m = createTacticalBotMesh(false);
           const route = isAtk ? defenseRoutes[i % defenseRoutes.length] : attackRoutes[i % attackRoutes.length];
-          const sx = isAtk ? route[0].x : (-10 + i * 5);
-          const sz = isAtk ? route[0].z : 39;
-          const sy = isAtk ? route[0].y : 0;
+          const sx = route[0].x+(i-2)*.75;
+          const sz = route[0].z;
+          const sy = route[0].y;
           m.group.position.set(sx, sy, sz);
           // Hide enemies completely before round starts (during Buy Phase)!
           m.group.visible = false;
@@ -3058,7 +2956,7 @@
         if (!nearest) return false;
         if(window.MP.active)return window.MP.send({type:'use_door',id:nearest.id});
         nearest.closed = true;
-        nearest.targetMinY = nearest.closed ? 0.0 : (nearest.id === 'A_DOOR' ? 3.6 : 4.2);
+        nearest.targetMinY = nearest.base+(nearest.closed?0:nearest.lift);
         if (nearest.switchMesh) {
           nearest.switchMesh.material.color.setHex(nearest.closed ? 0xff4655 : 0x38e2c7);
         }
@@ -3417,11 +3315,17 @@
           rCtx.fillRect(toRx(wall.minX),toRz(wall.minZ),toRx(wall.maxX)-toRx(wall.minX),toRz(wall.maxZ)-toRz(wall.minZ));
         }
         rCtx.fillStyle = 'rgba(255, 70, 85, 0.24)';
-        if (activeMap==='ascent') {
-        rCtx.fillRect(toRx(20), toRz(-16), 24, 24);
-        rCtx.fillRect(toRx(-40), toRz(-31), 24, 24);
+        const plan=AscentGround.maps[activeMap];
+        if(plan){
+          for(const [rings,color] of [[plan.outlines,'#47555b'],[Object.values(plan.plant),'#917653']]){
+            rCtx.fillStyle=color;rCtx.beginPath();
+            for(const ring of rings){
+              ring.forEach(([x,z],i)=>i?rCtx.lineTo(toRx(x),toRz(z)):rCtx.moveTo(toRx(x),toRz(z)));
+              rCtx.closePath();
+            }
+            rCtx.fill('evenodd');
+          }
         }
-
         // Draw Buy Phase Barrier lines on Radar during Buy Phase
         if (matchState.phase === 'buy') {
           rCtx.strokeStyle = '#38e2c7';
@@ -3436,12 +3340,7 @@
 
         rCtx.fillStyle = '#ece8e1';
         rCtx.font = 'bold 11px Rajdhani, sans-serif';
-        if(activeMap==='haven') {
-          for(const [name,[x,z]] of Object.entries(AscentGround.haven.sites)) rCtx.fillText(name,toRx(x),toRz(z));
-        } else {
-        if(activeMap==='ascent')rCtx.fillText('A', toRx(28), toRz(-4));
-        if(activeMap==='ascent')rCtx.fillText('B', toRx(-33), toRz(-19));
-        }
+        for(const [name,[x,z]] of Object.entries(plan?.sites||{}))rCtx.fillText(name,toRx(x),toRz(z));
 
         bots.forEach(b => {
           if (!b.alive) return;
@@ -3726,11 +3625,7 @@
       }
 
       function gameSpikeSiteAt(x, z, footY) {
-        if (activeMap==='haven') return AscentGround.havenSite(x,z,footY);
-        if (footY < -0.4 || footY > 2.2) return null;
-        if (Math.hypot(x - 29, z + 8) < 9.0 && footY < 1.2) return 'A';
-        if (Math.hypot(x + 32, z + 23) < 9.0) return 'B';
-        return null;
+        return AscentGround.siteAt(activeMap,x,z,footY);
       }
       window.gameSpikeSiteAt = gameSpikeSiteAt;
 
@@ -3930,13 +3825,6 @@
             tracer.line.material.dispose();
             activeTracers.splice(i, 1);
           }
-        }
-
-        // Animate floating Venetian sky rocks & Radianite crystals
-        for (let i = 0; i < floatingStructures.length; i++) {
-          const fs = floatingStructures[i];
-          fs.group.position.y = fs.baseY + Math.sin(now * 0.0012 + fs.phase) * 1.15;
-          fs.group.rotation.y += dt * 0.18;
         }
 
         renderer.render(scene, camera);

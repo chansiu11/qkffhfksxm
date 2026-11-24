@@ -4,7 +4,6 @@ const crypto = require('node:crypto');
 const { URL } = require('node:url');
 const catalog = require('./weapons.json');
 const ground = require('../config.js');
-const ascentBlockers = require('./blockers.json').concat(ground.cover.ascent.map(entry=>entry[1]));
 const ShotgunPellets = require('../shotgun-pellets.js');
 const ShootingSpread = require('../shooting-spread.js');
 const MeleeRules = require('../melee-rules.js');
@@ -16,7 +15,7 @@ const TICK_MS = 100; // 10 Hz server snapshots; render/aim stays local for low l
 const REJOIN_GRACE_MS = 45000;
 const MAX_BACKLOG_BYTES = 96 * 1024;
 const MAX_MSG = 8192;
-const LIMIT = 55;
+const LIMIT = ground.limit;
 
 // A small RFC6455 JSON/WebSocket transport: no third-party packages or builds.
 function writeFrame(socket, opcode, data = Buffer.alloc(0)) {
@@ -129,12 +128,11 @@ function lobbyInfo(r) { return { map:r.map, code: r.code, host: r.host, winRound
   players: roomUsers(r).map(p => ({ id: p.id, name: p.name, team: p.team, online: !!p.client })) }; }
 function broadcastLobby(r) { emitRoom(r, { type: 'lobby', room: lobbyInfo(r) }); }
 function notify(c, message) { send(c, { type: 'error', message }); }
-function spawn(p, idx, keepWeapons = false) {
+function spawn(p, idx, map, keepWeapons = false) {
   const atk = p.team === 'attack';
-  p.x = (idx % 5 - 2) * 3.0;
-  p.z = atk ? 40 : -42;
-  p.footY = 0;
-  p.y = 1.65;
+  const [x,z]=ground.maps[map].labels[atk?'Attacker Side Spawn':'Defender Side Spawn'];
+  p.x=x+(idx%5-2)*1.15;p.z=z;
+  p.footY=ground.height(map,p.x,z);p.y=p.footY+1.65;
   p.yaw = atk ? 0 : Math.PI;
   p.pitch = 0;
   p.hp = 100;
@@ -184,7 +182,7 @@ function createRoom(c, msg) {
   const team = roomUsers(r).filter(p => p.team === 'attack').length <= roomUsers(r).filter(p => p.team === 'defense').length ? 'attack' : 'defense';
   const p = { id: c.id, client: c, name: `PLAYER ${r.players.size + 1}`, team, credits: 800,
     sessionToken: crypto.randomBytes(24).toString('hex'), disconnectedAt: 0, rejoinTimer: null };
-  spawn(p, r.players.size);
+  spawn(p, r.players.size,r.map);
   r.players.set(c.id, p);
   c.room = r;
   send(c, { type: 'joined', id: c.id, token: p.sessionToken, team, room: lobbyInfo(r) });
@@ -219,7 +217,7 @@ function resetRound(r) {
   r.halfDefused = false;
   const users = roomUsers(r);
   users.forEach((p, i) => {
-    spawn(p, i, p.alive && r.round !== 1 && r.round !== r.winRounds);
+    spawn(p, i, r.map,p.alive && r.round !== 1 && r.round !== r.winRounds);
     if (r.round === 1) p.credits = 800;
   });
   emitRoom(r, { type: 'round', round: r.round });
@@ -250,6 +248,12 @@ function raySphere(ox,oy,oz,dx,dy,dz,x,y,z,r) {
   return t>=0?t:Infinity;
 }
 function rayBox(ox,oy,oz,dx,dy,dz,b) {
+  if(b.frame){
+    const {x,z,c,s}=b.frame,px=ox-x,pz=oz-z;
+    ox=c*px-s*pz;oz=s*px+c*pz;
+    const localX=c*dx-s*dz;dz=s*dx+c*dz;dx=localX;
+    oy-=b.frame.slope*oz;dy-=b.frame.slope*dz;
+  }
   let near=0,far=260;
   for(const [o,d,lo,hi] of [[ox,dx,b[0],b[1]],[oy,dy,b[2],b[3]],[oz,dz,b[4],b[5]]]) {
     if(Math.abs(d)<1e-9) { if(o<lo||o>hi)return Infinity; continue; }
@@ -259,9 +263,8 @@ function rayBox(ox,oy,oz,dx,dy,dz,b) {
   }
   return near;
 }
-const havenBlockers = [...ground.haven.walls,...ground.haven.roofs,...ground.haven.props,...ground.cover.haven.map(entry=>entry[1])];
 function fire(r, p, msg) {
-  const blockers = r.map==='haven' ? havenBlockers : ascentBlockers;
+  const blockers = ground.maps[r.map].blockers;
   if (r.phase !== 'combat' && r.phase !== 'planted') return;
   if (!p.alive || p.reloading) return;
   const w = catalog[p.weapon] || catalog.classic;
@@ -340,7 +343,7 @@ function fire(r, p, msg) {
   const taggedPlayers = new Set();
   const ends = [];
   for (const [dx, dy, dz] of directions) {
-    let impactDistance = r.map==='haven' ? (dy<0 ? Math.min(w.range,-oy/dy) : w.range) : ground.hitDistance(ox,oy,oz,dx,dy,dz,w.range);
+    let impactDistance = ground.hitDistance(r.map,ox,oy,oz,dx,dy,dz,w.range);
     for (const b of blockers) {
       const wall = rayBox(ox, oy, oz, dx, dy, dz, b);
       if (wall < impactDistance) impactDistance = wall;
@@ -449,7 +452,7 @@ function receive(c,m) {
   }
   else if(m.type==='move' && r.started && p.alive && ['combat','buy','planted'].includes(r.phase)) {
     const x=finite(m.x,-LIMIT,LIMIT,p.x),z=finite(m.z,-LIMIT,LIMIT,p.z),
-          footY=finite(m.footY,-2,9,p.footY),y=finite(m.y,-1,14,p.y);
+          footY=finite(m.footY,-5,16,p.footY),y=finite(m.y,-4,20,p.y);
     const dt=p.lastPosAt?clamp((now-p.lastPosAt)/1000,0.03,0.35):0.2;
     // Server bounds movement speed and does not accept arbitrary teleports.
     const moved=Math.hypot(x-p.x,z-p.z);
@@ -460,6 +463,7 @@ function receive(c,m) {
       } else if(now-(p.lastMovedAt||0)>160) p.movementSpeed=0;
       const next={x,z};
       if (r.phase==='buy') ground.stopAtGate(r.map,p.team,p.x,p.z,next,.62);
+      ground.resolve(r.map,next,footY,.38);
       p.x=next.x;p.z=next.z;p.y=y;p.footY=footY;
       p.yaw=finite(m.yaw,-1e6,1e6,p.yaw);
       p.pitch=finite(m.pitch,-1.48,1.48,p.pitch);
@@ -527,11 +531,7 @@ function receive(c,m) {
   }
 }
 function spikeSite(x,z,footY,map) {
-  if(map==='haven') return ground.havenSite(x,z,footY);
-  if(footY < -0.4 || footY > 2.2) return null;
-  if(Math.hypot(x-29,z+8)<9.0 && footY<1.2) return 'A';
-  if(Math.hypot(x+32,z+23)<9.0) return 'B';
-  return null;
+  return ground.siteAt(map,x,z,footY);
 }
 function spikeAction(r,p,now) {
   if(!p.alive) return null;
