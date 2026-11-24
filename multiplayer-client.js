@@ -306,6 +306,12 @@
     },
     renderLobby(room) {
       if (!room) return;
+      this.api.selectMap?.(room.map);
+      const mapSelect = document.getElementById('lobby-map-select');
+      if (mapSelect) {
+        mapSelect.value = room.map || 'ascent';
+        document.getElementById('lobby-map-control').hidden = room.host !== this.myId || room.started;
+      }
       this.room = room;
       const a = this.api;
       a.roomState.code = room.code;
