@@ -95,6 +95,18 @@
     const moving=clamp(m.speed/7.6,0,1);
     return clamp((moving*7)+(m.airborne?3:0)+(Math.min(10,recent)*.45),0,10);
   }
+  const runMultipliers=Object.freeze({
+    knife:1, classic:.85, frenzy:.85, ghost:.85, shorty:.8, sheriff:.8,
+    stinger:.85, spectre:.85, bucky:.75, judge:.75, bulldog:.8, guardian:.8,
+    phantom:.8, vandal:.8, marshal:.8, outlaw:.8, operator:.76
+  });
+  function tagMultiplier(actor,now){
+    if(!Number.isFinite(actor.taggedAt))return 1;
+    return .275 + .725 * clamp((now-actor.taggedAt-150)/200,0,1);
+  }
+  function movementSpeed(id,crouching,walking){
+    return 6.75*(runMultipliers[id]??.8)*(crouching?.35:walking?.6:1);
+  }
   function applyRecoil(player,w,nowMs){
     const step=w.recoilPitch;
     const cap=Math.min(.15,step*(w.id==='frenzy'?5:6));
@@ -109,5 +121,5 @@
     const t=clamp((nowMs-player.recoilAt-player.recoilDelay)/player.recoilDuration,0,1);
     player.recoilOffset=player.recoilStart*(1-t)*(1-t);
   }
-  return {applyRecoil,recoverRecoil,profiles,weaponProfile,burstIndex,confirmShot,motion,sample,directions,crosshairError};
+  return {movementSpeed,tagMultiplier,applyRecoil,recoverRecoil,profiles,weaponProfile,burstIndex,confirmShot,motion,sample,directions,crosshairError};
 });
