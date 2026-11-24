@@ -398,6 +398,12 @@ function receive(c,m) {
   if (m.type === 'create' || m.type === 'join') { createRoom(c,m); return; }
   const r=c.room, p=r?.players.get(c.id);
   if (!r || !p) return;
+  if (m.type === 'chat') {
+    if (!r.started || typeof m.text !== 'string' || m.text.length > 180) return;
+    const text = m.text.replace(/\s+/gu, ' ').trim();
+    if (text) emitRoom(r, {type:'chat', name:p.name, text});
+    return;
+  }
   if (m.type==='team' && !r.started) {
     const team=m.team==='defense'?'defense':'attack';
     if (roomUsers(r).filter(q=>q.team===team).length >= 5) return notify(c,'해당 팀이 가득 찼습니다.');
