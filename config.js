@@ -135,6 +135,12 @@ if (typeof window !== "undefined") window.GAME_SERVER_URL = 'https://qkffhfksxm-
         }
       }
     }
+    if(id==='ascent'){
+      // Market cross-section at x=3 runs from z=-39.45 to -27.18.
+      for(const [start,end] of [[-39.65,-36.25],[-31.75,-26.98]]){
+        box('brick',3,(start+end)/2,.8,end-start,-5,8);
+      }
+    }
     function panel(x,z,w,d,b,h,extras={}){
       const y=height(id,x,z)+b;
       const alongX=w>d, half=(alongX?w:d)/2;
@@ -149,7 +155,7 @@ if (typeof window !== "undefined") window.GAME_SERVER_URL = 'https://qkffhfksxm-
       return {box:[x-w/2,x+w/2,y,y+h,z-d/2,z+d/2],...extras};
     }
     interactives[id]=id==='ascent'?{
-      A_DOOR:panel(43,-25,5,.44,0,3.6,{switchAt:[44,-26.2],lift:3.6,hp:500}),
+      A_DOOR:panel(40.835,-25,3.95,.64,0,3.6,{switchAt:[41.9,-26.2],lift:3.6,hp:500}),
       B_DOOR:panel(3,-34,.44,4.5,0,3.6,{switchAt:[4,-33],lift:4.2,hp:500}),
       MID_PANEL:panel(20,4,2.8,.18,.2,2.2,{hp:400}),LINK_PANEL:panel(-4,-3,2,.18,.2,2.2,{hp:400}),
       GARDEN_GLASS:panel(39.6,-42.3,2.8,.15,.7,2.2,{hp:1})

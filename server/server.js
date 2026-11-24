@@ -474,6 +474,15 @@ function receive(c,m) {
       const next={x,z};
       if (r.phase==='buy') ground.stopAtGate(r.map,p.team,p.x,p.z,next,.62);
       ground.resolve(r.map,next,footY,.38);
+      for(const [id,state] of Object.entries(r.objects||{})){
+        const door=ground.interactives[r.map][id];
+        if(!door.lift||!state.closed||state.hp<=0)continue;
+        const [l,rgt,b,t,n,f]=door.box;
+        if(footY>=t||footY+1.62<=b)continue;
+        if(rayBox(p.x,footY+.1,p.z,next.x-p.x,0,next.z-p.z,[l-.38,rgt+.38,-100,100,n-.38,f+.38])<=1){
+          next.x=p.x;next.z=p.z;break;
+        }
+      }
       p.x=next.x;p.z=next.z;p.y=y;p.footY=footY;
       p.yaw=finite(m.yaw,-1e6,1e6,p.yaw);
       p.pitch=finite(m.pitch,-1.48,1.48,p.pitch);

@@ -120,6 +120,11 @@
     const corners=[actual(0,0),actual(1,0),actual(1,1),actual(0,1)].map(p=>project(p,w,h,fl));
     const [iw,ih]=sourceSize[id]||sourceSize.classic;
     const muzzle=project(actual(0,alpha),w,h,fl);
+    if(id==='knife'){
+      const dx=rear.x-front.x,dy=rear.y-front.y;
+      const corner=(u,v)=>({x:front.x+dx*u-dy*(v-alpha)*ih/iw,y:front.y+dy*u+dx*(v-alpha)*ih/iw});
+      corners.splice(0,4,corner(0,0),corner(1,0),corner(1,1),corner(0,1));
+    }
     return {matrix:quadToMatrix(corners,iw,ih),corners,muzzle,
       frontDepth:endpoints.frontDepth,rearDepth:REAR_DEPTH,source:{width:iw,height:ih},front,rear};
   }
