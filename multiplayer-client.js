@@ -40,6 +40,7 @@
       return false;
     },
     disconnect() {
+      this.api?.resetChat?.();
       this.disconnecting = true;
       clearTimeout(this.reconnectTimer); this.reconnectTimer = null;
       this.reconnecting = false;
@@ -204,6 +205,9 @@
             this.status('실시간 경기 진행 중');
           }
           break;
+        case 'chat':
+          a.appendChat(data.name, data.text);
+          break;
         case 'round': this.lastRound = 0; break;
         case 'state': this.applyState(data); break;
         case 'purchase': this.applyPurchase(data); break;
@@ -290,6 +294,7 @@
         case 'spike_planted': a.showRoundBanner('SITE ' + data.spike.site, 'SPIKE PLANTED'); break;
         case 'round_end': a.showRoundBanner(data.reason, data.team === a.roomState.playerSide ? 'ROUND WON' : 'ROUND LOST'); break;
         case 'match_end':
+          a.resetChat();
           a.showRoundBanner('MATCH COMPLETE', 'MATCH FINISHED');
           this.started = false; this.lastRound = 0;
           a.matchState.inMatch = false;
