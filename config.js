@@ -8,7 +8,7 @@ if (typeof window !== "undefined") window.GAME_SERVER_URL = 'https://qkffhfksxm-
   // Decks, stairs, covered approaches and freestanding cover, in game metres.
   const fixtures = {
     ascent: [
-      ['generator',54,-31,2.6,6.3,3.7], ['crate',64,-29,2.4,2.4,2.4], ['crate',66.4,-28.4,2.4,2.4,2.4],
+      ['generator',54,-31,2.6,6.3,3.7], ['crate',62.2,-32.3,1.9,1.9,2.4], ['crate',64.1,-31.7,1.9,1.9,2.4],
       ['crate',-32,-36.5,2.1,2.1,2.2],['crate',-32,-38.6,2.1,2.1,3.8],['wood',-27,-45.5,2.2,2,1.6],
       ['deck',60.7,-42.6,17,4.6,3.05],['stairs',54,-37.3,3.5,6,3.05],
       ['roof',53,-7.6,8,7,5.5],['roof',-21,-19,8,8,5.2],['roof',10,-34,8,7,4.7],
@@ -16,9 +16,9 @@ if (typeof window !== "undefined") window.GAME_SERVER_URL = 'https://qkffhfksxm-
     ],
     haven: [
       ['crate',44,-27.5,4,2.4,3.8],['wood',47,-27.5,2,2.4,1.7],
-      ['generator',1,-27,8.8,5.2,3.9],['wood',1,-31,2.8,2,1.4],
-      ['tarp',-38,-26.7,7.5,3.3,3.4],['crate',-42.5,-27,2,2.8,2.1],
-      ['deck',49.8,-38.3,9,3.5,6],['stairs',49,-32.55,3,8,6],
+      ['generator',1.65,-27.2,9.8,4.8,3.9],['generator',1.65,-23.7,3.5,2.2,2.3],
+      ['tarp',-38.4,-26.65,7.9,2.2,3.4],['crate',-42.5,-27,2,2.8,2.1],
+      ['deck',47.2,-38.3,6.8,3.5,6],['towerStairs',45.7,-45.05,3,10,6],
       ['roof',1,-28,17,15,7.6],['roof',-16,-14,9,12,5.3],['roof',17,-13,5,11,4.2],
       ['deck',2,10.7,6,3,1.1],['wood',-19,-12,2,2,1.6]
     ]
@@ -94,7 +94,11 @@ if (typeof window !== "undefined") window.GAME_SERVER_URL = 'https://qkffhfksxm-
     for(const [kind,x,z,w,d,h] of fixtures[id]){
       const y=height(id,x,z);
       const bottom=Math.min(y,...[-1,1].flatMap(sx=>[-1,1].map(sz=>height(id,x+sx*w/2,z+sz*d/2))))-.25;
-      if(kind==='stairs'){
+      if(kind==='towerStairs'){
+        // Enter from defender spawn, then climb toward the site-facing landing.
+        const entry=height(id,x,z-d/2),landing=height(id,47.2,-38.3)+h;
+        for(let i=0;i<32;i++)box('step',x,z-d/2+(i+.5)*d/32,w,d/32+.015,bottom,entry+(landing-entry)*(i+1)/32);
+      }else if(kind==='stairs'){
         for(let i=0;i<24;i++)box('step',x,z-d/2+(i+.5)*d/24,w,d/24+.01,bottom,y+h*(1-i/24));
       }else if(kind==='deck'||kind==='roof'){
         box(kind,x,z,w,d,y+h-.4,y+h);
@@ -103,6 +107,13 @@ if (typeof window !== "undefined") window.GAME_SERVER_URL = 'https://qkffhfksxm-
           box('beam',px,pz,.42,.42,height(id,px,pz)-.25,y+h-.4);
         }
       }else box(kind,x,z,w,d,bottom,y+h);
+    }
+    if(id==='haven'){
+      // The thin partition below C Link borders the raised Garage window.
+      // Leave the western end open for the turn into C Link.
+      const x=-15.15,z=-26.4,y=height(id,x,z);
+      box('temple',x,z,10.3,.42,-4,y+4.6);
+      box('beam',x,z,10.4,.54,y+4.6,y+4.9);
     }
     if(id==='ascent'){
       // Stone springers and a stepped arch frame the recessed boathouse entrance.
@@ -177,9 +188,9 @@ if (typeof window !== "undefined") window.GAME_SERVER_URL = 'https://qkffhfksxm-
     }
   }
   for(const map of Object.values(maps)){
-    map.blockers=map.parts.map(({x,z,w,d,b,t,angle,slope})=>{
+    map.blockers=map.parts.map(({x,z,w,d,b,t,angle,slope,kind})=>{
       const box=[-w/2,w/2,b,t,-d/2,d/2];
-      box.frame={x,z,c:Math.cos(angle),s:Math.sin(angle),slope,radius:Math.hypot(w,d)/2};
+      box.frame={x,z,kind,c:Math.cos(angle),s:Math.sin(angle),slope,radius:Math.hypot(w,d)/2};
       return box;
     });
   }
@@ -189,7 +200,7 @@ if (typeof window !== "undefined") window.GAME_SERVER_URL = 'https://qkffhfksxm-
       if(Math.abs(dx)>radius+r||Math.abs(dz)>radius+r)continue;
       const lx=c*dx-s*dz,lz=s*dx+c*dz;
       const offset=box.frame.slope*lz;
-      if(y+1.62<=box[2]+offset||y+.33>=box[3]+offset)continue;
+      if(y+1.62<=box[2]+offset||y+(box.frame.kind==="step"||box.frame.kind==="deck"?.58:.33)>=box[3]+offset)continue;
       const vx=lx-Math.max(box[0],Math.min(lx,box[1])),vz=lz-Math.max(box[4],Math.min(lz,box[5]));
       const dist=Math.hypot(vx,vz);
       if(dist>=r)continue;
