@@ -30,7 +30,7 @@ test('Shotgun sends exactly one compact remote event containing each game pellet
   b.removeEventListener('message',observer);
   assert.equal(count,1,'pellet fan should be one WebSocket packet');
   assert.equal(shot.weapon,'shorty');
-  assert.equal(shot.pellets.length,8);
+  assert.equal(shot.pellets.length,15);
   assert(shot.pellets.every(v=>v.length===3&&v.every(Number.isFinite)));
   assert(new Set(shot.pellets.map(v=>v.join(','))).size>4,'trails should have visibly distinct endpoints');
   assert.equal(p.mag,1,'one trigger pull consumes only one magazine round');
