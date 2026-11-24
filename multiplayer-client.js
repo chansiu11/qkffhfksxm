@@ -251,6 +251,7 @@
           const p = a.player;
           // A mismatched server equip response is itself a rejection of the
           // pending request. Clear it rather than freezing until watchdog.
+          if (data.reason === 'switched' && data.weapon !== p.pendingReloadWeapon) break;
           if (p.reloading && (data.requestId == null || data.requestId === p.reloadId)) {
             p.pendingReloadWeapon = null;
             p.reloading = false;
