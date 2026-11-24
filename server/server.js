@@ -379,6 +379,16 @@ function fire(r, p, msg) {
     damage:totalDamage, pelletsHit:hitCount});
 }
 
+function cancelEquipmentReload(p) {
+  if (!p.reloading) return;
+  const weapon=p.reloadWeapon;
+  p.reloading=false;
+  p.reloadWeapon=null;
+  p.reloadEndsAt=0;
+  p.reloadSeq=(p.reloadSeq||0)+1;
+  send(p.client,{type:'reload_cancelled',weapon,reason:'switched'});
+}
+
 function receive(c,m) {
   if (!m || typeof m !== 'object' || Array.isArray(m) || typeof m.type !== 'string') return;
   const now=Date.now();
@@ -399,14 +409,7 @@ function receive(c,m) {
     const slot=String(m.slot||'');
     const item=p.inventory?.[slot];
     if(!item||!catalog[item])return;
-    if (p.weapon !== item && p.reloading) {
-      p.reloading = false;
-      const cancelledWeapon=p.reloadWeapon;
-      p.reloadWeapon = null;
-      p.reloadEndsAt=0;
-      p.reloadSeq = (p.reloadSeq || 0) + 1;
-      send(c, {type:'reload_cancelled',weapon:cancelledWeapon,reason:'switched'});
-    }
+    if (p.weapon !== item) cancelEquipmentReload(p);
     p.weapon=item;
     p.mag=p.ammo[item]?.mag ?? catalog[item].magSize;
     p.reserve=p.ammo[item]?.reserve ?? catalog[item].resSize;
@@ -438,6 +441,7 @@ function receive(c,m) {
       p.armor=armor;p.credits-=cost;
     }else{
       if(!w||p.credits<w.cost||w.id==='knife')return notify(c,'구매할 수 없습니다.');
+      cancelEquipmentReload(p);
       p.inventory[w.slot]=id; p.weapon=id; p.mag=w.magSize;p.reserve=w.resSize;p.credits-=w.cost;
       p.ammo[id]={mag:p.mag,reserve:p.reserve};
     }
