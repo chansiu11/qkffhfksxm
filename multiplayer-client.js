@@ -65,7 +65,7 @@
       this.disconnect();
       this.disconnecting = false;
       this.active = true;
-      this.connectRequest = {type,code,winRounds};
+      this.connectRequest = {type,code,winRounds,map:document.getElementById('map-choice')?.value};
       this.roomCode = code;
       this.status('서버 연결 중... (최초 접속은 시간이 걸릴 수 있습니다)');
       this.openSocket(this.connectRequest, false);
@@ -163,6 +163,7 @@
           break;
         }
         case 'resumed': {
+          a.selectMap?.(data.room.map);
           this.token = data.token; this.roomCode = data.room.code;
           this.reconnecting = false; this.retries = 0;
           clearTimeout(this.reconnectTimer);
@@ -181,6 +182,7 @@
         }
         case 'error': this.status(data.message || '서버 요청 실패', true); break;
         case 'joined':
+          a.selectMap?.(data.room.map);
           this.token = data.token || null;
           this.roomCode = data.room.code;
           this.myId = data.id;

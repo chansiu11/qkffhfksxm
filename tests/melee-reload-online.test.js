@@ -124,3 +124,27 @@ test('chat echoes Korean text within the match and uses the server player name',
     assert.deepEqual(leaked, []);
   } finally { first.close(); other.close(); }
 });
+test('Haven room selection is shared and all three sites accept planting', async () => {
+  const host = await connection(), guest = await connection();
+  const packet = (ws, data) => ws.send(JSON.stringify(data));
+  try {
+    let joined = wait(host,'joined');
+    packet(host,{type:'create',code:'86',map:'haven'});
+    const info = await joined;
+    assert.equal(info.room.map,'haven');
+    joined = wait(guest,'joined');
+    packet(guest,{type:'join',code:'86',map:'ascent'});
+    assert.equal((await joined).room.map,'haven');
+    const started=wait(host,'started');
+    packet(host,{type:'start'});
+    await started;
+    const r=rooms.get('86'), p=r.players.get(info.id);
+    for (const [site,[x,z]] of Object.entries(require('../config.js').haven.sites)) {
+      r.phase='combat';r.spike=null;r.until=Date.now()+60000;
+      p.team='attack';p.x=x;p.z=z;p.footY=0;p.actionFrom=Date.now()-4500;p.heldSpike=true;
+      assert.equal((await wait(host,'spike_planted')).spike.site,site);
+    }
+  } finally {
+    for(const ws of [host,guest]) {packet(ws,{type:'leave'});ws.close();}
+  }
+});

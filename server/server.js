@@ -4,7 +4,7 @@ const crypto = require('node:crypto');
 const { URL } = require('node:url');
 const catalog = require('./weapons.json');
 const ground = require('../config.js');
-const blockers = require('./blockers.json');
+const ascentBlockers = require('./blockers.json');
 const ShotgunPellets = require('../shotgun-pellets.js');
 const ShootingSpread = require('../shooting-spread.js');
 const MeleeRules = require('../melee-rules.js');
@@ -125,7 +125,7 @@ function finite(v, lo, hi, fallback) { return typeof v === 'number' && Number.is
 function otherTeam(t) { return t === 'attack' ? 'defense' : 'attack'; }
 function roomUsers(r) { return [...r.players.values()]; }
 function emitRoom(r, m) { for (const p of r.players.values()) send(p.client, m); }
-function lobbyInfo(r) { return { code: r.code, host: r.host, winRounds: r.winRounds, started: r.started, phase: r.phase,
+function lobbyInfo(r) { return { map:r.map, code: r.code, host: r.host, winRounds: r.winRounds, started: r.started, phase: r.phase,
   players: roomUsers(r).map(p => ({ id: p.id, name: p.name, team: p.team, online: !!p.client })) }; }
 function broadcastLobby(r) { emitRoom(r, { type: 'lobby', room: lobbyInfo(r) }); }
 function notify(c, message) { send(c, { type: 'error', message }); }
@@ -176,7 +176,7 @@ function createRoom(c, msg) {
   if (r && r.players.size >= 10) return notify(c, '방 정원이 가득 찼습니다.');
   if (r && r.started) return notify(c, '진행 중인 경기는 참가할 수 없습니다.');
   if (!r) {
-    r = { code, host: c.id, winRounds: msg.winRounds === 5 ? 5 : 13,
+    r = { code, map:msg.map==='haven'?'haven':'ascent', host: c.id, winRounds: msg.winRounds === 5 ? 5 : 13,
       players: new Map(), started: false, phase: 'waiting', round: 1,
       scores: { attack: 0, defense: 0 }, until: 0, spike: null, halfDefused: false };
     rooms.set(code, r);
@@ -258,7 +258,9 @@ function rayBox(ox,oy,oz,dx,dy,dz,b) {
   }
   return near;
 }
+const havenBlockers = [...ground.haven.walls,...ground.haven.props];
 function fire(r, p, msg) {
+  const blockers = r.map==='haven' ? havenBlockers : ascentBlockers;
   if (r.phase !== 'combat' && r.phase !== 'planted') return;
   if (!p.alive || p.reloading) return;
   const w = catalog[p.weapon] || catalog.classic;
@@ -337,7 +339,7 @@ function fire(r, p, msg) {
   const taggedPlayers = new Set();
   const ends = [];
   for (const [dx, dy, dz] of directions) {
-    let impactDistance = ground.hitDistance(ox,oy,oz,dx,dy,dz,w.range);
+    let impactDistance = r.map==='haven' ? (dy<0 ? Math.min(w.range,-oy/dy) : w.range) : ground.hitDistance(ox,oy,oz,dx,dy,dz,w.range);
     for (const b of blockers) {
       const wall = rayBox(ox, oy, oz, dx, dy, dz, b);
       if (wall < impactDistance) impactDistance = wall;
@@ -499,7 +501,8 @@ function receive(c,m) {
     if(!p.heldSpike) {p.actionFrom=0;p.actionBase=0;}
   }
 }
-function spikeSite(x,z,footY) {
+function spikeSite(x,z,footY,map) {
+  if(map==='haven') return ground.havenSite(x,z,footY);
   if(footY < -0.4 || footY > 2.2) return null;
   if(Math.hypot(x-29,z+8)<9.0 && footY<1.2) return 'A';
   if(Math.hypot(x+32,z+23)<9.0) return 'B';
@@ -508,7 +511,7 @@ function spikeSite(x,z,footY) {
 function spikeAction(r,p,now) {
   if(!p.alive) return null;
   if(r.phase==='combat' && p.team==='attack') {
-    const site=spikeSite(p.x,p.z,p.footY);
+    const site=spikeSite(p.x,p.z,p.footY,r.map);
     return site?{site,mode:'plant',progress:p.heldSpike&&p.actionFrom?clamp((now-p.actionFrom)/4000,0,1):0}:null;
   }
   if(r.phase==='planted' && p.team==='defense' && r.spike && Math.hypot(p.x-r.spike.x,p.z-r.spike.z)<4.5) {
@@ -564,7 +567,7 @@ function step(r,now){
         continue;
       }
       if(p.team==='attack' && r.phase==='combat') {
-        const site=spikeSite(p.x,p.z,p.footY);
+        const site=spikeSite(p.x,p.z,p.footY,r.map);
         if(!site){p.actionFrom=0;continue;}
         if(!p.actionFrom)p.actionFrom=now;
         if(now-p.actionFrom>=4000){
