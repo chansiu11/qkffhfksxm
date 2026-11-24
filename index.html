@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=Rajdhani:wght@600;700&family=Teko:wght@600;700&display=swap" rel="stylesheet">
-  <script src="config.js"></script>
+  <script src="config.js?v=ground-relief"></script>
   <script src="multiplayer-client.js?v=room-chat"></script>
   <link rel="stylesheet" href="menu.css" />
   <!-- Three.js r128 -->
@@ -1287,7 +1287,7 @@
       const matVenetianWall = new THREE.MeshStandardMaterial({ map: makeVenetianBuildingTexture('#e8dfd1', '#2d5a43'), roughness: 0.68 });
       const matVenetianOchre = new THREE.MeshStandardMaterial({ map: makeVenetianBuildingTexture('#dfc29d', '#7c2d12'), roughness: 0.68 });
       const matVenetianPink = new THREE.MeshStandardMaterial({ map: makeVenetianBuildingTexture('#deb3a8', '#1e3a5f'), roughness: 0.68 });
-      const matBrickWall = new THREE.MeshStandardMaterial({ color: 0xa8523b, roughness: 0.75 });
+      const matBrickWall = new THREE.MeshStandardMaterial({ map: makeVenetianBuildingTexture('#b96e53', '#544e47'), roughness: 0.75 });
       const matTerracottaRoof = new THREE.MeshStandardMaterial({ color: 0xb44c32, roughness: 0.65 });
       const matDarkMetal = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.35, metalness: 0.8 });
       const matGenerator = new THREE.MeshStandardMaterial({ map: makeHazardGeneratorTexture(), roughness: 0.4, metalness: 0.7 });
@@ -1363,7 +1363,19 @@
       }
 
       function addVenetianBuilding(cx, cz, w, d, minY, maxY, facadeMat) {
-        addSolidBox3D(cx, cz, w, d, minY, maxY, facadeMat || matVenetianWall);
+        const facade = addSolidBox3D(cx, cz, w, d, minY, maxY, facadeMat || matVenetianWall);
+        // Keep window and brick courses at a consistent physical scale on each face.
+        const geometry = facade.mesh.geometry;
+        const uv = geometry.attributes.uv;
+        for (let i=0;i<uv.count;i++) {
+          const face = Math.floor(i/4);
+          uv.setXY(i,uv.getX(i)*(face<2 ? d : w)/12,uv.getY(i)*(maxY-minY)/8);
+        }
+        if (w>=6 && d>=6) {
+          addSolidBox3D(cx,cz,w+.38,d+.38,maxY-.72,maxY-.42,matVenetianWall);
+          addSolidBox3D(cx,cz,w*.82,d*.82,maxY+.85,maxY+1.55,matTerracottaRoof);
+          addSolidBox3D(cx,cz,w*.62,d*.62,maxY+1.55,maxY+2.1,matTerracottaRoof);
+        }
         const roof = new THREE.Mesh(new THREE.BoxGeometry(w + 0.8, 0.85, d + 0.8), matTerracottaRoof);
         roof.position.set(cx, maxY + 0.42, cz);
         ascentGroup.add(roof);
@@ -1392,8 +1404,12 @@
       }
 
       function buildAscentMap() {
-        const baseGround = new THREE.Mesh(new THREE.PlaneGeometry(MAP_LIMIT * 2, MAP_LIMIT * 2), matStoneFloor);
-        baseGround.rotation.x = -Math.PI / 2;
+        const road = new THREE.PlaneGeometry(2*MAP_LIMIT, 2*MAP_LIMIT, 1, 2*MAP_LIMIT);
+        road.rotateX(-Math.PI/2);
+        const vertices = road.attributes.position;
+        for (let i=0;i<vertices.count;i++) vertices.setY(i, AscentGround.height(vertices.getZ(i)));
+        road.computeVertexNormals();
+        const baseGround = new THREE.Mesh(road, matStoneFloor);
         baseGround.receiveShadow = true;
         ascentGroup.add(baseGround);
         mapTargetMeshes.push(baseGround);
@@ -1505,12 +1521,12 @@
       buildAscentMap();
 
       function getSurfaceSupport(x, z, currentFootY) {
-        let bestY = 0.0;
+        let bestY = AscentGround.height(z);
         let bestCallout = 'ASCENT';
         for (let i = 0; i < walkableSurfaces.length; i++) {
           const s = walkableSurfaces[i];
           if (x >= s.minX && x <= s.maxX && z >= s.minZ && z <= s.maxZ) {
-            let surfY = s.yStart;
+            let surfY = s.yStart === 0 && s.yEnd === 0 ? AscentGround.height(z) : s.yStart;
             if (s.slopeAxis === 'x') {
               const t = Math.max(0, Math.min(1, (x - s.minX) / (s.maxX - s.minX)));
               surfY = s.yStart + (s.yEnd - s.yStart) * t;
