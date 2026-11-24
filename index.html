@@ -11,12 +11,12 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=Rajdhani:wght@600;700&family=Teko:wght@600;700&display=swap" rel="stylesheet">
   <script src="config.js"></script>
-  <script src="multiplayer-client.js?v=recoil2"></script>
+  <script src="multiplayer-client.js?v=movement3"></script>
   <link rel="stylesheet" href="menu.css" />
   <!-- Three.js r128 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="shotgun-pellets.js"></script>
-  <script src="shooting-spread.js?v=20261124-recoil2"></script>
+  <script src="shooting-spread.js?v=movement3"></script>
   <script src="crosshair-profile.js"></script>
   <script src="crosshair-ui.js" defer></script>
   <script src="ads-system.js?v=20261124-ads100"></script>
@@ -1838,6 +1838,7 @@
           player.yaw = Math.PI;
         }
         player.pitch = 0;
+        player.taggedAt = undefined;
         player.footY = 0.0;
         player.vel.set(0, 0, 0);
         player.hp = 100;
@@ -2709,6 +2710,7 @@
               const targetBot = firstHit.object.userData.bot;
               const isHead = firstHit.object.userData.isHead;
               const dmg = isHead ? w.headDmg : w.bodyDmg;
+              if(w.slot !== 'knife') targetBot.taggedAt = performance.now();
               targetBot.hp -= dmg;
               showHitmarker(isHead);
               if (isHead) sfx.playHeadshotDing();
@@ -3283,9 +3285,8 @@
           } else {
             const isCrouching = keys['ControlLeft'] || player.crouchToggle;
             const isWalkingSlow = keys['ShiftLeft'] || player.walkToggle || (joyState.active && joyState.distRatio < 0.52);
-            const knifeBonus = player.activeSlot === 'knife' ? 1.15 : 1.0;
-            const baseSpeed = (isCrouching || isWalkingSlow) ? 4.3 : 7.6;
-            const walkSpeed = baseSpeed * knifeBonus;
+            const walkSpeed = ShootingSpread.movementSpeed(getActiveWeapon().id,isCrouching,isWalkingSlow)
+              * ShootingSpread.tagMultiplier(player,performance.now());
 
             player.vel.x = wishDir.x * walkSpeed;
             player.vel.z = wishDir.z * walkSpeed;
@@ -3311,7 +3312,7 @@
 
           camera.position.copy(player.pos);
           camera.rotation.y = player.yaw;
-          camera.rotation.x = player.pitch;
+          camera.rotation.x = player.lookPitch;
 
           document.getElementById('hud-callout-name').textContent = player.callout;
           const elevSign = player.footY >= 0 ? '+' : '';
@@ -3369,8 +3370,9 @@
             const toTarget = new THREE.Vector3(wp.x - b.group.position.x, 0, wp.z - b.group.position.z);
             if (toTarget.length() > 1.4) {
               toTarget.normalize();
-              b.group.position.x += toTarget.x * 5.2 * dt;
-              b.group.position.z += toTarget.z * 5.2 * dt;
+              const botSpeed = 5.2 * ShootingSpread.tagMultiplier(b,performance.now());
+              b.group.position.x += toTarget.x * botSpeed * dt;
+              b.group.position.z += toTarget.z * botSpeed * dt;
               resolveCollisions3D(b.group.position, b.footY, 0.55, false, 'attack');
               const sup = getSurfaceSupport(b.group.position.x, b.group.position.z, b.footY);
               b.footY = sup.y;
@@ -3415,6 +3417,7 @@
                     sfx.playGunshot(150, 0.10);
                   }
 
+                  nearestEnemy.taggedAt = performance.now();
                   nearestEnemy.hp -= 38;
                   if (nearestEnemy.hp <= 0 && nearestEnemy.alive) {
                     nearestEnemy.alive = false;
@@ -3451,6 +3454,7 @@
                   spawnBulletTracer(startP, player.pos.clone().add(new THREE.Vector3(0, -0.2, 0)), 0xff4655);
 
                   if (!(roomState.allowCheats && cheats.invincible)) {
+                    player.taggedAt = performance.now();
                     const dmg = 16;
                     if (player.armor > 0) {
                       const absorb = Math.min(player.armor, Math.ceil(dmg * 0.66));
@@ -3480,6 +3484,7 @@
                   const startP = b.group.position.clone().add(new THREE.Vector3(0, 1.45, 0));
                   const endP = nearestAllyBot.group.position.clone().add(new THREE.Vector3(0, 1.35, 0));
                   spawnBulletTracer(startP, endP, 0xff4655);
+                  nearestAllyBot.taggedAt = performance.now();
                   nearestAllyBot.hp -= 34;
                   if (nearestAllyBot.hp <= 0 && nearestAllyBot.alive) {
                     nearestAllyBot.alive = false;
