@@ -289,15 +289,20 @@ if (typeof window !== "undefined") window.GAME_SERVER_URL = 'https://qkffhfksxm-
     };
   }
   function stopAtGate(map,team,oldX,oldZ,pos,radius) {
-    for (const [axis,line,start,end,side] of gates[map]) {
+    for (const [axis,line,start,end,side] of gates[map] || []) {
       if (team !== side) continue;
-      const old = axis==='x' ? oldX : oldZ;
-      const delta = pos[axis]-old;
-      if (!delta) continue;
-      const edge = line-Math.sign(delta)*radius;
-      if ((edge-old)/delta < -0.00001 || (edge-old)/delta > 1) continue;
-      const along = axis==='x' ? pos.z : pos.x;
-      if (along >= start-radius && along <= end+radius) pos[axis]=edge;
+      const other=axis==='x'?'z':'x';
+      const old=axis==='x'?oldX:oldZ, oldAlong=axis==='x'?oldZ:oldX;
+      const delta=pos[axis]-old, alongDelta=pos[other]-oldAlong;
+      if (Math.abs(delta)<1e-8) continue;
+      const direction=Math.sign(delta);
+      const edge=line-direction*radius;
+      const fraction=(edge-old)/delta;
+      if (fraction>1 || (fraction<0 && (line-old)*direction<0)) continue;
+      const t=Math.max(0,fraction);
+      const along=oldAlong+alongDelta*t;
+      if(along<start-radius || along>end+radius) continue;
+      if((pos[axis]-edge)*direction>0) pos[axis]=edge;
     }
   }
   for(const map of Object.values(maps)){

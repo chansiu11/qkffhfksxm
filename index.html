@@ -10,8 +10,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=Rajdhani:wght@600;700&family=Teko:wght@600;700&display=swap" rel="stylesheet">
-  <script src="match-plans.js?v=equipment2"></script>
-  <script src="config.js?v=haven-sewer-wall"></script>
+  <script src="match-plans.js?v=buy-gates2"></script>
+  <script src="config.js?v=buy-gates2"></script>
   <script src="multiplayer-client.js?v=spike-audio"></script>
   <link rel="stylesheet" href="menu.css" />
   <!-- Three.js r128 -->
@@ -1661,12 +1661,13 @@
         map: makeBuyBarrierTexture(), transparent:true, opacity:.86, side:THREE.DoubleSide
       });
       function buildRoundObjects(map) {
-        for (const [axis,line,start,end] of AscentGround.gates[map]) {
+        for (const [axis,line,start,end,side] of AscentGround.gates[map]) {
           const mid=(start+end)/2;
           const mesh=new THREE.Mesh(new THREE.PlaneGeometry(end-start,6),gateMaterial);
           if (axis==='x') mesh.rotation.y=Math.PI/2;
           const z=axis==='x'?mid:line;
           mesh.position.set(axis==='x'?line:mid,3+AscentGround.height(map,axis==='x'?line:mid,z),z);
+          mesh.userData.buySide=side;
           barrierGroup.add(mesh);
         }
       }
@@ -3680,7 +3681,8 @@
           rCtx.strokeStyle = '#38e2c7';
           rCtx.lineWidth = 2;
           rCtx.beginPath();
-          for (const [axis,line,start,end] of AscentGround.gates[activeMap]) {
+          for (const [axis,line,start,end,side] of AscentGround.gates[activeMap]) {
+            if(side!==roomState.playerSide)continue;
             rCtx.moveTo(toRx(axis==='x'?line:start),toRz(axis==='x'?start:line));
             rCtx.lineTo(toRx(axis==='x'?line:end),toRz(axis==='x'?end:line));
           }
@@ -3730,6 +3732,7 @@
 
       function updatePlayerAndSpectatorCamera(dt) {
         const isBuy = matchState.phase === 'buy';
+        for(const mesh of barrierGroup.children)mesh.visible=mesh.userData.buySide===roomState.playerSide;
         bots.forEach(b => {
           if (!b.alive) {
             b.group.visible = false;
@@ -3776,6 +3779,7 @@
 
             if (isBuy) AscentGround.stopAtGate(activeMap,roomState.playerSide,oldX,oldZ,player.pos,.62);
             resolveCollisions3D(player.pos, player.footY, 0.62, matchState.phase === 'buy', roomState.playerSide);
+            if(isBuy)AscentGround.stopAtGate(activeMap,roomState.playerSide,oldX,oldZ,player.pos,.62);
 
             const sup = getSurfaceSupport(player.pos.x, player.pos.z, player.footY);
             player.callout = sup.callout;

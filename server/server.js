@@ -494,6 +494,7 @@ function receive(c,m) {
       const next={x,z};
       if (r.phase==='buy') ground.stopAtGate(r.map,p.team,p.x,p.z,next,.62);
       ground.resolve(r.map,next,footY,.38);
+      if (r.phase==='buy') ground.stopAtGate(r.map,p.team,p.x,p.z,next,.62);
       for(const [id,state] of Object.entries(r.objects||{})){
         const door=ground.interactives[r.map][id];
         if(!door.lift||!state.closed||state.hp<=0)continue;
