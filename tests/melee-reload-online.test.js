@@ -55,3 +55,30 @@ test('knife game attack beyond range does not reach an opponent',async()=>{
   }finally{f.close();}
 });
 after(async()=>{await new Promise(resolve=>server.close(resolve));});
+test('buying a gun during reload allows the new gun to fire, reload, and fire again',async()=>{
+  const f=await setup('94');
+  try {
+    const {a,p,room}=f;
+    room.phase='buy'; p.credits=9000;
+    p.mag=p.ammo.classic.mag=1;
+    async function request(message,reply){
+      const response=wait(a,reply);
+      a.send(JSON.stringify(message));
+      return response;
+    }
+    await request({type:'reload',weapon:'classic',requestId:1},'reload_started');
+    await request({type:'buy',item:'ghost'},'purchase');
+    assert.equal(p.reloading,false);
+    room.phase='combat';
+    const shot={type:'shoot',yaw:0,pitch:0};
+    const remoteShot=()=>{const seen=wait(f.b,'shot');a.send(JSON.stringify(shot));return seen;};
+    await remoteShot();
+    const full=catalog.ghost.magSize;
+    assert.equal(p.mag,full-1);
+    const done=await request({type:'reload',weapon:'ghost',requestId:2},'reload_done');
+    assert.equal(done.mag,full);
+    assert.equal(done.reserve,catalog.ghost.resSize-1);
+    await remoteShot();
+    assert.equal(p.mag,full-1);
+  } finally { f.close(); }
+});

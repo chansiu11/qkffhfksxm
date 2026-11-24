@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=Rajdhani:wght@600;700&family=Teko:wght@600;700&display=swap" rel="stylesheet">
   <script src="config.js"></script>
-  <script src="multiplayer-client.js?v=reload6"></script>
+  <script src="multiplayer-client.js?v=aim7"></script>
   <link rel="stylesheet" href="menu.css" />
   <!-- Three.js r128 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -2779,7 +2779,7 @@
 
       window.switchWeaponSlot = function (slot) {
         if (slot === 'primary' && !player.primary) return;
-        if (slot !== player.activeSlot) {
+        if (slot !== player.activeSlot || (player.reloading && player.pendingReloadWeapon !== player[slot]?.id)) {
           player.reloadId = (player.reloadId || 0) + 1;
           player.reloading = false;
           player.pendingReloadWeapon = null;
@@ -3316,7 +3316,7 @@
 
           camera.position.copy(player.pos);
           camera.rotation.y = player.yaw;
-          camera.rotation.x = player.pitch;
+          camera.rotation.x = player.lookPitch;
 
           document.getElementById('hud-callout-name').textContent = player.callout;
           const elevSign = player.footY >= 0 ? '+' : '';
