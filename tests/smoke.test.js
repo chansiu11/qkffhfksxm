@@ -52,25 +52,25 @@ test('Room creation/join, team capacity, start, synced player snapshots, damage'
   // In open elevated space, unobstructed tracers use the full long-range limit.
   p.x=0;p.y=35;p.z=0;p.footY=33.35;
   q.x=50;q.z=50;q.y=35;q.footY=33.35;
-  p.lastShot=0;
+  p.lastShot=0;p.spreadState={};
   const longShot=next(b,'shot');
-  a.send(JSON.stringify({type:'shoot',yaw:0,pitch:0}));
+  a.send(JSON.stringify({type:'shoot',seed:1,yaw:0,pitch:0}));
   const far=await longShot;
   assert(Math.abs(far.to[2]+220)<0.05, `expected full-range tracer, got ${far.to[2]}`);
 
   // Positive pitch looks UP in the Three.js YXZ camera. Test both elevations
   // so server hit rays and visible tracers cannot drift from the crosshair.
-  p.lastShot=0;
+  p.lastShot=0;p.spreadState={};
   const upward=next(b,'shot');
-  a.send(JSON.stringify({type:'shoot',yaw:0,pitch:Math.PI/6}));
+  a.send(JSON.stringify({type:'shoot',seed:1,yaw:0,pitch:Math.PI/6}));
   const up=await upward;
   assert(up.to[1]>up.from[1], 'positive camera pitch must shoot upward');
   assert(Math.abs((up.to[1]-up.from[1]) / (up.from[2]-up.to[2]) - Math.tan(Math.PI/6))<0.001,
     'positive-pitch tracer slope must agree with the camera');
 
-  p.lastShot=0;
+  p.lastShot=0;p.spreadState={};
   const downward=next(b,'shot');
-  a.send(JSON.stringify({type:'shoot',yaw:0,pitch:-Math.PI/6}));
+  a.send(JSON.stringify({type:'shoot',seed:1,yaw:0,pitch:-Math.PI/6}));
   const down=await downward;
   assert(down.to[1]<down.from[1], 'negative camera pitch must shoot downward');
 

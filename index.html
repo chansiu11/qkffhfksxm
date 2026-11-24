@@ -11,12 +11,12 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=Rajdhani:wght@600;700&family=Teko:wght@600;700&display=swap" rel="stylesheet">
   <script src="config.js?v=map-objects"></script>
-  <script src="multiplayer-client.js?v=map-objects"></script>
+  <script src="multiplayer-client.js?v=spray16"></script>
   <link rel="stylesheet" href="menu.css" />
   <!-- Three.js r128 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="shotgun-pellets.js"></script>
-  <script src="shooting-spread.js?v=damage8"></script>
+  <script src="shooting-spread.js?v=spray16"></script>
   <script src="crosshair-profile.js"></script>
   <script src="crosshair-ui.js" defer></script>
   <script src="ads-system.js?v=20261124-ads100"></script>
@@ -935,6 +935,16 @@
 
   <!-- ==================== MAIN GAME ENGINE SCRIPT ==================== -->
   <script>
+    window.addEventListener('keydown', event => {
+      if (event.code !== 'Backquote' && event.key !== '~') return;
+      if (event.repeat || event.isComposing || event.ctrlKey || event.altKey || event.metaKey ||
+          event.target?.closest?.('input, textarea, select, [contenteditable="true"]')) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      const change = document.fullscreenElement ? document.exitFullscreen() :
+        document.documentElement.requestFullscreen?.();
+      change?.catch(error => console.warn('Fullscreen request:', error.message));
+    }, true);
     const sensitivityControl = document.getElementById('look-sensitivity');
     const sensitivityKey = 'ascent-look-sensitivity';
     try {
@@ -1694,9 +1704,8 @@
         callout: 'ATTACKER SPAWN',
         yaw: 0,
         lookPitch: 0,
-        recoilOffset: 0,
-        get pitch() { return Math.min(1.48,this.lookPitch+this.recoilOffset); },
-        set pitch(value) { this.lookPitch=value; this.recoilOffset=0; },
+        get pitch() { return this.lookPitch; },
+        set pitch(value) { this.lookPitch=value; },
         hp: 100,
         armor: 0,
         credits: 800,
@@ -2884,7 +2893,6 @@
           }
         }
 
-        if (w.slot !== 'knife') ShootingSpread.applyRecoil(player,w,shotAtMs);
         updateHUD();
       }
 
@@ -3894,7 +3902,6 @@
         updateRenderQuality(now, frameMs);
 
         if (matchState.inMatch) {
-          ShootingSpread.recoverRecoil(player,now);
           const holdingAnyFire = isMouseFiring || isKeyboardFiring || isLeftTouchFiring || isRightTouchFiring;
           if (holdingAnyFire && player.alive && getActiveWeapon().auto) attemptFire();
           updateADSFrame(now);
