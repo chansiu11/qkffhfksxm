@@ -128,7 +128,7 @@ function lobbyInfo(r) { return { code: r.code, host: r.host, winRounds: r.winRou
   players: roomUsers(r).map(p => ({ id: p.id, name: p.name, team: p.team, online: !!p.client })) }; }
 function broadcastLobby(r) { emitRoom(r, { type: 'lobby', room: lobbyInfo(r) }); }
 function notify(c, message) { send(c, { type: 'error', message }); }
-function spawn(p, idx) {
+function spawn(p, idx, keepWeapons = false) {
   const atk = p.team === 'attack';
   p.x = (idx % 5 - 2) * 3.0;
   p.z = atk ? 40 : -42;
@@ -139,11 +139,16 @@ function spawn(p, idx) {
   p.hp = 100;
   p.armor = 0;
   p.alive = true;
-  p.weapon = 'classic';
-  p.inventory = { primary: null, secondary: 'classic', knife: 'knife' };
-  p.ammo = { classic: { mag: catalog.classic.magSize, reserve: catalog.classic.resSize } };
-  p.mag = catalog.classic.magSize;
-  p.reserve = catalog.classic.resSize;
+  if (!keepWeapons) {
+    p.weapon = 'classic';
+    p.inventory = { primary: null, secondary: 'classic', knife: 'knife' };
+  }
+  p.ammo = {};
+  for (const id of Object.values(p.inventory).filter(Boolean)) {
+    p.ammo[id] = {mag:catalog[id].magSize,reserve:catalog[id].resSize};
+  }
+  p.mag = p.ammo[p.weapon].mag;
+  p.reserve = p.ammo[p.weapon].reserve;
   p.reloading = false;
   p.reloadWeapon = null;
   p.reloadEndsAt = 0;
@@ -212,7 +217,7 @@ function resetRound(r) {
   r.halfDefused = false;
   const users = roomUsers(r);
   users.forEach((p, i) => {
-    spawn(p, i);
+    spawn(p, i, p.alive && r.round !== 1 && r.round !== r.winRounds);
     if (r.round === 1) p.credits = 800;
   });
   emitRoom(r, { type: 'round', round: r.round });
@@ -511,7 +516,7 @@ function snapshot(r) {
   const q=n=>Math.round(n*100)/100;
   return {type:'state',serverAt:now,code:r.code,round:r.round,phase:r.phase,timer:q(Math.max(0,(r.until-now)/1000)),
     scores:r.scores,host:r.host,winRounds:r.winRounds,spike:r.spike,
-    players:roomUsers(r).map(p=>({id:p.id,name:p.name,team:p.team,x:q(p.x),y:q(p.y),z:q(p.z),footY:q(p.footY),yaw:q(p.yaw),pitch:q(p.pitch),hp:p.hp,armor:p.armor,alive:p.alive,credits:p.credits,weapon:p.weapon,mag:p.mag,reserve:p.reserve,reloading:p.reloading,reloadWeapon:p.reloadWeapon,spikeAction:spikeAction(r,p,now)}))};
+    players:roomUsers(r).map(p=>({id:p.id,name:p.name,team:p.team,x:q(p.x),y:q(p.y),z:q(p.z),footY:q(p.footY),yaw:q(p.yaw),pitch:q(p.pitch),hp:p.hp,armor:p.armor,alive:p.alive,credits:p.credits,inventory:p.inventory,weapon:p.weapon,mag:p.mag,reserve:p.reserve,reloading:p.reloading,reloadWeapon:p.reloadWeapon,spikeAction:spikeAction(r,p,now)}))};
 }
 function broadcastState(r) {
   if (!r.started) return;
