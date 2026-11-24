@@ -68,6 +68,7 @@ if (typeof window !== "undefined") window.GAME_SERVER_URL = 'https://qkffhfksxm-
     }
     map.maxHeight=Math.max(...map.grid);
     map.parts=[];
+    map.stairs=[];
     function box(kind,x,z,w,d,b,t,angle=0,slope=0) {
       map.parts.push({kind,x,z,w,d,b,t,angle,slope});
     }
@@ -94,6 +95,11 @@ if (typeof window !== "undefined") window.GAME_SERVER_URL = 'https://qkffhfksxm-
     for(const [kind,x,z,w,d,h] of fixtures[id]){
       const y=height(id,x,z);
       const bottom=Math.min(y,...[-1,1].flatMap(sx=>[-1,1].map(sz=>height(id,x+sx*w/2,z+sz*d/2))))-.25;
+      if(kind==='stairs'||kind==='towerStairs'){
+        const tower=kind==='towerStairs',landingX=tower?47.2:60.7,landingZ=tower?-38.3:-42.6;
+        const entry=height(id,x,z+(tower?-d/2:d/2)),top=height(id,landingX,landingZ)+h;
+        map.stairs.push({x,z,w,d,near:tower?entry:top,far:tower?top:entry});
+      }
       if(kind==='towerStairs'){
         // Enter from defender spawn, then climb toward the site-facing landing.
         const entry=height(id,x,z-d/2),landing=height(id,47.2,-38.3)+h;
@@ -194,10 +200,22 @@ if (typeof window !== "undefined") window.GAME_SERVER_URL = 'https://qkffhfksxm-
       return box;
     });
   }
+  function stairHeight(map,x,z,y){
+    for(const stair of maps[map]?.stairs||[]){
+      if(Math.abs(x-stair.x)>stair.w/2 || Math.abs(z-stair.z)>stair.d/2+.02)continue;
+      const t=Math.max(0,Math.min(1,(z-stair.z)/stair.d+.5));
+      const surface=stair.near+(stair.far-stair.near)*t;
+      if(surface<=y+.58)return surface;
+    }
+    return -Infinity;
+  }
   function resolve(map,pos,y,r){
+    const support=stairHeight(map,pos.x,pos.z,y);
+    y=Math.max(y,support);
     for(const box of maps[map]?.blockers||[]){
       const {x,z,c,s,radius}=box.frame,dx=pos.x-x,dz=pos.z-z;
       if(Math.abs(dx)>radius+r||Math.abs(dz)>radius+r)continue;
+      if(box.frame.kind==="step" && Number.isFinite(support))continue;
       const lx=c*dx-s*dz,lz=s*dx+c*dz;
       const offset=box.frame.slope*lz;
       if(y+1.62<=box[2]+offset||y+(box.frame.kind==="step"||box.frame.kind==="deck"?.58:.33)>=box[3]+offset)continue;
@@ -211,7 +229,7 @@ if (typeof window !== "undefined") window.GAME_SERVER_URL = 'https://qkffhfksxm-
       pos.x+=c*px+s*pz;pos.z+=-s*px+c*pz;
     }
   }
-  const ground={resolve,maps,gates,interactives,stopAtGate,height,hitDistance,siteAt,limit};
+  const ground={stairHeight,resolve,maps,gates,interactives,stopAtGate,height,hitDistance,siteAt,limit};
   if(typeof module==='object')module.exports=ground;
   else window.AscentGround=ground;
 })();
