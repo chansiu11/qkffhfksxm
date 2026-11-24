@@ -533,7 +533,7 @@
         setTimeout(()=>{a.muzzleFlashMesh.material.opacity=0;},45);
         a.gunGroup.position.z=-0.32;
         a.drawLocalShot(w,pelletRotation,spreadResult);
-        p.pitch=Math.min(1.48,p.pitch+w.recoilPitch);
+        ShootingSpread.applyRecoil(p,w,nowMs);
       }
       a.updateHUD();
     },
