@@ -406,6 +406,7 @@
         a.spikeMesh.position.copy(a.matchState.spikePos);
         a.spikeMesh.visible = true;
       } else a.spikeMesh.visible = false;
+      a.syncMapObjects?.(state.objects);
       a.barrierGroup.visible = state.phase === 'buy';
       const skip = document.getElementById('hud-skip-buy-btn');
       if (skip) skip.classList.toggle('hidden', !a.roomState.isHost || state.phase !== 'buy');
