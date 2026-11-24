@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=Rajdhani:wght@600;700&family=Teko:wght@600;700&display=swap" rel="stylesheet">
   <script src="config.js"></script>
-  <script src="multiplayer-client.js?v=left4"></script>
+  <script src="multiplayer-client.js?v=reload6"></script>
   <link rel="stylesheet" href="menu.css" />
   <!-- Three.js r128 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -2736,7 +2736,9 @@
       window.triggerReload = function () {
         if (!matchState.inMatch || !player.alive || player.reloading) return;
         const w = getActiveWeapon();
-        if (w.slot === 'knife' || w.mag >= w.magSize || w.reserve <= 0) return;
+        if (w.slot === 'knife' || w.reserve <= 0) return;
+        // An in-flight pre-shot snapshot may still show a full magazine.
+        if (!window.MP.active && w.mag >= w.magSize) return;
         player.reloading = true;
         player.pendingReloadWeapon = w.id;
         const reloadId = (player.reloadId = (player.reloadId || 0) + 1);
@@ -2967,7 +2969,7 @@
 
         if (e.code === 'KeyV' && roomState.allowCheats) window.toggleCheatOption('ghost');
         if (e.code === 'Space') window.triggerJump();
-        if (e.code === 'KeyR') window.triggerReload();
+        if (e.code === 'KeyR' && !e.repeat) window.triggerReload();
         if (e.code === 'Digit1') window.switchWeaponSlot('primary');
         if (e.code === 'Digit2') window.switchWeaponSlot('secondary');
         if (e.code === 'Digit3') window.switchWeaponSlot('knife');
