@@ -263,6 +263,22 @@ function rayBox(ox,oy,oz,dx,dy,dz,b) {
   }
   return near;
 }
+function mapImpact(r,ox,oy,oz,dx,dy,dz,range){
+    let impactDistance = ground.hitDistance(r.map,ox,oy,oz,dx,dy,dz,range);
+    for (const b of ground.maps[r.map].blockers) {
+      const wall = rayBox(ox, oy, oz, dx, dy, dz, b);
+      if (wall < impactDistance) impactDistance = wall;
+    }
+    let struck=null;
+    for(const [id,state] of Object.entries(r.objects||{})){
+      if(state.hp<=0)continue;
+      const obj=ground.interactives[r.map][id], box=[...obj.box];
+      if(obj.lift && !state.closed){box[2]+=obj.lift;box[3]+=obj.lift;}
+      const distance=rayBox(ox,oy,oz,dx,dy,dz,box);
+      if(distance<impactDistance){impactDistance=distance;struck=state;}
+    }
+    return {impactDistance,struck};
+}
 function fire(r, p, msg) {
   const blockers = ground.maps[r.map].blockers;
   if (r.phase !== 'combat' && r.phase !== 'planted') return;
@@ -330,6 +346,11 @@ function fire(r, p, msg) {
         }
         return true;
       });
+    if(!meleeHit){
+      const spec=MeleeRules.MODES[meleeMode],cp=Math.cos(pitch);
+      const {struck}=mapImpact(r,ox,oy,oz,-Math.sin(yaw)*cp,Math.sin(pitch),-Math.cos(yaw)*cp,spec.range);
+      if(struck)struck.hp=Math.max(0,struck.hp-spec.damage);
+    }
     if (meleeHit) {
       const target=meleeHit.target.player;
       const damage=meleeHit.damage;
@@ -350,19 +371,7 @@ function fire(r, p, msg) {
   const taggedPlayers = new Set();
   const ends = [];
   for (const [dx, dy, dz] of directions) {
-    let impactDistance = ground.hitDistance(r.map,ox,oy,oz,dx,dy,dz,w.range);
-    for (const b of blockers) {
-      const wall = rayBox(ox, oy, oz, dx, dy, dz, b);
-      if (wall < impactDistance) impactDistance = wall;
-    }
-    let struck=null;
-    for(const [id,state] of Object.entries(r.objects||{})){
-      if(state.hp<=0)continue;
-      const obj=ground.interactives[r.map][id], box=[...obj.box];
-      if(obj.lift && !state.closed){box[2]+=obj.lift;box[3]+=obj.lift;}
-      const distance=rayBox(ox,oy,oz,dx,dy,dz,box);
-      if(distance<impactDistance){impactDistance=distance;struck=state;}
-    }
+    let {impactDistance,struck}=mapImpact(r,ox,oy,oz,dx,dy,dz,w.range);
     let best = impactDistance, hit = null, headshot = false, legshot = false;
     for (const target of r.players.values()) {
       if (!target.alive || target.team === p.team) continue;

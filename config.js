@@ -87,7 +87,20 @@ if (typeof window !== "undefined") window.GAME_SERVER_URL = 'https://qkffhfksxm-
         const thick=low?.55:2.4;
         const h=Math.max(height(id,ax,az),height(id,bx,bz))+(low?(id==='ascent'&&len>20?1.1:3.1):id==='haven'?7.6:9.2);
         const cx=x+nx*thick/2,cz=z+nz*thick/2;
-        box(style,cx,cz,len+.04,thick,-5,h,angle);
+        const streetWall=id==='haven'&&!low&&(z>0||x>35||x< -32);
+        box(streetWall?'havenPlaster':style,cx,cz,len+.04,thick,-5,h,angle);
+        if(streetWall){
+          const base=Math.min(height(id,ax,az),height(id,bx,bz));
+          box('foundation',cx,cz,len+.05,thick+.12,-5,base+.62,angle);
+          box('redwood',cx,cz,len+.06,thick+.18,h-.52,h-.32,angle);
+          if(len>5){
+            const count=Math.ceil(len/6);
+            for(let i=0;i<count;i++){
+              const u=(i+.5)/count-.5;
+              box('lattice',x+u*dx-nx*.095,z+u*dz-nz*.095,1.05,.2,h-2.2,h-1.37,angle);
+            }
+          }
+        }
         box(low?'stonecap':id==='haven'?'eave':'tiles',cx,cz,len+.24,thick+.5,h,h+(low?.24:.48),angle);
         if(!low){
           // The ridge rises away from the street. Local +Z points into the street.
@@ -133,6 +146,40 @@ if (typeof window !== "undefined") window.GAME_SERVER_URL = 'https://qkffhfksxm-
       }else box(kind,x,z,w,d,bottom,y+h);
     }
     if(id==='haven'){
+      // Frame Tower's site-facing opening above the dark recess under Heaven.
+      const tower=height(id,47.2,-38.3)+6;
+      for(const x of [44,50.4])box('redwood',x,-37,.42,.48,tower,tower+2.8);
+      box('beam',47.2,-37,7,.64,tower+2.6,tower+3);
+      box('shingles',47.2,-38.3,7.8,4.3,tower+3,tower+3.35);
+      for(const x of [45,47.2,49.4])box('beam',x,-38.3,.23,3.5,tower-.62,tower-.4);
+      // Sewer drops under a timber ceiling between Lobby and A.
+      const sewer=height(id,17.1,-12.7)+3.6;
+      box('roof',17.1,-12.7,5.8,8.2,sewer,sewer+.42);
+      for(const z of [-15.9,-12.7,-9.5])box('redwood',17.1,z,5.85,.25,sewer-.22,sewer);
+      // B hall and Garage have visible crossbeams and a ridge above each roof.
+      for(const [x,z,w,d,h] of [[1,-28,17,15,7.6],[-16,-14,9,12,5.3]]){
+        const y=height(id,x,z)+h;
+        for(const side of [-1,1])box('shingles',x+side*w/4,z,d+.6,w/2+.42,y+.72,y+1.04,Math.PI/2,-side*2.6/w);
+        for(const f of [-.4,-.2,0,.2,.4])box('redwood',x,z+f*d,w,.25,y-.74,y-.4);
+      }
+      // Grey industrial cover on B, segmented tarp with straps on C.
+      const by=height(id,1.65,-27.2);
+      for(const x of [-2.7,.25,3.1,6])for(const z of [-29.64,-24.76])
+        box('steel',x,z,.18,.17,by+.08,by+3.88);
+      const cy=height(id,-38.4,-26.65);
+      for(const x of [-41.2,-38.4,-35.6])box('strap',x,-26.65,.16,2.25,cy-.12,cy+3.45);
+      const doorsY=height(id,-16,3.8);
+      for(const x of [-18.4,-13.6])box('redwood',x,3.8,.44,.65,doorsY-.15,doorsY+3.65);
+      box('redwood',-16,3.8,5.55,.82,doorsY+3.25,doorsY+3.69);
+      box('shingles',-16,3.8,5.9,1.05,doorsY+3.69,doorsY+3.94);
+      // The raised mid window looks out through timber jambs over Courtyard.
+      const windowY=height(id,2,10.7)+1.1;
+      for(const x of [-.85,4.85])box('redwood',x,9.3,.26,.42,windowY-.06,windowY+2.5);
+      box('redwood',2,9.3,6,.48,windowY+2.38,windowY+2.69);
+      // Cloth covers the upper edge of the A stack, leaving its green lower panels visible.
+      const ay=height(id,44,-27.5)+3.8;
+      box('tarp',44,-27.5,4.14,2.5,ay,ay+.12);
+      box('tarp',44,-28.72,4.14,.13,ay-.63,ay+.05);
       // The thin partition below C Link borders the raised Garage window.
       // Leave the western end open for the turn into C Link.
       const x=-15.15,z=-26.4,y=height(id,x,z);
@@ -207,6 +254,13 @@ if (typeof window !== "undefined") window.GAME_SERVER_URL = 'https://qkffhfksxm-
       }
     }
     if(id==='ascent'){
+      // The Toolshed bench faces Market across the B courtyard.
+      const bx=-11.1,bz=-35.2,by=height(id,bx,bz);
+      box('wood',bx,bz,1.22,2.9,by+.85,by+.99);
+      for(const dx of [-.45,.45])for(const dz of [-1.22,1.22])
+        box('steel',bx+dx,bz+dz,.13,.13,by-.2,by+.85);
+      box('beam',bx-1.8,bz,.23,5.2,by-.25,by+3.6);
+      box('roof',bx-.6,bz,3.15,5.35,by+3.55,by+3.8);
       // Market cross-section at x=3 runs from z=-39.45 to -27.18.
       for(const [start,end] of [[-39.65,-36.25],[-31.75,-26.98]]){
         box('brick',3,(start+end)/2,.8,end-start,-5,8);
@@ -219,20 +273,15 @@ if (typeof window !== "undefined") window.GAME_SERVER_URL = 'https://qkffhfksxm-
         const px=x+(alongX?side*(half+.12):0),pz=z+(alongX?0:side*(half+.12));
         box('beam',px,pz,.25,.25,height(id,px,pz)-.2,y+h+(extras.lift||0));
       }
-      if(extras.switchAt){
-        const [sx,sz]=extras.switchAt,base=height(id,sx,sz);
-        box('beam',sx,sz,.28,.28,base-.2,base+1.4);
-      }
       return {box:[x-w/2,x+w/2,y,y+h,z-d/2,z+d/2],...extras};
     }
     interactives[id]=id==='ascent'?{
-      A_DOOR:panel(40.835,-25,3.95,.64,0,3.6,{switchAt:[41.9,-26.2],lift:3.6,hp:500}),
-      B_DOOR:panel(3,-34,.44,4.5,0,3.6,{switchAt:[4,-33],lift:4.2,hp:500}),
+      A_DOOR:panel(40.835,-25,3.95,.64,0,3.6,{switchAt:[43.6,-27.08],switchHeight:1.15,lift:3.6,hp:500}),
+      B_DOOR:panel(3,-34,.44,4.5,0,3.6,{switchAt:[-10.8,-35.2],switchHeight:1.09,lift:4.2,hp:500}),
       MID_PANEL:panel(20,4,2.8,.18,.2,2.2,{hp:400}),LINK_PANEL:panel(-4,-3,2,.18,.2,2.2,{hp:400}),
       GARDEN_GLASS:panel(39.6,-42.3,2.8,.15,.7,2.2,{hp:1})
     }:{
-      GARAGE_LEFT:panel(-17,3.8,1.8,.18,.4,2.2,{hp:400}),GARAGE_RIGHT:panel(-15,3.8,1.8,.18,.4,2.2,{hp:400}),
-      WINDOW_PANEL:panel(2,9.2,2.8,.18,1,1.8,{hp:400})
+      GARAGE_LEFT:panel(-18.05,3.05,.22,1.65,0,2.95,{hp:400}),GARAGE_RIGHT:panel(-13.95,3.05,.22,1.65,0,2.95,{hp:400})
     };
   }
   function stopAtGate(map,team,oldX,oldZ,pos,radius) {
