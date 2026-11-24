@@ -12,7 +12,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=Rajdhani:wght@600;700&family=Teko:wght@600;700&display=swap" rel="stylesheet">
   <script src="match-plans.js?v=metric1"></script>
   <script src="config.js?v=metric1"></script>
-  <script src="multiplayer-client.js?v=spray16"></script>
+  <script src="multiplayer-client.js?v=chat-channels"></script>
   <link rel="stylesheet" href="menu.css" />
   <!-- Three.js r128 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -257,6 +257,11 @@
     ::-webkit-scrollbar-track { background: #091017; }
     ::-webkit-scrollbar-thumb { background: #ff4655; border-radius: 3px; }
     #room-chat { position:absolute; left:12px; bottom:25%; width:min(330px,70vw); font:14px/1.4 sans-serif; color:white; }
+    #room-chat { opacity:0; transition:opacity .8s ease; pointer-events:none; }
+    #room-chat.visible { opacity:1; transition-duration:.08s; }
+    #chat-log .enemy { color:#ff8080; }
+    #chat-editor:not([hidden]) { display:flex; align-items:center; background:#101923; }
+    #chat-channel { white-space:nowrap; padding-left:8px; color:#aee7ea; }
     #chat-log { max-height:7em; overflow:auto; overflow-wrap:anywhere; }
     #chat-log div, #chat-input { background:#101923e8; padding:3px 8px; }
     #chat-input { width:100%; pointer-events:auto; color:white; }
@@ -443,7 +448,8 @@
     </div>
     <section id="room-chat" aria-label="방 채팅">
       <div id="chat-log" role="log" aria-live="polite"></div>
-      <input id="chat-input" hidden maxlength="180" autocomplete="off" aria-label="방 채팅 메시지" placeholder="Enter로 전송 · Esc로 닫기">
+      <div id="chat-editor" hidden><label id="chat-channel" for="chat-input">전체</label>
+      <input id="chat-input" hidden maxlength="180" autocomplete="off" aria-label="방 채팅 메시지" placeholder="Enter로 전송 · Esc로 닫기"></div>
     </section>
     
     <!-- TOP BAR: Ascent Radar (Left), Scoreboard & 5v5 Alive Bar (Center), System Controls & Killfeed (Right) -->
@@ -2978,17 +2984,31 @@
 
       const chatInput = document.getElementById('chat-input');
       const chatLog = document.getElementById('chat-log');
+      const chatPanel = document.getElementById('room-chat');
+      const chatEditor = document.getElementById('chat-editor');
+      const channelLabel = document.getElementById('chat-channel');
+      let chatChannel = 'all';
+      let chatFadeTimer;
       let restoreChatPointer = false;
+      function showChat() {
+        clearTimeout(chatFadeTimer);
+        chatPanel.classList.add('visible');
+        if (chatInput.hidden) chatFadeTimer = setTimeout(() => chatPanel.classList.remove('visible'), 6000);
+      }
 
-      function appendChat(name, text) {
+      function appendChat(name, text, channel = 'all', enemy = false) {
         const line = document.createElement('div');
-        line.textContent = name + ' · ' + text;
+        const label = channel === 'team' ? '팀' : channel === 'system' ? '시스템' : '전체';
+        line.textContent = '[' + label + '] ' + (name ? name + ' · ' : '') + text;
+        if (enemy) line.classList.add('enemy');
+        showChat();
         chatLog.append(line);
         if (chatLog.children.length > 30) chatLog.firstChild.remove();
         chatLog.scrollTop = chatLog.scrollHeight;
       }
       function closeChat(restore) {
-        chatInput.hidden = true;
+        chatEditor.hidden = chatInput.hidden = true;
+        showChat();
         chatInput.value = '';
         chatInput.blur();
         if (restore && restoreChatPointer && matchState.inMatch) tryLockPointerSafe();
@@ -2996,6 +3016,8 @@
       }
       function resetChat() {
         closeChat(false);
+        clearTimeout(chatFadeTimer);
+        chatPanel.classList.remove('visible');
         chatLog.replaceChildren();
       }
       window.addEventListener('keydown', e => {
@@ -3005,15 +3027,15 @@
           if (e.key === 'Escape' || e.key === 'Enter') {
             e.preventDefault();
             const text = chatInput.value.trim();
-            if (e.key === 'Enter' && text && !window.MP.send({type:'chat', text})) {
-              appendChat('시스템', '전송 실패 · 연결 후 다시 시도하세요.');
+            if (e.key === 'Enter' && text && !window.MP.send({type:'chat', channel:chatChannel, text})) {
+              appendChat('', '전송 실패 · 연결 후 다시 시도하세요.', 'system');
               return;
             }
             closeChat(true);
           }
           return;
         }
-        if (e.code !== 'KeyM' || e.repeat || e.ctrlKey || e.altKey || e.metaKey ||
+        if ((e.code !== 'KeyM' && e.code !== 'KeyN') || e.repeat || e.ctrlKey || e.altKey || e.metaKey ||
             !matchState.inMatch || !window.MP.started || window.isCrosshairSettingsOpen?.() ||
             e.target?.matches?.('input, textarea, select, [contenteditable]')) return;
         e.preventDefault();
@@ -3023,7 +3045,11 @@
         isSpikeKeyHeld = isSpikeMobileToggleLock = false;
         restoreChatPointer = document.pointerLockElement === canvas;
         if (restoreChatPointer) document.exitPointerLock();
-        chatInput.hidden = false;
+        chatChannel = e.code === 'KeyN' ? 'team' : 'all';
+        channelLabel.textContent = chatChannel === 'team' ? '팀' : '전체';
+        chatInput.setAttribute('aria-label', channelLabel.textContent + ' 채팅 메시지');
+        chatEditor.hidden = chatInput.hidden = false;
+        showChat();
         chatInput.focus();
       }, true);
 

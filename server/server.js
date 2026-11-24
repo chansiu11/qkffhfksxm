@@ -431,7 +431,12 @@ function receive(c,m) {
   if (m.type === 'chat') {
     if (!r.started || typeof m.text !== 'string' || m.text.length > 180) return;
     const text = m.text.replace(/\s+/gu, ' ').trim();
-    if (text) emitRoom(r, {type:'chat', name:p.name, text});
+    const channel=m.channel===undefined?'all':m.channel;
+    if (!text || (channel!=='team' && channel!=='all')) return;
+    const message={type:'chat',channel,team:p.team,name:p.name,text};
+    for (const recipient of r.players.values()) {
+      if (channel==='all' || recipient.team===p.team) send(recipient.client,message);
+    }
     return;
   }
   if (m.type==='team' && !r.started) {

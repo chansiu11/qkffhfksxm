@@ -116,13 +116,31 @@ test('chat echoes Korean text within the match and uses the server player name',
     first.a.send(JSON.stringify({type:'chat', text:'   '}));
     first.a.send(JSON.stringify({type:'chat', name:'fake', text:' 안녕하세요! '}));
     for (const message of await messages) {
-      assert.deepEqual(message, {type:'chat', name:first.p.name, text:'안녕하세요!'});
+      assert.deepEqual(message, {type:'chat',channel:'all',team:first.p.team,name:first.p.name,text:'안녕하세요!'});
     }
     const pong = wait(other.a,'pong');
     other.a.send(JSON.stringify({type:'ping',seq:1}));
     await pong;
     assert.deepEqual(leaked, []);
   } finally { first.close(); other.close(); }
+});
+test('team chat reaches the sender and teammate but stays off the opponent socket', async () => {
+  const sockets=[];
+  try {
+    for(let i=0;i<3;i++){
+      const ws=await connection();sockets.push(ws);
+      const joined=wait(ws,'joined');ws.send(JSON.stringify({type:i?'join':'create',code:'83'}));await joined;
+    }
+    const [host,opponent,ally]=sockets;
+    const started=wait(host,'started');host.send(JSON.stringify({type:'start'}));await started;
+    const received=[];
+    opponent.addEventListener('message', e=>{const m=JSON.parse(e.data);if(m.type==='chat')received.push(m.text);});
+    const echo=Promise.all([wait(host,'chat'),wait(ally,'chat')]);
+    host.send(JSON.stringify({type:'chat',channel:'team',team:'defense',text:'팀원만'}));
+    for(const m of await echo){assert.equal(m.channel,'team');assert.equal(m.team,'attack');assert.equal(m.text,'팀원만');}
+    const all=wait(opponent,'chat');host.send(JSON.stringify({type:'chat',channel:'all',text:'모두'}));
+    await all;assert.deepEqual(received,['모두']);
+  } finally {for(const ws of sockets){ws.send(JSON.stringify({type:'leave'}));ws.close();}}
 });
 test('Haven room selection is shared and all three sites accept planting', async () => {
   const host = await connection(), guest = await connection();

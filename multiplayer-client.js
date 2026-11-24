@@ -208,7 +208,7 @@
           }
           break;
         case 'chat':
-          a.appendChat(data.name, data.text);
+          a.appendChat(data.name, data.text, data.channel, !!data.team && data.team !== a.roomState.playerSide);
           break;
         case 'round': this.lastRound = 0; break;
         case 'state': this.applyState(data); break;
