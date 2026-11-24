@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=Rajdhani:wght@600;700&family=Teko:wght@600;700&display=swap" rel="stylesheet">
   <script src="match-plans.js?v=equipment2"></script>
-  <script src="config.js?v=ascent-streets"></script>
+  <script src="config.js?v=haven-door-health"></script>
   <script src="multiplayer-client.js?v=burst-connect"></script>
   <link rel="stylesheet" href="menu.css" />
   <!-- Three.js r128 -->
@@ -1443,6 +1443,22 @@
       const ascentBrick=ascentBrickMaterial();
       const limestone=new THREE.MeshStandardMaterial({color:0xd1bba3,roughness:.93});
       const plaster=new THREE.MeshStandardMaterial({color:0xd6ac92,roughness:.95});
+      function havenLatticeMaterial(){
+        const c=document.createElement('canvas');c.width=96;c.height=64;
+        const ctx=c.getContext('2d');ctx.fillStyle='#423b32';ctx.fillRect(0,0,96,64);
+        ctx.lineWidth=5;ctx.strokeStyle='#886f51';ctx.strokeRect(2,2,92,60);
+        ctx.fillStyle='#886f51';
+        for(const x of [24,48,72])ctx.fillRect(x,0,4,64);
+        ctx.fillRect(0,30,96,4);
+        return new THREE.MeshStandardMaterial({map:new THREE.CanvasTexture(c),roughness:.95});
+      }
+      const lattice=havenLatticeMaterial();
+      const havenCover=new THREE.MeshStandardMaterial({color:0x686a63,roughness:.78,metalness:.2});
+      const havenPlaster=new THREE.MeshStandardMaterial({color:0xcabb9d,roughness:.98});
+      const foundation=new THREE.MeshStandardMaterial({color:0x948474,roughness:.96});
+      const redwood=new THREE.MeshStandardMaterial({color:0x794a3a,roughness:.92});
+      const strap=new THREE.MeshStandardMaterial({color:0x464941,roughness:.84});
+      const havenPaving=new THREE.MeshStandardMaterial({map:makeCobbleTexture('#968b78','#807965'),vertexColors:true,roughness:1});
       const templeFacade=templeMaterial();
       const cloth=new THREE.MeshStandardMaterial({color:0x78857d,roughness:1});
       const ascentSalmon=new THREE.MeshStandardMaterial({color:0xc39183,roughness:1});
@@ -1499,30 +1515,67 @@
         mural.position.set(-28,AscentGround.height('ascent',-28,-47)+4.75,-47.32);
         ascentLandmarks.add(mural);
       }
+      let havenScenery;
+      function addHavenSkyline(){
+        if(!havenScenery){
+          havenScenery=new THREE.Group();
+          const rock=new THREE.MeshStandardMaterial({color:0x748a91,roughness:1,flatShading:true});
+          const stone=new THREE.IcosahedronGeometry(1,0);
+          for(let i=0;i<34;i++){
+            const a=i*2*Math.PI/34,r=103+8*Math.sin(i*3.1);
+            const peak=new THREE.Mesh(stone,rock);
+            peak.position.set(Math.cos(a)*r,-2,Math.sin(a)*r);
+            peak.scale.set(13+3*Math.sin(i),17+9*Math.cos(i*1.7),13);
+            peak.rotation.z=.22*Math.sin(i*4);havenScenery.add(peak);
+          }
+          const foliage=new THREE.MeshStandardMaterial({color:0x57724b,roughness:1,flatShading:true});
+          const crown=new THREE.IcosahedronGeometry(1,1);
+          const trunkGeometry=new THREE.CylinderGeometry(.38,.67,1,8);
+          const trunks=new THREE.MeshStandardMaterial({color:0x655540,roughness:1});
+          const walls=AscentGround.maps.haven.parts.filter(p=>['temple','havenPlaster','wall'].includes(p.kind));
+          for(const [anchorX,anchorZ] of [[-57,4],[-53,-28],[51,-12],[12,29],[20,19],[-32,15]]){
+            // Root each tree in the bank behind its nearest boundary wall.
+            const closest=walls.reduce((best,p)=>Math.hypot(p.x-anchorX,p.z-anchorZ)<Math.hypot(best.x-anchorX,best.z-anchorZ)?p:best);
+            const x=closest.x,z=closest.z,ground=AscentGround.height('haven',x,z);
+            const y=Math.max(ground+8.1,closest.t+.95);
+            const trunk=new THREE.Mesh(trunkGeometry,trunks);
+            trunk.scale.y=y-ground;trunk.position.set(x,(ground+y)/2,z);havenScenery.add(trunk);
+            for(const [dx,dy,dz] of [[0,0,0],[-2.2,-.7,.5],[1.8,-.5,-.5]]){
+              const mesh=new THREE.Mesh(crown,foliage);
+              mesh.position.set(x+dx,y+dy,z+dz);mesh.scale.set(2.9,1.95,2.65);
+              havenScenery.add(mesh);
+            }
+          }
+        }
+        ascentGroup.add(havenScenery);
+      }
       function buildMatchMap(id) {
         const map=AscentGround.maps[id], floor=new THREE.PlaneGeometry(180,180,90,90);
         floor.rotateX(-Math.PI/2);
         const pos=floor.attributes.position;
         for(let i=0;i<pos.count;i++)pos.setY(i,AscentGround.height(id,pos.getX(i),pos.getZ(i)));
-        if(id==='ascent'){
+        {
           const colors=[];
           for(let i=0;i<pos.count;i++){
             const x=pos.getX(i),z=pos.getZ(i);
             // Dark slate inside the two plant sites, warmer stone on the approaches.
             const a=Math.min(x-48,72-x,z+46,-23-z),b=Math.min(x+49,-19-x,z+48,-25-z);
             const site=Math.max(0,Math.min(1,Math.max(a,b)/2));
-            colors.push(.74-.28*site,.71-.22*site,.7-.16*site);
+            if(id==='haven'){
+              const grass=Math.max(0,Math.min(1,(z+2)/4))*Math.min(1,Math.max(0,(-x-10)/7),Math.max(0,(x+58)/4));
+              colors.push(.7-.33*grass,.68-.1*grass,.65-.36*grass);
+            }else colors.push(.74-.28*site,.71-.22*site,.7-.16*site);
           }
           floor.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));
         }
         floor.computeVertexNormals();
-        const mesh=new THREE.Mesh(floor,id==='haven'?matTilesFloor:matStoneFloor);
+        const mesh=new THREE.Mesh(floor,id==='haven'?havenPaving:matStoneFloor);
         mesh.receiveShadow=true;ascentGroup.add(mesh);mapTargetMeshes.push(mesh);
 
         const materials={ochre:matVenetianOchre,pink:matVenetianPink,brick:ascentBrick,temple:templeFacade,
-          limestone,plaster,doorfront:ascentDoor,gardenWall:masonry,salmon:ascentSalmon,clay:ascentClay,steel:matDarkMetal,generatorCap:matDarkMetal,
+          lattice,havenPlaster,foundation,redwood,strap,limestone,plaster,doorfront:ascentDoor,gardenWall:masonry,salmon:ascentSalmon,clay:ascentClay,steel:matDarkMetal,generatorCap:matDarkMetal,
           shingles:matDarkMetal,tiles:matTerracottaRoof,eave:matDarkMetal,beam:matWoodFloor,wall:masonry,stonecap:parapet,
-          generator:id==='ascent'?ascentGenerator:matGenerator,crate:matRadianite,wood:matWoodFloor,tarp:cloth,step:matUpperFloor,
+          generator:id==='ascent'?ascentGenerator:havenCover,crate:matRadianite,wood:matWoodFloor,tarp:cloth,step:matUpperFloor,
           deck:matWoodFloor,roof:id==='haven'?matWoodFloor:matCeiling};
         // Batch static faces by material while preserving metre-based facade UVs.
         const batches=new Map(),cube=new THREE.BoxGeometry().toNonIndexed(),vertex=new THREE.Vector3();
@@ -1568,6 +1621,7 @@
           ascentGroup.add(new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(points),plantMark));
         }
         if(id==='ascent')addAscentLandmarks();
+        else addHavenSkyline();
         registerMapObjects(id);
         buildRoundObjects(id);
       }
@@ -1592,26 +1646,63 @@
           const lift=item.lift||0;
           const part=addSolidBox3D((l+r)/2,(n+f)/2,r-l,f-n,b+lift,t+lift,
             id.includes('GLASS')?matGlassRoof:lift?matDarkMetal:matGenerator);
+          part.item=item;part.id=id;part.hp=item.hp;
+          part.mesh.userData.mapObject=id;
           if(lift){
+            const panelMat=new THREE.MeshStandardMaterial({color:0x45505a,roughness:.7});
+            part.mesh.material=panelMat;
+            const indicator=new THREE.MeshBasicMaterial({color:0x53e2ce});
+            const alongX=r-l>f-n;
+            for(let i=0;i<5;i++){
+              const rib=new THREE.Mesh(new THREE.BoxGeometry(alongX?r-l-.18:r-l+.025,.09,alongX?f-n+.025:f-n-.18),panelMat);
+              rib.position.y=(i-2)*.63;
+              const strip=new THREE.Mesh(new THREE.BoxGeometry(alongX?.75:r-l+.035,.045,alongX?f-n+.035:.75),indicator);
+              strip.position.y=rib.position.y+.085;
+              part.mesh.add(rib,strip);
+            }
+            part.indicator=indicator;
             const [x,z]=item.switchAt;
-            const switchMesh=new THREE.Mesh(new THREE.BoxGeometry(.38,.6,.38),new THREE.MeshBasicMaterial({color:0x38e2c7}));
-            switchMesh.position.set(x,AscentGround.height(map,x,z)+1.4,z);ascentGroup.add(switchMesh);
+            const switchMesh=new THREE.Mesh(new THREE.BoxGeometry(.28,.16,.21),new THREE.MeshBasicMaterial({color:0x38e2c7}));
+            switchMesh.position.set(x,AscentGround.height(map,x,z)+item.switchHeight,z);
+            const mount=new THREE.Mesh(new THREE.BoxGeometry(.43,.25,.35),matDarkMetal);
+            mount.position.y=-.085;switchMesh.add(mount);
+            const handle=new THREE.Mesh(new THREE.BoxGeometry(.11,.27,.13),parapet);
+            handle.position.set(0,.16,0);handle.rotation.x=-.42;switchMesh.add(handle);
+            part.handle=handle;ascentGroup.add(switchMesh);
             Object.assign(part,{id,name:id,closed:false,targetMinY:b+lift,base:b,lift,switchMesh,switchPos:switchMesh.position});
             blastDoors.push(part);
           }
-          mapObjects.set(id,{...part,item});
+          mapObjects.set(id,part);
         }
       }
       function syncMapObjects(states) {
         if(!states)return;
-        for(const [id,{mesh,collider,item,switchMesh}] of mapObjects){
+        for(const [id,part] of mapObjects){
           const state=states[id];if(!state)continue;
-          const intact=state.hp>0, offset=(!state.closed && item.lift)||0;
-          mesh.visible=intact;
-          collider.minY=intact?item.box[2]+offset:-100;
-          collider.maxY=intact?item.box[3]+offset:-99;
+          const {mesh,collider,item,switchMesh}=part;
+          part.hp=state.hp;part.closed=state.closed;
+          mesh.visible=state.hp>0;
+          const offset=(!state.closed && item.lift)||0;
+          collider.minY=mesh.visible?item.box[2]+offset:-100;
+          collider.maxY=mesh.visible?item.box[3]+offset:-99;
           mesh.position.y=(collider.minY+collider.maxY)/2;
-          if(switchMesh)switchMesh.material.color.setHex(!intact?0x555555:state.closed?0xff4655:0x38e2c7);
+          mesh.updateMatrixWorld(true);
+          if(part.indicator)part.indicator.color.setHex(state.hp>item.hp*.66?0x53e2ce:state.hp>item.hp*.33?0xffc85c:0xf55745);
+          if(switchMesh){
+            part.targetMinY=collider.minY;
+            part.handle.rotation.x=state.closed?.5:-.42;
+            switchMesh.material.color.setHex(!mesh.visible?0x555555:state.closed?0xff4655:0x38e2c7);
+          }
+        }
+      }
+      function damageLocalObject(hit,damage){
+        const part=mapObjects.get(hit?.object.userData.mapObject);
+        if(!part||part.hp<=0)return;
+        part.hp=Math.max(0,part.hp-damage);
+        if(part.hp===0 || !part.lift || Math.abs(part.collider.minY-part.targetMinY)<.02){
+          syncMapObjects({[part.id]:{hp:part.hp,closed:part.closed}});
+        }else if(part.indicator){
+          part.indicator.color.setHex(part.hp>330?0x53e2ce:part.hp>165?0xffc85c:0xf55745);
         }
       }
       let activeMap = 'ascent';
@@ -1627,6 +1718,7 @@
         activeMap = next;
         mapObjects.clear();
         if(ascentLandmarks)ascentGroup.remove(ascentLandmarks);
+        if(havenScenery)ascentGroup.remove(havenScenery);
         for (const group of [ascentGroup,barrierGroup]) {
           group.traverse(obj => obj.geometry?.dispose());
           group.clear();
@@ -1848,10 +1940,7 @@
         resetADS();
         document.getElementById('spectator-banner').classList.add('hidden');
 
-        blastDoors.forEach(d => {
-          d.closed = false;
-          d.targetMinY = d.base+d.lift;
-        });
+        syncMapObjects(Object.fromEntries([...mapObjects].map(([id,part])=>[id,{hp:part.item.hp,closed:false}])));
 
         const allyCallsigns = ['ALLY ALPHA #1', 'ALLY BRAVO #2', 'ALLY CHARLIE #3', 'ALLY DELTA #4'];
         const allyWeapons = ['vandal', 'phantom', 'spectre', 'guardian'];
@@ -2825,6 +2914,11 @@
             const distance=dir.length();
             return !new THREE.Raycaster(player.pos,dir.normalize(),0,Math.max(0,distance-.30)).intersectObjects(mapTargetMeshes,false).length;
           });
+          if(!hit){
+            const spec=MeleeRules.MODES[knifeMode];
+            const cast=new THREE.Raycaster(player.pos,getAimDirection(),0,spec.range);
+            damageLocalObject(cast.intersectObjects(mapTargetMeshes,false)[0],spec.damage);
+          }
           if(hit){
             const bot=hit.target.bot, absorbed=Math.min(bot.armor||0,Math.round(hit.damage*.55));
             bot.armor-=absorbed;bot.hp=Math.max(0,bot.hp-hit.damage+absorbed);showHitmarker(false);
@@ -2880,6 +2974,7 @@
           if (hits.length > 0) {
             const firstHit = hits[0];
             endPt = firstHit.point;
+            damageLocalObject(firstHit,w.bodyDmg);
             if(activeMap==='range' && Number.isInteger(firstHit.object.userData.control) && p===0){
               const button=firstHit.object.userData.control;
               if(button<2){if(button===1)setting('mode').value='practice';startRangeDrill();}
@@ -3099,6 +3194,7 @@
         let nearest = null;
         let minDist = 3.0;
         blastDoors.forEach(d => {
+          if(d.hp<=0 || d.closed)return;
           const dist = player.pos.distanceTo(d.switchPos);
           if (dist < minDist) {
             minDist = dist;
@@ -3108,6 +3204,7 @@
         if (!nearest) return false;
         if(window.MP.active)return window.MP.send({type:'use_door',id:nearest.id});
         nearest.closed = true;
+        nearest.handle.rotation.x=.5;
         nearest.targetMinY = nearest.base+(nearest.closed?0:nearest.lift);
         if (nearest.switchMesh) {
           nearest.switchMesh.material.color.setHex(nearest.closed ? 0xff4655 : 0x38e2c7);
@@ -3804,6 +3901,7 @@
       function updateSpikeAndMatchRules(dt) {
         if (window.MP.active) return;
         blastDoors.forEach(d => {
+          if(d.hp<=0)return;
           const nextY = THREE.MathUtils.lerp(d.collider.minY, d.targetMinY, dt * 6.0);
           d.collider.minY = nextY;
           d.collider.maxY = nextY + 3.6;
