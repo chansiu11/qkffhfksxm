@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=Rajdhani:wght@600;700&family=Teko:wght@600;700&display=swap" rel="stylesheet">
   <script src="match-plans.js?v=equipment2"></script>
-  <script src="config.js?v=tower-link"></script>
+  <script src="config.js?v=walk-stairs"></script>
   <script src="multiplayer-client.js?v=burst-connect"></script>
   <link rel="stylesheet" href="menu.css" />
   <!-- Three.js r128 -->
@@ -1455,7 +1455,7 @@
             batch.uvs.push(cube.attributes.uv.getX(i)*(facade?(i<12?d:w)/10:1),
               facade?vy/7:cube.attributes.uv.getY(i));
           }
-          if(['step','deck','crate','wood','generator','tarp'].includes(kind))
+          if(['deck','crate','wood','generator','tarp'].includes(kind))
             addWalkableSlab(x-w/2,x+w/2,z-d/2,z+d/2,t,t-b,kind.toUpperCase(),null,false);
         }
         cube.dispose();
@@ -1552,7 +1552,7 @@
       }
 
       function getSurfaceSupport(x, z, currentFootY) {
-        let bestY = AscentGround.height(activeMap,x,z);
+        let bestY = Math.max(AscentGround.height(activeMap,x,z),AscentGround.stairHeight(activeMap,x,z,currentFootY));
         let bestCallout = activeMap.toUpperCase(), nearest=Infinity;
         for(const [name,[cx,cz]] of Object.entries(AscentGround.maps[activeMap]?.labels||{})){
           const dist=(x-cx)**2+(z-cz)**2;
