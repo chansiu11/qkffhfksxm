@@ -3,6 +3,7 @@ const http = require('node:http');
 const crypto = require('node:crypto');
 const { URL } = require('node:url');
 const catalog = require('./weapons.json');
+const ground = require('../config.js');
 const blockers = require('./blockers.json');
 const ShotgunPellets = require('../shotgun-pellets.js');
 const ShootingSpread = require('../shooting-spread.js');
@@ -336,7 +337,7 @@ function fire(r, p, msg) {
   const taggedPlayers = new Set();
   const ends = [];
   for (const [dx, dy, dz] of directions) {
-    let impactDistance = w.range;
+    let impactDistance = ground.hitDistance(ox,oy,oz,dx,dy,dz,w.range);
     for (const b of blockers) {
       const wall = rayBox(ox, oy, oz, dx, dy, dz, b);
       if (wall < impactDistance) impactDistance = wall;
