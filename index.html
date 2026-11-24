@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=Rajdhani:wght@600;700&family=Teko:wght@600;700&display=swap" rel="stylesheet">
   <script src="match-plans.js?v=equipment2"></script>
-  <script src="config.js?v=walk-stairs"></script>
+  <script src="config.js?v=ascent-vaults"></script>
   <script src="multiplayer-client.js?v=burst-connect"></script>
   <link rel="stylesheet" href="menu.css" />
   <!-- Three.js r128 -->
@@ -1426,8 +1426,66 @@
         const tex=new THREE.CanvasTexture(c);tex.wrapS=tex.wrapT=THREE.RepeatWrapping;
         return new THREE.MeshStandardMaterial({map:tex,roughness:.94});
       }
+      function ascentBrickMaterial(){
+        const canvas=document.createElement('canvas');
+        canvas.width=256;canvas.height=128;
+        const ctx=canvas.getContext('2d');
+        ctx.fillStyle='#997966';ctx.fillRect(0,0,256,128);
+        const shades=['#a76d58','#98614f','#ac7361','#a67463','#996856'];
+        for(let row=0;row<8;row++)for(let col=-1;col<8;col++){
+          ctx.fillStyle=shades[(row*7+(col+8)*3)%shades.length];
+          ctx.fillRect(col*32+(row%2)*16,row*16,31,15);
+        }
+        const tex=new THREE.CanvasTexture(canvas);tex.wrapS=tex.wrapT=THREE.RepeatWrapping;
+        tex.repeat.set(4,5);
+        return new THREE.MeshStandardMaterial({map:tex,roughness:.98});
+      }
+      const ascentBrick=ascentBrickMaterial();
+      const limestone=new THREE.MeshStandardMaterial({color:0xd1bba3,roughness:.93});
+      const plaster=new THREE.MeshStandardMaterial({color:0xd6ac92,roughness:.95});
       const templeFacade=templeMaterial();
       const cloth=new THREE.MeshStandardMaterial({color:0x78857d,roughness:1});
+      const ascentSalmon=new THREE.MeshStandardMaterial({color:0xc39183,roughness:1});
+      const ascentClay=new THREE.MeshStandardMaterial({color:0xce9663,roughness:1});
+      const ascentGenerator=new THREE.MeshStandardMaterial({color:0x646b70,roughness:.64,metalness:.32});
+      let ascentLandmarks;
+      function addAscentLandmarks(){
+        // Reuse the decoration and its textures when switching maps.
+        if(ascentLandmarks){ascentGroup.add(ascentLandmarks);return;}
+        ascentLandmarks=new THREE.Group();
+        ascentGroup.add(ascentLandmarks);
+        // Tree crowns sit above the courtyard walls and frame the approach to Garden.
+        const bark=new THREE.MeshStandardMaterial({color:0x66513e,roughness:1});
+        const leaves=[0x586e48,0x6f8250,0x829358].map(color=>
+          new THREE.MeshStandardMaterial({color,roughness:1,flatShading:true}));
+        const crown=new THREE.IcosahedronGeometry(1,1);
+        for(const [x,z,h] of [[36.9,-24.2,6.4],[35.6,-39.6,5.7]]){
+          const y=AscentGround.height('ascent',x,z);
+          const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.31,.58,h,9),bark);
+          trunk.position.set(x,y+h/2,z);ascentLandmarks.add(trunk);
+          for(const [i,[dx,dy,dz,size]] of [[0,0,0,2.7],[-1.8,-.55,.45,1.95],[1.55,-.4,.9,2],[.35,.35,-1.4,2]].entries()){
+            const mesh=new THREE.Mesh(crown,leaves[i%3]);
+            mesh.position.set(x+dx,y+h+dy,z+dz);mesh.scale.set(size,size*.76,size);
+            mesh.castShadow=true;ascentLandmarks.add(mesh);
+          }
+        }
+        // Painted sea serpent on the B back wall, above the stacked green crates.
+        const canvas=document.createElement('canvas');canvas.width=768;canvas.height=320;
+        const ctx=canvas.getContext('2d');
+        ctx.fillStyle='#c7b49a';ctx.beginPath();ctx.ellipse(384,158,366,141,0,0,Math.PI*2);ctx.fill();
+        ctx.strokeStyle='#a18a72';ctx.lineWidth=7;ctx.stroke();
+        ctx.strokeStyle='#667c73';ctx.lineWidth=24;ctx.lineCap='round';
+        ctx.beginPath();ctx.moveTo(105,192);ctx.bezierCurveTo(232,252,200,57,335,120);
+        ctx.bezierCurveTo(485,226,497,217,582,109);ctx.stroke();
+        ctx.fillStyle='#61756e';ctx.beginPath();ctx.moveTo(554,134);ctx.lineTo(566,71);
+        ctx.lineTo(580,88);ctx.lineTo(605,60);ctx.lineTo(603,88);ctx.lineTo(658,99);
+        ctx.lineTo(629,118);ctx.lineTo(600,117);ctx.lineTo(572,143);ctx.fill();
+        ctx.fillStyle='#d9caa5';ctx.fillRect(599,96,9,4);
+        const mural=new THREE.Mesh(new THREE.PlaneGeometry(11,4.55),
+          new THREE.MeshStandardMaterial({map:new THREE.CanvasTexture(canvas),transparent:true,depthWrite:false,roughness:1}));
+        mural.position.set(-28,AscentGround.height('ascent',-28,-47)+4.75,-47.32);
+        ascentLandmarks.add(mural);
+      }
       function buildMatchMap(id) {
         const map=AscentGround.maps[id], floor=new THREE.PlaneGeometry(180,180,90,90);
         floor.rotateX(-Math.PI/2);
@@ -1437,9 +1495,10 @@
         const mesh=new THREE.Mesh(floor,id==='haven'?matTilesFloor:matStoneFloor);
         mesh.receiveShadow=true;ascentGroup.add(mesh);mapTargetMeshes.push(mesh);
 
-        const materials={ochre:matVenetianOchre,pink:matVenetianPink,brick:matBrickWall,temple:templeFacade,
+        const materials={ochre:matVenetianOchre,pink:matVenetianPink,brick:ascentBrick,temple:templeFacade,
+          limestone,plaster,gardenWall:masonry,salmon:ascentSalmon,clay:ascentClay,steel:matDarkMetal,generatorCap:matDarkMetal,
           shingles:matDarkMetal,tiles:matTerracottaRoof,eave:matDarkMetal,beam:matWoodFloor,wall:masonry,stonecap:parapet,
-          generator:matGenerator,crate:matRadianite,wood:matWoodFloor,tarp:cloth,step:matUpperFloor,
+          generator:id==='ascent'?ascentGenerator:matGenerator,crate:matRadianite,wood:matWoodFloor,tarp:cloth,step:matUpperFloor,
           deck:matWoodFloor,roof:id==='haven'?matWoodFloor:matCeiling};
         // Batch static faces by material while preserving metre-based facade UVs.
         const batches=new Map(),cube=new THREE.BoxGeometry().toNonIndexed(),vertex=new THREE.Vector3();
@@ -1455,7 +1514,7 @@
             batch.uvs.push(cube.attributes.uv.getX(i)*(facade?(i<12?d:w)/10:1),
               facade?vy/7:cube.attributes.uv.getY(i));
           }
-          if(['deck','crate','wood','generator','tarp'].includes(kind))
+          if(['deck','crate','wood','generator','generatorCap','tarp'].includes(kind))
             addWalkableSlab(x-w/2,x+w/2,z-d/2,z+d/2,t,t-b,kind.toUpperCase(),null,false);
         }
         cube.dispose();
@@ -1484,6 +1543,7 @@
           });
           ascentGroup.add(new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(points),plantMark));
         }
+        if(id==='ascent')addAscentLandmarks();
         registerMapObjects(id);
         buildRoundObjects(id);
       }
@@ -1542,6 +1602,7 @@
         if (activeMap === next) return;
         activeMap = next;
         mapObjects.clear();
+        if(ascentLandmarks)ascentGroup.remove(ascentLandmarks);
         for (const group of [ascentGroup,barrierGroup]) {
           group.traverse(obj => obj.geometry?.dispose());
           group.clear();
