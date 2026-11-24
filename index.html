@@ -12,7 +12,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=Rajdhani:wght@600;700&family=Teko:wght@600;700&display=swap" rel="stylesheet">
   <script src="match-plans.js?v=equipment2"></script>
   <script src="config.js?v=doors3"></script>
-  <script src="multiplayer-client.js?v=equipment2"></script>
+  <script src="multiplayer-client.js?v=burst-connect"></script>
   <link rel="stylesheet" href="menu.css" />
   <!-- Three.js r128 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -21,7 +21,7 @@
   <script src="shooting-spread.js?v=spray16"></script>
   <script src="crosshair-profile.js"></script>
   <script src="crosshair-ui.js" defer></script>
-  <script src="ads-system.js?v=20261124-ads100"></script>
+  <script src="ads-system.js?v=burst-connect"></script>
   <script src="weapon-viewmodels.js?v=knife3"></script>
 
   <style>
@@ -268,7 +268,17 @@
     #chat-input { width:100%; pointer-events:auto; color:white; }
     #range-options select {background:#273b50;color:white}
     body.in-range #ingame-hud > div:not(#range-controls):has(#hud-round-label), body.in-range #hud-cheat-btn, body.in-range #hud-skip-buy-btn {display:none}
-  </style>
+  #ads-iron-overlay[data-weapon="stinger"] .ads-rear-notch{width:80px;border-radius:45%}
+#ads-iron-overlay[data-weapon="spectre"] .ads-rear-notch{width:106px;height:28px}
+#ads-iron-overlay[data-weapon="bulldog"] .ads-rear-notch{height:48px;width:128px}
+#ads-iron-overlay[data-weapon="guardian"] .ads-receiver{width:98px}
+#ads-iron-overlay[data-weapon="phantom"] .ads-rear-notch{border-radius:45%;width:102px}
+#ads-iron-overlay[data-weapon="vandal"] .ads-rear-notch{width:123px;border-radius:2px}
+#scope-overlay[data-weapon] div{background-color:#202124}
+#scope-overlay[data-weapon] div:last-child{width:4px;height:4px;border:0;background:#ea5954}
+#scope-overlay[data-weapon="outlaw"]{background:radial-gradient(circle,transparent 30%,#292d30 30.5%,#06080a 33%)!important}
+#scope-overlay[data-weapon="operator"]{background:radial-gradient(circle,transparent 34%,#1e2023 34.5%,#030406 36%)!important}
+</style>
 </head>
 <body>
 
@@ -2713,8 +2723,11 @@
         window.markCrosshairFiring?.();
         if (!infAmmo) w.mag--;
 
+        if(now-(player.lastBulldogTime||0)>.5)player.bulldogCount=0;
+        player.lastBulldogTime=now;
         player.lastInterval=w.slot==='knife'?MeleeRules.MODES[knifeMode].cooldown:
-          (player.isScoped?w.scopedInterval:0)||w.fireRate;
+          (player.isScoped && w.id==='bulldog' ? (((player.bulldogCount||0)%3===2)?.325:.075) : ((player.isScoped?w.scopedInterval:0)||w.fireRate));
+        player.bulldogCount=player.isScoped&&w.id==='bulldog'?((player.bulldogCount||0)+1)%3:0;
         viewmodel.fire(knifeMode);
         if (w.slot === 'knife') {
           sfx.playKnifeSlash();
@@ -2911,6 +2924,7 @@
       const GameADS=window.GameADS;
       let adsCrosshairReady=false;
       function resetADS(){
+        player.bulldogCount=0;player.operatorZoom=1;
         GameADS.reset(player);
         adsCrosshairReady=false;
         window.setCrosshairScoped?.(false);
@@ -2929,13 +2943,14 @@
         const amount=GameADS.update(player,now);
         const ready=player.isScoped;
         const sniper=GameADS.isSniper(gun);
-        const zoomFov=GameADS.fov(gun);
+        const zoomFov=GameADS.fov(gun,75,player.operatorZoom);
         const fov=75+(zoomFov-75)*amount;
         if(Math.abs(camera.fov-fov)>0.001){camera.fov=fov;camera.updateProjectionMatrix();}
         if(ready!==adsCrosshairReady){
           window.setCrosshairScoped?.(ready);
           adsCrosshairReady=ready;
         }
+        document.getElementById('scope-overlay').dataset.weapon=gun.id;
         document.getElementById('scope-overlay').classList.toggle('hidden',!sniper||!ready);
         const iron=document.getElementById('ads-iron-overlay');
         const open=!sniper&&amount>.001;
@@ -2961,6 +2976,8 @@
         if(!player.alive){window.cycleSpectator(-1);return;}
         const gun=getActiveWeapon();
         if(!GameADS.isEligible(gun))return; // pistols, shotguns, knife
+        if(gun.id==='operator' && player.adsRequested && player.operatorZoom!==2){player.operatorZoom=2;return;}
+        player.operatorZoom=1;
         GameADS.request(player,performance.now(),!player.adsRequested);
         document.getElementById('mob-ads-btn').classList.toggle('vm-btn-active-state',player.adsRequested);
       };
@@ -3868,7 +3885,7 @@
 
         if (matchState.inMatch) {
           const holdingAnyFire = isMouseFiring || isKeyboardFiring || isLeftTouchFiring || isRightTouchFiring;
-          if (holdingAnyFire && player.alive && getActiveWeapon().auto) attemptFire();
+          if ((holdingAnyFire || (player.bulldogCount && player.isScoped && getActiveWeapon().id==='bulldog')) && player.alive && getActiveWeapon().auto) attemptFire();
           updateADSFrame(now);
           updatePlayerAndSpectatorCamera(dt);
           window.updateCrosshairErrors?.(ShootingSpread.crosshairError(getActiveWeapon(), player, now), now);
