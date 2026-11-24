@@ -10,8 +10,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=Rajdhani:wght@600;700&family=Teko:wght@600;700&display=swap" rel="stylesheet">
-  <script src="config.js?v=ground-relief"></script>
-  <script src="multiplayer-client.js?v=room-chat"></script>
+  <script src="config.js?v=haven1"></script>
+  <script src="multiplayer-client.js?v=haven1"></script>
   <link rel="stylesheet" href="menu.css" />
   <!-- Three.js r128 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -437,7 +437,7 @@
         <div class="relative w-24 h-24 sm:w-36 sm:h-36 rounded-full overflow-hidden border-2 border-[#ece8e1]/45 bg-[#0b131b]/95 shadow-2xl">
           <canvas id="radar-canvas" width="180" height="180" class="w-full h-full block"></canvas>
           <div class="absolute top-1 left-1/2 -translate-x-1/2 text-[8px] font-num font-bold text-[#38e2c7] bg-[#0f1923]/90 px-1.5 uppercase tracking-widest">
-            N // ASCENT
+            N // <span id="radar-map-name">ASCENT</span>
           </div>
         </div>
         <div class="val-cut-sm bg-[#0f1923]/95 border-l-4 border-[#38e2c7] px-2.5 py-0.5 flex items-center gap-2 shadow-lg">
@@ -654,7 +654,7 @@
   <div id="entry-screen" class="menu-screen modal-scroll fixed inset-0 z-40 overflow-y-auto">
     <div class="menu-backdrop" aria-hidden="true">
       <div class="menu-orbit orbit-one"></div><div class="menu-orbit orbit-two"></div>
-      <span class="menu-backdrop-tag">01 / ASCENT</span><span class="menu-backdrop-index">BETA // 26</span>
+      <span class="menu-backdrop-tag">ASCENT / HAVEN</span><span class="menu-backdrop-index">BETA // 26</span>
     </div>
     <div class="menu-frame">
       <header class="menu-topbar">
@@ -668,8 +668,9 @@
           <button type="button" onclick="window.openCrosshairSettings(event)"
                   class="mt-2 mb-3 px-4 py-2 text-sm font-bold border border-[#38e2c7]/60 text-[#38e2c7] hover:bg-[#38e2c7]/10 cursor-pointer">감도 · 조준점 설정</button>
           <div class="menu-feature-row"><span>◈ &nbsp; REALTIME 5 VS 5</span><span>◈ &nbsp; CUSTOM ROOMS</span><span>◈ &nbsp; CROSS PLATFORM</span></div>
+          <label class="menu-setting">플레이할 맵 <select id="map-choice" onchange="document.querySelector('.menu-hero-title em').textContent=this.value.toUpperCase()" style="color:white;background:#182530;padding:6px"><option value="ascent">어센트</option><option value="haven">헤이븐</option></select></label>
           <button type="button" class="menu-practice-btn" onclick="window.quickStartMatch(event)"><span class="menu-practice-icon">↗</span><span><b>혼자 연습하기</b><small>OFFLINE · AI TRAINING</small></span><span class="menu-practice-arrow">→</span></button>
-          <div class="menu-hero-foot"><span>MAP 01&nbsp; / &nbsp;ASCENT</span><span>MOVE WITH PURPOSE.</span></div>
+          <div class="menu-hero-foot"><span>ASCENT / HAVEN</span><span>MOVE WITH PURPOSE.</span></div>
         </section>
         <section class="menu-hub" aria-label="온라인 게임 참여">
           <div class="menu-hub-top"><div><div class="menu-kicker">01 <span>/</span> MATCH CONTROL</div><h2>게임에 참가하기</h2><p>방을 만들거나 코드로 친구의 경기에 합류하세요.</p></div><div class="menu-hub-mark">5<span>V</span>5</div></div>
@@ -700,7 +701,7 @@
           <p class="menu-hub-note"><span class="menu-note-indicator">●</span> 온라인 방 생성 및 참가는 Render 실시간 서버에 연결됩니다.</p>
         </section>
       </main>
-      <footer class="menu-footer"><span>© WEB FPS PROJECT</span><span>DESIGNED FOR PC &amp; MOBILE</span><span>ASCENT // 001</span></footer>
+      <footer class="menu-footer"><span>© WEB FPS PROJECT</span><span>DESIGNED FOR PC &amp; MOBILE</span><span>ASCENT / HAVEN</span></footer>
     </div>
   </div>
 
@@ -710,7 +711,7 @@
       <header class="menu-topbar room-topbar"><div class="menu-brand"><span class="menu-brand-symbol">V<span>∕</span></span><span class="menu-brand-copy"><b>VALORANT<span class="menu-brand-mark"> // WEB</span></b><small>CUSTOM MATCH LOBBY</small></span></div><button type="button" class="menu-exit-btn" onclick="window.openEntryScreen(event)"><span>←</span> 메인 메뉴로</button></header>
       <main class="room-main">
         <div class="room-page-head"><div><div class="menu-kicker">02 <span>/</span> PRIVATE MATCH</div><h1>커스텀 <em>대기실</em></h1><p>참가자들이 준비되면 방장이 경기를 시작할 수 있습니다.</p></div><div class="room-ticket"><div class="room-ticket-label">ROOM ACCESS CODE</div><div class="room-ticket-num"><span>#</span><b id="lobby-code-display">07</b></div><button type="button" class="room-copy-btn" onclick="window.copyRoomCode()">방 코드 복사 ↗</button></div></div>
-        <div class="room-meta-bar"><div class="room-meta-left"><span class="room-pulse"></span><span id="online-lobby-status" role="status">서버 연결 상태 확인 중...</span></div><div class="room-meta-right"><span>MAP <b>ASCENT</b></span><span>MODE <b>5 VS 5</b></span><span>PLATFORM <b>WEB</b></span></div></div>
+        <div class="room-meta-bar"><div class="room-meta-left"><span class="room-pulse"></span><span id="online-lobby-status" role="status">서버 연결 상태 확인 중...</span></div><div class="room-meta-right"><span>MAP <b id="room-map-name">ASCENT</b></span><span>MODE <b>5 VS 5</b></span><span>PLATFORM <b>WEB</b></span></div></div>
         <div class="room-grid"><section class="room-teams" aria-label="참가자와 팀 선택"><div class="room-section-top"><div><span class="menu-kicker">TEAM ASSIGNMENT</span><h2>팀 선택</h2></div><span class="room-team-hint">버튼을 눌러 팀 변경</span></div>
             <div class="room-team-controls"><div class="room-team-control attack"><div><span class="room-team-num">01 / ATTACK</span><strong>공격팀</strong></div><button type="button" onclick="window.switchTeam('attack')" id="btn-team-attack">공격팀 선택 ↗</button></div><div class="room-team-control defense"><div><span class="room-team-num">02 / DEFENSE</span><strong>수비팀</strong></div><button type="button" onclick="window.switchTeam('defense')" id="btn-team-defense">수비팀 선택 ↗</button></div></div>
             <div id="online-roster" class="room-roster-grid" aria-live="polite"><div class="room-roster-list"><div class="room-roster-top">ATTACKERS <span>0/5</span></div><div class="room-slot empty">플레이어를 기다리는 중</div></div><div class="room-roster-list"><div class="room-roster-top">DEFENDERS <span>0/5</span></div><div class="room-slot empty">플레이어를 기다리는 중</div></div></div>
@@ -1518,15 +1519,45 @@
         });
       }
 
+      let activeMap = 'ascent';
       buildAscentMap();
+      function selectMap(id) {
+        const next = id === 'haven' ? 'haven' : 'ascent';
+        document.querySelector('.room-map-card h3').textContent = next.toUpperCase();
+        document.querySelector('.room-map-card p').textContent = next === 'haven' ? 'A · B · C 사이트 / 헤이븐' : 'A · B 사이트 / 어센트';
+        for(const id of ['radar-map-name','room-map-name']) document.getElementById(id).textContent=next.toUpperCase();
+        document.querySelector('.room-map-graphic').hidden=next==='haven';
+        document.querySelector('[onclick^="window.teleportTo"]').parentElement.parentElement.hidden=next==='haven';
+        if (activeMap === next) return;
+        activeMap = next;
+        for (const group of [ascentGroup,barrierGroup]) {
+          group.traverse(obj => obj.geometry?.dispose());
+          group.clear();
+        }
+        for (const list of [wallBoxes3D,walkableSurfaces,mapTargetMeshes,blastDoors,floatingStructures]) list.length=0;
+        if (next === 'ascent') { buildAscentMap(); return; }
+        const map = AscentGround.haven;
+        addWalkableSlab(-56,56,-56,56,0,.5,'HAVEN',matStoneFloor);
+        for (const [l,r,b,t,n,f] of [...map.walls,...map.props]) {
+          const mat = b>0 ? matWoodFloor : t<3 ? matRadianite : l>12 ? matVenetianOchre : matVenetianWall;
+          addSolidBox3D((l+r)/2,(n+f)/2,r-l,f-n,b,t,mat);
+        }
+        for (const [name,[x,z]] of Object.entries(map.labels))
+          addWalkableSlab(x-3,x+3,z-3,z+3,0,.1,name.toUpperCase(),null,false);
+        for (const [name,[x,z]] of Object.entries(map.sites)) {
+          const ring=new THREE.Mesh(new THREE.RingGeometry(4.8,5,40),new THREE.MeshBasicMaterial({color:0xe7ba62,side:THREE.DoubleSide}));
+          ring.rotation.x=-Math.PI/2; ring.position.set(x,.035,z); ascentGroup.add(ring);
+          addWallCalloutSign(x+3,1.3,z+2.01,0,name+' SITE','HAVEN','#38e2c7');
+        }
+      }
 
       function getSurfaceSupport(x, z, currentFootY) {
-        let bestY = AscentGround.height(z);
-        let bestCallout = 'ASCENT';
+        let bestY = activeMap === 'haven' ? 0 : AscentGround.height(z);
+        let bestCallout = activeMap.toUpperCase();
         for (let i = 0; i < walkableSurfaces.length; i++) {
           const s = walkableSurfaces[i];
           if (x >= s.minX && x <= s.maxX && z >= s.minZ && z <= s.maxZ) {
-            let surfY = s.yStart === 0 && s.yEnd === 0 ? AscentGround.height(z) : s.yStart;
+            let surfY = s.yStart === 0 && s.yEnd === 0 ? (activeMap === 'haven' ? 0 : AscentGround.height(z)) : s.yStart;
             if (s.slopeAxis === 'x') {
               const t = Math.max(0, Math.min(1, (x - s.minX) / (s.maxX - s.minX)));
               surfY = s.yStart + (s.yEnd - s.yStart) * t;
@@ -1716,7 +1747,11 @@
       const ATK_PATROL_ROUTES = [[[-1, 39], [21, 39], [21, 27], [25, 27], [25, 7], [29, 7], [29, 5], [33, 5], [33, -9]], [[-1, 39], [-1, 31], [-9, 31], [-9, 27], [-11, 27], [-11, 17], [-13, 17], [-13, 9], [-17, 9], [-17, 7], [-23, 7], [-23, -1], [-21, -1], [-21, -3], [-21, -23], [-27, -23]], [[-1, 39], [21, 39], [21, 23], [11, 23], [11, 11], [9, 11], [9, 3], [17, 3], [17, -1], [19, -1], [19, -3]], [[-1, 39], [-1, 31], [-9, 31], [-9, 27], [-11, 27], [-11, 17], [-13, 17], [-13, 9], [1, 9], [1, 7], [1, -5], [-1, -5], [-1, -19], [-3, -19]]].map(route => route.map(([x,z]) => new THREE.Vector3(x,0,z)));
       const DEF_PATROL_ROUTES = ATK_PATROL_ROUTES.map(route => [...route].reverse());
 
+      const havenAttack = AscentGround.haven.routes.map(route => route.map(([x,z])=>new THREE.Vector3(x,0,z)));
+      const havenDefense = havenAttack.map(route=>[...route].reverse());
       function spawnTeamsForRound() {
+        const attackRoutes=activeMap==='haven'?havenAttack:ATK_PATROL_ROUTES;
+        const defenseRoutes=activeMap==='haven'?havenDefense:DEF_PATROL_ROUTES;
         bots.forEach(b => scene.remove(b.group));
         bots.length = 0;
 
@@ -1746,7 +1781,7 @@
         const allyWeapons = ['vandal', 'phantom', 'spectre', 'guardian'];
         for (let i = 0; i < 4; i++) {
           const m = createTacticalBotMesh(true);
-          const route = isAtk ? ATK_PATROL_ROUTES[i % ATK_PATROL_ROUTES.length] : DEF_PATROL_ROUTES[i % DEF_PATROL_ROUTES.length];
+          const route = isAtk ? attackRoutes[i % attackRoutes.length] : defenseRoutes[i % defenseRoutes.length];
           const sx = isAtk ? (-9 + i * 6) : route[0].x;
           const sz = isAtk ? 39 : route[0].z;
           const sy = isAtk ? 0 : route[0].y;
@@ -1776,7 +1811,7 @@
         const enemyWeapons = ['vandal', 'phantom', 'operator', 'spectre', 'vandal'];
         for (let i = 0; i < 5; i++) {
           const m = createTacticalBotMesh(false);
-          const route = isAtk ? DEF_PATROL_ROUTES[i % DEF_PATROL_ROUTES.length] : ATK_PATROL_ROUTES[i % ATK_PATROL_ROUTES.length];
+          const route = isAtk ? defenseRoutes[i % defenseRoutes.length] : attackRoutes[i % attackRoutes.length];
           const sx = isAtk ? route[0].x : (-10 + i * 5);
           const sz = isAtk ? route[0].z : 39;
           const sy = isAtk ? route[0].y : 0;
@@ -2014,7 +2049,7 @@
 
         spawnTeamsForRound();
         document.getElementById('hud-phase-badge').textContent = 'BUY PHASE — [SHOP] 버튼 또는 [B] 키로 무기를 구매하십시오';
-        showRoundBanner(`ASCENT // ROUND ${matchState.round}`, 'BUY PHASE');
+        showRoundBanner(`${activeMap.toUpperCase()} // ROUND ${matchState.round}`, 'BUY PHASE');
         updateHUD();
       }
 
@@ -2247,6 +2282,7 @@
       }
 
       window.quickStartMatch = function (e) {
+        selectMap(document.getElementById('map-choice').value);
         if (e) e.stopPropagation();
         if (window.MP.active) window.MP.disconnect();
         const inp = document.getElementById('create-code-input');
@@ -3162,8 +3198,10 @@
           rCtx.fillRect(toRx(wall.minX),toRz(wall.minZ),toRx(wall.maxX)-toRx(wall.minX),toRz(wall.maxZ)-toRz(wall.minZ));
         }
         rCtx.fillStyle = 'rgba(255, 70, 85, 0.24)';
+        if (activeMap==='ascent') {
         rCtx.fillRect(toRx(20), toRz(-16), 24, 24);
         rCtx.fillRect(toRx(-40), toRz(-31), 24, 24);
+        }
 
         // Draw Buy Phase Barrier lines on Radar during Buy Phase
         if (matchState.phase === 'buy') {
@@ -3179,8 +3217,12 @@
 
         rCtx.fillStyle = '#ece8e1';
         rCtx.font = 'bold 11px Rajdhani, sans-serif';
+        if(activeMap==='haven') {
+          for(const [name,[x,z]] of Object.entries(AscentGround.haven.sites)) rCtx.fillText(name,toRx(x),toRz(z));
+        } else {
         rCtx.fillText('A', toRx(28), toRz(-4));
         rCtx.fillText('B', toRx(-33), toRz(-19));
+        }
 
         bots.forEach(b => {
           if (!b.alive) return;
@@ -3463,6 +3505,7 @@
       }
 
       function gameSpikeSiteAt(x, z, footY) {
+        if (activeMap==='haven') return AscentGround.havenSite(x,z,footY);
         if (footY < -0.4 || footY > 2.2) return null;
         if (Math.hypot(x - 29, z + 8) < 9.0 && footY < 1.2) return 'A';
         if (Math.hypot(x + 32, z + 23) < 9.0) return 'B';
@@ -3679,7 +3722,7 @@
         renderer.render(scene, camera);
       }
 
-      window.MP.install({resetChat,appendChat,roomState,matchState,player,bots,scene,spikeMesh,barrierGroup,gunGroup,muzzleFlashMesh,viewmodel,gameSpikeSiteAt,sfx,
+      window.MP.install({selectMap,resetChat,appendChat,roomState,matchState,player,bots,scene,spikeMesh,barrierGroup,gunGroup,muzzleFlashMesh,viewmodel,gameSpikeSiteAt,sfx,
         createTacticalBotMesh,setEnemyOutline,spawnBulletTracer,drawLocalShot,
         cloneWeaponInstance,WEAPON_CATALOG,getActiveWeapon,startNewRound,
         updateHUD,flashDamage,showHitmarker,showRoundBanner,addKillFeed,syncCheatPermissionUI,
