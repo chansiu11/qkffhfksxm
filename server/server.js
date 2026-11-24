@@ -156,7 +156,7 @@ function spawn(p, idx, map, keepWeapons = false) {
   p.actionFrom = 0;
   p.actionBase = 0;
   p.lastPosAt = 0;
-  p.lastShot = 0;
+  p.lastShot = 0;p.lastInterval=0;p.equipUntil=0;
   p.spreadState = {};
   p.movementSpeed = 0;
   p.lastMovedAt = 0;
@@ -270,10 +270,10 @@ function fire(r, p, msg) {
   const w = catalog[p.weapon] || catalog.classic;
   const now = Date.now();
   const meleeMode = MeleeRules.modeFor(msg.mode);
-  const cooldown = w.id === 'knife' ? MeleeRules.MODES[meleeMode].cooldown : w.fireRate;
-  if (now - p.lastShot < (cooldown * 1000 - 8)) return;
+  const cooldown = w.id === 'knife' ? MeleeRules.MODES[meleeMode].cooldown : (msg.ads?w.scopedInterval:0)||w.fireRate;
+  if (now < p.equipUntil || now - p.lastShot < ((p.lastInterval??cooldown) * 1000 - 8)) return;
   if (w.id !== 'knife' && p.mag <= 0) {send(p.client,{type:'ammo_sync',weapon:p.weapon,mag:p.mag,reserve:p.reserve});return;}
-  p.lastShot = now;
+  p.lastShot = now;p.lastInterval=cooldown;
   if (w.id !== 'knife') p.mag--;
   if (p.ammo?.[p.weapon]) p.ammo[p.weapon].mag = p.mag;
   const yaw = finite(msg.yaw, -100000, 100000, p.yaw);
@@ -317,7 +317,12 @@ function fire(r, p, msg) {
         // Walls block swings; a melee attack can never hit through a barrier.
         const dy=info.bodyY-oy,dist3=Math.hypot(info.dx,dy,info.dz);
         if (dist3 <= .02) return false;
-        for(const block of blockers) {
+        const panels=Object.entries(r.objects||{}).filter(([,state])=>state.hp>0).map(([id,state])=>{
+          const item=ground.interactives[r.map][id],box=[...item.box];
+          if(item.lift&&!state.closed){box[2]+=item.lift;box[3]+=item.lift;}
+          return box;
+        });
+        for(const block of blockers.concat(panels)) {
           const t=rayBox(ox,oy,oz,info.dx/dist3,dy/dist3,info.dz/dist3,block);
           if(t>.04 && t<dist3-.30)return false;
         }
@@ -449,7 +454,7 @@ function receive(c,m) {
     const slot=String(m.slot||'');
     const item=p.inventory?.[slot];
     if(!item||!catalog[item])return;
-    if (p.weapon !== item) cancelEquipmentReload(p);
+    if (p.weapon !== item) {cancelEquipmentReload(p);p.lastShot=0;p.lastInterval=0;p.equipUntil=now+1000*catalog[item].equipTime;}
     p.weapon=item;
     p.mag=p.ammo[item]?.mag ?? catalog[item].magSize;
     p.reserve=p.ammo[item]?.reserve ?? catalog[item].resSize;
@@ -485,6 +490,7 @@ function receive(c,m) {
     }else{
       if(!w||p.credits<w.cost||w.id==='knife')return notify(c,'구매할 수 없습니다.');
       cancelEquipmentReload(p);
+      if(p.weapon!==id)p.equipUntil=now+w.equipTime*1000;
       p.inventory[w.slot]=id; p.weapon=id; p.mag=w.magSize;p.reserve=w.resSize;p.credits-=w.cost;
       p.ammo[id]={mag:p.mag,reserve:p.reserve};
     }

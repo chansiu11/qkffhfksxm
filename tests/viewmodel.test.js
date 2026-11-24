@@ -53,13 +53,13 @@ test('first-person paper is PROJECTED as near-large/far-small rectangle, not rot
   const nearHeight=Math.hypot(p.corners[2].x-p.corners[1].x,p.corners[2].y-p.corners[1].y);
   assert(nearHeight>farHeight*2.7,`rear paper edge should be visibly larger (far=${farHeight},near=${nearHeight})`);
   assert(p.frontDepth>p.rearDepth*3);
-  assert(Math.abs((p.rear.x-p.muzzle.x) - w*(1.105-.527)*.5) < .01);
+  assert(Math.abs((p.rear.x-p.muzzle.x) - Math.min(w,h*16/9)*(1.025-.527-.065)) < .01);
   assert(p.muzzle.y>h*.5 && p.muzzle.y<h*.73);
   assert.equal(api.muzzleEdgeY.vandal,.226);
 });
 
 test('paper projection retains real muzzle endpoint while weapon shifts with firing/reloading',()=>{
-  const view=api.create(T);view.setWeapon('vandal');clock+=400;
+  const view=api.create(T);view.setWeapon('vandal');clock+=1100;
   view.update(.016,alive,running);
   const resting=view.getMuzzleScreenPosition();
   assert(resting && resting.depth===2.9);
@@ -79,7 +79,7 @@ test('paper projection retains real muzzle endpoint while weapon shifts with fir
 });
 
 test('muzzle world position is the actual paper edge transformed by camera, while hit ray is unchanged',()=>{
-  const view=api.create(T);view.setWeapon('vandal');clock+=400;view.update(.016,alive,running);
+  const view=api.create(T);view.setWeapon('vandal');clock+=1100;view.update(.016,alive,running);
   const tip=view.getMuzzleScreenPosition();
   const camera={fov:75,updateMatrixWorld(){},localToWorld(v){v.x+=3;v.y+=1;v.z+=12;return v;}};
   const point=view.getMuzzleWorldPosition(camera);
@@ -94,8 +94,8 @@ test('responsive mobile paper endpoint stays below center and rear exits right/l
     const p=api.paperProjection(id,w,h), cfg=api.viewEndpoints(id,w,h);
     assert(Math.abs(p.muzzle.x-cfg.front.x)<.01,id);
     assert(Math.abs(p.muzzle.y-cfg.front.y)<.01,id);
-    assert(p.muzzle.y>h*.55 && p.muzzle.y<h*.8,id);
-    assert(cfg.edge.x>w,id);
+    assert(p.muzzle.y>h*.55 && p.muzzle.y<h,id);
+    assert(id==='knife'?cfg.edge.x<w:cfg.edge.x>w,id);
     assert(p.corners.every(q=>Number.isFinite(q.x)&&Number.isFinite(q.y)),id);
   }
 });
@@ -108,4 +108,12 @@ test('crosshair shooting, damage, reload and online hooks still wired',()=>{
   assert.match(html,/spawnBulletTracer\(localTracerVisualStart\(player\.pos, bulletDirection\), endPt\)/);
   assert.match(html,/function flashDamage\(/);
   assert.match(online,/a\.viewmodel\.fire\(/);
+});
+test('rifle projection preserves proportions on wide, tablet and portrait displays',()=>{
+  const spans=[[1920,1080],[2560,1080],[1920,1200],[390,844]].map(([w,h])=>{
+    const p=api.paperProjection('vandal',w,h);
+    const scale=Math.min(w,h*16/9);
+    return [(p.rear.x-p.front.x)/scale,(p.rear.y-p.front.y)/scale];
+  });
+  for(const v of spans)for(let axis=0;axis<2;axis++)assert(Math.abs(v[axis]-spans[0][axis])<1e-6);
 });
