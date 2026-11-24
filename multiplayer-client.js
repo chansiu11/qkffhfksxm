@@ -370,6 +370,14 @@
         this.lastRound = state.round;
         this.lastSpike = false;
         a.startNewRound();
+        // Restore the server loadout before rendering or accepting input.
+        const equipped = a.WEAPON_CATALOG[me.weapon];
+        for (const slot of ['primary','secondary']) {
+          const id = me.inventory ? me.inventory[slot] : (equipped?.slot === slot ? me.weapon : slot === 'secondary' ? 'classic' : null);
+          a.player[slot] = id ? a.cloneWeaponInstance(id) : null;
+        }
+        a.player.activeSlot = equipped?.slot || 'secondary';
+        a.viewmodel.setWeapon(a.getActiveWeapon().id);
         a.bots.splice(0).forEach(b => a.scene.remove(b.group));
         this.peers.clear();
       }
