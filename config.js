@@ -146,6 +146,10 @@ if (typeof window !== "undefined") window.GAME_SERVER_URL = 'https://qkffhfksxm-
       }else box(kind,x,z,w,d,bottom,y+h);
     }
     if(id==='haven'){
+      // Close the break between Sewer's west bank and the southeast corner of B hall.
+      // Both ends overlap the existing masonry; A Link enters B farther north.
+      box('havenPlaster',11.9,-19.0,1.1,6.8,-5,7.4);
+      box('redwood',11.9,-19.0,1.22,6.9,7.4,7.7);
       // Frame Tower's site-facing opening above the dark recess under Heaven.
       const tower=height(id,47.2,-38.3)+6;
       for(const x of [44,50.4])box('redwood',x,-37,.42,.48,tower,tower+2.8);
