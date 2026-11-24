@@ -97,6 +97,15 @@ if (typeof window !== "undefined") window.GAME_SERVER_URL = 'https://qkffhfksxm-
           const base=Math.min(height(id,ax,az),height(id,bx,bz));
           box('limestone',cx,cz,len+.06,thick+.13,-5,base+.54,angle);
         }
+        if(id==='ascent'&&!low&&len>=8&&(z>16||z< -48||garden||courtyard)){
+          // Place entries on the street face of long residential walls.
+          const px=x-nx*.11,pz=z-nz*.11,base=height(id,px,pz);
+          box('doorfront',px,pz,2.05,.18,base-.12,base+2.7,angle);
+          box('limestone',px,pz,2.43,.32,base+2.7,base+2.95,angle);
+          for(const sign of [-1,1]){
+            box('limestone',px+sign*dx/len*1.13,pz+sign*dz/len*1.13,.2,.31,base-.12,base+2.74,angle);
+          }
+        }
         if(!low)box(id==='haven'?'beam':'stonecap',cx,cz,len+.08,thick+.12,h-.95,h-.68,angle);
       }
     }
@@ -160,7 +169,7 @@ if (typeof window !== "undefined") window.GAME_SERVER_URL = 'https://qkffhfksxm-
       // Recessed-looking shopfronts against the existing solid end walls.
       for(const [x,z,width] of [[74.6,-7.4,4.2],[19.53,-32.8,4.8]]){
         const y=height(id,x,z);
-        box('wood',x,z,.18,width,y-.15,y+3.05);
+        box('doorfront',x,z,.18,width,y-.15,y+3.05);
         arch(x-.14,z,width,.28,1.85,.92,true,'plaster',3.15);
         for(const side of [-1,1])box('limestone',x-.14,z+side*width/2,.32,.27,y-.15,y+2.12);
       }
