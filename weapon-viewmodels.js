@@ -60,7 +60,7 @@
     const rear=portrait?[1.23,kind==='blade'?.92:.955]:cfg.rear;
     // Foreshorten the gun horizontally around its stock.
     const muzzleX = kind === 'blade' ? front[0] : front[0] + (rear[0] - front[0]) * .5;
-    const shift = kind === 'blade' ? 0 : width * .045;
+    const shift = kind === 'blade' ? 0 : width * .075;
     return {front:{x:width*muzzleX-shift,y:height*front[1]},
       edge:{x:width*rear[0]-shift,y:height*rear[1]},
       frontDepth:FRONT_DEPTH,rearDepth:REAR_DEPTH,paperHeight:cfg.height};

@@ -515,7 +515,7 @@
       // Update the authoritative firing origin before the fire request. WebSocket
       // preserves message ordering; this avoids shooting from stale positions.
       this.send({type:'move',x:p.pos.x,y:p.pos.y,z:p.pos.z,footY:p.footY,
-        yaw:p.yaw,pitch:p.lookPitch??p.pitch});
+        yaw:p.yaw,pitch:p.pitch});
       if(!this.send({type:'shoot',yaw:p.yaw,pitch:p.pitch,scatter:pelletRotation,
         burst,seed,speed:Math.min(8.5,locomotion.speed),airborne:locomotion.airborne,
         crouched:locomotion.crouched,ads:locomotion.ads,
@@ -572,7 +572,7 @@
       // A periodic 600ms refresh keeps server presence and hold state alive.
       const q=n=>Math.round(n*1000)/1000;
       const move={type:'move',x:q(p.pos.x),y:q(p.pos.y),z:q(p.pos.z),
-        footY:q(p.footY),yaw:q(p.yaw),pitch:q(p.lookPitch??p.pitch)};
+        footY:q(p.footY),yaw:q(p.yaw),pitch:q(p.pitch)};
       const key=`${move.x}|${move.y}|${move.z}|${move.footY}|${move.yaw}|${move.pitch}`;
       if (key !== this.lastMoveKey || now-this.lastSent >= 600) {
         if (this.send(move)) {this.lastMoveKey=key; this.lastSent=now;}

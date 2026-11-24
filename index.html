@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=Rajdhani:wght@600;700&family=Teko:wght@600;700&display=swap" rel="stylesheet">
   <script src="config.js"></script>
-  <script src="multiplayer-client.js?v=movement3"></script>
+  <script src="multiplayer-client.js?v=left4"></script>
   <link rel="stylesheet" href="menu.css" />
   <!-- Three.js r128 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -20,7 +20,7 @@
   <script src="crosshair-profile.js"></script>
   <script src="crosshair-ui.js" defer></script>
   <script src="ads-system.js?v=20261124-ads100"></script>
-  <script src="weapon-viewmodels.js?v=20261124-recoil2"></script>
+  <script src="weapon-viewmodels.js?v=left4"></script>
 
   <style>
     :root {
@@ -3312,7 +3312,7 @@
 
           camera.position.copy(player.pos);
           camera.rotation.y = player.yaw;
-          camera.rotation.x = player.lookPitch;
+          camera.rotation.x = player.pitch;
 
           document.getElementById('hud-callout-name').textContent = player.callout;
           const elevSign = player.footY >= 0 ? '+' : '';
