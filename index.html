@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=Rajdhani:wght@600;700&family=Teko:wght@600;700&display=swap" rel="stylesheet">
   <script src="match-plans.js?v=equipment2"></script>
-  <script src="config.js?v=ascent-vaults"></script>
+  <script src="config.js?v=ascent-streets"></script>
   <script src="multiplayer-client.js?v=burst-connect"></script>
   <link rel="stylesheet" href="menu.css" />
   <!-- Three.js r128 -->
@@ -1201,7 +1201,7 @@
         return new THREE.CanvasTexture(c);
       }
 
-      function makeVenetianBuildingTexture(stuccoHex, shutterHex) {
+      function makeVenetianBuildingTexture(stuccoHex, shutterHex, upperOnly=false) {
         const c = document.createElement('canvas');
         c.width = 512;
         c.height = 512;
@@ -1215,7 +1215,7 @@
           ctx.fillRect(0, y - 5, 512, 10);
         });
         const cols = [64, 192, 320, 448];
-        const rows = [52, 218];
+        const rows = upperOnly ? [104] : [52, 218];
         rows.forEach(wy => {
           cols.forEach(wx => {
             ctx.fillStyle = shutterHex;
@@ -1230,7 +1230,7 @@
         });
         const tex = new THREE.CanvasTexture(c);
         tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-        tex.repeat.set(2, 1);
+        tex.repeat.set(upperOnly?1:2, 1);
         return tex;
       }
 
@@ -1330,13 +1330,13 @@
       const barrierGroup = new THREE.Group();
       scene.add(barrierGroup);
 
-      const matStoneFloor = new THREE.MeshStandardMaterial({ map: makeCobbleTexture('#c4bdb2', '#9e9689'), roughness: 0.78 });
+      const matStoneFloor = new THREE.MeshStandardMaterial({ map: makeCobbleTexture('#928b84', '#766f6c'), vertexColors:true, roughness: .98 });
       const matUpperFloor = new THREE.MeshStandardMaterial({ map: makeCobbleTexture('#8c96a3', '#697380'), roughness: 0.62 });
       const matTilesFloor = new THREE.MeshStandardMaterial({ map: makeCobbleTexture('#b69f89', '#87725f'), roughness: 0.68 });
       const matWoodFloor = new THREE.MeshStandardMaterial({ color: 0x785238, roughness: 0.65 });
       const matVenetianWall = new THREE.MeshStandardMaterial({ map: makeVenetianBuildingTexture('#e8dfd1', '#2d5a43'), roughness: 0.68 });
-      const matVenetianOchre = new THREE.MeshStandardMaterial({ map: makeVenetianBuildingTexture('#dfc29d', '#7c2d12'), roughness: 0.68 });
-      const matVenetianPink = new THREE.MeshStandardMaterial({ map: makeVenetianBuildingTexture('#deb3a8', '#1e3a5f'), roughness: 0.68 });
+      const matVenetianOchre = new THREE.MeshStandardMaterial({ map: makeVenetianBuildingTexture('#dfc29d', '#7c2d12', true), roughness: 0.68 });
+      const matVenetianPink = new THREE.MeshStandardMaterial({ map: makeVenetianBuildingTexture('#deb3a8', '#1e3a5f', true), roughness: 0.68 });
       const matBrickWall = new THREE.MeshStandardMaterial({ map: makeVenetianBuildingTexture('#b96e53', '#544e47'), roughness: 0.75 });
       const matTerracottaRoof = new THREE.MeshStandardMaterial({ color: 0xb44c32, roughness: 0.65 });
       const matDarkMetal = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.35, metalness: 0.8 });
@@ -1446,6 +1446,19 @@
       const templeFacade=templeMaterial();
       const cloth=new THREE.MeshStandardMaterial({color:0x78857d,roughness:1});
       const ascentSalmon=new THREE.MeshStandardMaterial({color:0xc39183,roughness:1});
+      function ascentDoorMaterial(){
+        const c=document.createElement('canvas');c.width=256;c.height=256;
+        const ctx=c.getContext('2d');
+        ctx.fillStyle='#765442';ctx.fillRect(0,0,256,256);
+        ctx.strokeStyle='#483e36';ctx.lineWidth=3;
+        for(let x=0;x<256;x+=32)ctx.strokeRect(x,0,32,256);
+        for(const y of [55,200]){
+          ctx.fillStyle='#51473e';ctx.fillRect(0,y,256,6);
+        }
+        ctx.fillStyle='#c2a37a';ctx.fillRect(114,118,5,13);ctx.fillRect(138,118,5,13);
+        return new THREE.MeshStandardMaterial({map:new THREE.CanvasTexture(c),roughness:.93});
+      }
+      const ascentDoor=ascentDoorMaterial();
       const ascentClay=new THREE.MeshStandardMaterial({color:0xce9663,roughness:1});
       const ascentGenerator=new THREE.MeshStandardMaterial({color:0x646b70,roughness:.64,metalness:.32});
       let ascentLandmarks;
@@ -1491,12 +1504,23 @@
         floor.rotateX(-Math.PI/2);
         const pos=floor.attributes.position;
         for(let i=0;i<pos.count;i++)pos.setY(i,AscentGround.height(id,pos.getX(i),pos.getZ(i)));
+        if(id==='ascent'){
+          const colors=[];
+          for(let i=0;i<pos.count;i++){
+            const x=pos.getX(i),z=pos.getZ(i);
+            // Dark slate inside the two plant sites, warmer stone on the approaches.
+            const a=Math.min(x-48,72-x,z+46,-23-z),b=Math.min(x+49,-19-x,z+48,-25-z);
+            const site=Math.max(0,Math.min(1,Math.max(a,b)/2));
+            colors.push(.74-.28*site,.71-.22*site,.7-.16*site);
+          }
+          floor.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));
+        }
         floor.computeVertexNormals();
         const mesh=new THREE.Mesh(floor,id==='haven'?matTilesFloor:matStoneFloor);
         mesh.receiveShadow=true;ascentGroup.add(mesh);mapTargetMeshes.push(mesh);
 
         const materials={ochre:matVenetianOchre,pink:matVenetianPink,brick:ascentBrick,temple:templeFacade,
-          limestone,plaster,gardenWall:masonry,salmon:ascentSalmon,clay:ascentClay,steel:matDarkMetal,generatorCap:matDarkMetal,
+          limestone,plaster,doorfront:ascentDoor,gardenWall:masonry,salmon:ascentSalmon,clay:ascentClay,steel:matDarkMetal,generatorCap:matDarkMetal,
           shingles:matDarkMetal,tiles:matTerracottaRoof,eave:matDarkMetal,beam:matWoodFloor,wall:masonry,stonecap:parapet,
           generator:id==='ascent'?ascentGenerator:matGenerator,crate:matRadianite,wood:matWoodFloor,tarp:cloth,step:matUpperFloor,
           deck:matWoodFloor,roof:id==='haven'?matWoodFloor:matCeiling};
