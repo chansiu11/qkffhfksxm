@@ -9,7 +9,7 @@ if (typeof window !== "undefined") window.GAME_SERVER_URL = 'https://qkffhfksxm-
   const fixtures = {
     ascent: [
       ['generator',54,-31,2.6,6.3,3.7], ['crate',62.2,-32.3,1.9,1.9,2.4], ['crate',64.1,-31.7,1.9,1.9,2.4],
-      ['crate',-32,-36.5,2.1,2.1,2.2],['crate',-32,-38.6,2.1,2.1,3.8],['wood',-27,-45.5,2.2,2,1.6],
+      ['crate',-32,-36.5,2.1,2.1,2.2],['crate',-32,-38.6,2.1,2.1,2.2],['wood',-27,-45.5,2.2,2,1.6],
       ['deck',60.7,-42.6,17,4.6,3.05],['stairs',54,-37.3,3.5,6,3.05],
       ['roof',53,-7.6,8,7,5.5],['roof',-21,-19,8,8,5.2],['roof',10,-34,8,7,4.7],
       ['roof',-45,-38,5,13,4.2],['wood',-19,-16,2,1.7,1.6]
@@ -79,15 +79,23 @@ if (typeof window !== "undefined") window.GAME_SERVER_URL = 'https://qkffhfksxm-
         if(len<.04)continue;
         const x=(ax+bx)/2,z=(az+bz)/2,nx=dz/len,nz=-dx/len,angle=-Math.atan2(dz,dx);
         const low=id==='ascent'? x>18&&x<31&&z>-12&&z<18 : x< -30&&z>0&&z<17;
-        const style=low?'wall':id==='haven'?'temple':x<0?'brick':x>40?'ochre':'pink';
+        // Street-level masonry differs from upper residential facades.
+        const courtyard=x>0&&x<38&&z>-34&&z<18;
+        const garden=x>30&&x<45&&z>=-43&&z<-13;
+        const style=low?'wall':id==='haven'?'temple':garden?'gardenWall':courtyard?'plaster':
+          x<0?(z< -14?'brick':'salmon'):x>40?(z>0?'clay':'ochre'):'pink';
         const thick=low?.55:2.4;
-        const h=Math.max(height(id,ax,az),height(id,bx,bz))+(low?3.1:id==='haven'?7.6:9.2);
+        const h=Math.max(height(id,ax,az),height(id,bx,bz))+(low?(id==='ascent'&&len>20?1.1:3.1):id==='haven'?7.6:9.2);
         const cx=x+nx*thick/2,cz=z+nz*thick/2;
         box(style,cx,cz,len+.04,thick,-5,h,angle);
         box(low?'stonecap':id==='haven'?'eave':'tiles',cx,cz,len+.24,thick+.5,h,h+(low?.24:.48),angle);
         if(!low){
           // The ridge rises away from the street. Local +Z points into the street.
           box(id==='haven'?'shingles':'tiles',x+nx*1.85,z+nz*1.85,len+.18,4.35,h+1.22,h+1.48,angle,-.42);
+        }
+        if(id==='ascent'&&['gardenWall','plaster','salmon','clay'].includes(style)){
+          const base=Math.min(height(id,ax,az),height(id,bx,bz));
+          box('limestone',cx,cz,len+.06,thick+.13,-5,base+.54,angle);
         }
         if(!low)box(id==='haven'?'beam':'stonecap',cx,cz,len+.08,thick+.12,h-.95,h-.68,angle);
       }
@@ -105,7 +113,8 @@ if (typeof window !== "undefined") window.GAME_SERVER_URL = 'https://qkffhfksxm-
         const entry=height(id,x,z-d/2),landing=height(id,47.2,-38.3)+h;
         for(let i=0;i<32;i++)box('step',x,z-d/2+(i+.5)*d/32,w,d/32+.015,bottom,entry+(landing-entry)*(i+1)/32);
       }else if(kind==='stairs'){
-        for(let i=0;i<24;i++)box('step',x,z-d/2+(i+.5)*d/24,w,d/24+.01,bottom,y+h*(1-i/24));
+        const stair=map.stairs[map.stairs.length-1];
+        for(let i=0;i<24;i++)box('step',x,z-d/2+(i+.5)*d/24,w,d/24+.01,bottom,stair.near+(stair.far-stair.near)*i/24);
       }else if(kind==='deck'||kind==='roof'){
         box(kind,x,z,w,d,y+h-.4,y+h);
         for(const sx of [-1,1])for(const sz of [-1,1]){
@@ -122,15 +131,51 @@ if (typeof window !== "undefined") window.GAME_SERVER_URL = 'https://qkffhfksxm-
       box('beam',x,z,10.4,.54,y+4.6,y+4.9);
     }
     if(id==='ascent'){
-      // Stone springers and a stepped arch frame the recessed boathouse entrance.
-      const x=-40.4,z=-38.5,y=height(id,x,z),span=5;
-      for(let i=0;i<18;i++){
-        const offset=(i+.5)*span/18-span/2;
-        const arch=y+2.1+Math.sqrt(Math.max(0,(span/2)**2-offset**2));
-        box('stonecap',x,z+offset,.72,span/18+.01,arch,arch+.38);
-        box('brick',x-.08,z+offset,.55,span/18+.01,arch+.38,y+5.4);
+      // A cross-section perpendicular to travel. Keep the opening clear down to the floor.
+      function arch(x,z,width,depth,spring,rise,sideways,wallKind,top){
+        const base=height(id,x,z), half=width/2, slices=20;
+        for(let i=0;i<slices;i++){
+          const u=(i+.5)*width/slices-half, bottom=base+spring+rise*Math.sqrt(1-(u/half)**2);
+          const px=x+(sideways?0:u),pz=z+(sideways?u:0);
+          const w=sideways?depth:width/slices+.008,d=sideways?width/slices+.008:depth;
+          box('limestone',px,pz,w,d,bottom,bottom+.28);
+          box(wallKind,px,pz,w*.99,d*.99,bottom+.28,base+top);
+        }
       }
-      for(const side of [-1,1])box('stonecap',x,z+side*2.7,.72,.42,y-.2,y+2.7);
+      arch(-40.4,-38.5,5,.72,2.1,2.5,true,'brick',5.4);
+      for(const side of [-1,1]){
+        box('limestone',-40.4,-38.5+side*2.7,.72,.42,-5,height(id,-40.4,-38.5)+2.65);
+        arch(53,-7.6+side*3,7.5,.55,3,1.55,false,'plaster',5.1);
+        arch(-21,-19+side*3.45,7.5,.65,2.75,1.52,false,'brick',4.8);
+        arch(10+side*3.5,-34,6.5,.5,2.7,1.15,true,'plaster',4.3);
+      }
+      // Transverse beams visible from underneath rafters and the boathouse.
+      for(const [x,z,w,d,h,count] of [[60.7,-42.6,17,4.6,3.05,7],[-45,-38,5,13,4.2,6]]){
+        const y=height(id,x,z)+h-.4,alongX=w>d;
+        for(let i=0;i<count;i++){
+          const t=(i+.5)/count-.5;
+          box('beam',x+(alongX?t*w:0),z+(alongX?0:t*d),alongX?.26:w,alongX?d:.26,y-.22,y);
+        }
+      }
+      // Recessed-looking shopfronts against the existing solid end walls.
+      for(const [x,z,width] of [[74.6,-7.4,4.2],[19.53,-32.8,4.8]]){
+        const y=height(id,x,z);
+        box('wood',x,z,.18,width,y-.15,y+3.05);
+        arch(x-.14,z,width,.28,1.85,.92,true,'plaster',3.15);
+        for(const side of [-1,1])box('limestone',x-.14,z+side*width/2,.32,.27,y-.15,y+2.12);
+      }
+      const stackBase=height(id,-32,-38.6)+2.2;
+      box('crate',-32,-38.6,2.1,2.1,stackBase,stackBase+2.1);
+      // A deep eave and exposed joists line the B lobby approach.
+      const lobbyX=-14.1,lobbyZ=25,lobbyY=height(id,lobbyX,lobbyZ)+3.7;
+      box('beam',lobbyX,lobbyZ,2.8,6.4,lobbyY,lobbyY+.16);
+      box('tiles',lobbyX,lobbyZ,6.6,3,lobbyY+.28,lobbyY+.44,Math.PI/2,.08);
+      for(const z of [22.4,24.9,27.5])box('beam',lobbyX,z,2.8,.17,lobbyY-.18,lobbyY);
+      const genY=height(id,54,-31);
+      for(const side of [-1,1]){
+        for(const z of [-33.4,-31,-28.6])box('steel',54+side*1.32,z,.16,.22,genY+.15,genY+3.65);
+      }
+      box('generatorCap',54,-31,2.8,6.45,genY+3.7,genY+3.84);
     }
     // Towers behind the playable boundary give each skyline its own profile.
     if(id==='ascent'){
