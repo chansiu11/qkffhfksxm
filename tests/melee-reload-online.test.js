@@ -160,3 +160,20 @@ test('Haven room selection is shared and all three sites accept planting', async
     for(const ws of [host,guest]) {packet(ws,{type:'leave'});ws.close();}
   }
 });
+test('Ascent door switch closes only from nearby and a glass hit removes the pane',async()=>{
+  const f=await setup('84');
+  try{
+    const {room,a,p,q}=f;
+    async function switchDoor(){
+      const ack=wait(a,'pong');
+      a.send(JSON.stringify({type:'use_door',id:'A_DOOR'}));
+      a.send(JSON.stringify({type:'ping',seq:1}));
+      await ack;
+    }
+    await switchDoor();assert.equal(room.objects.A_DOOR.closed,false);
+    p.x=19.6;p.z=0;await switchDoor();assert.equal(room.objects.A_DOOR.closed,true);
+    p.x=15;p.z=-22.3;p.y=1.8;p.yaw=0;q.x=50;q.z=50;
+    const seen=wait(f.b,'shot');a.send(JSON.stringify({type:'shoot',yaw:0,pitch:0}));await seen;
+    assert.equal(room.objects.GARDEN_GLASS.hp,0);
+  }finally{f.close();}
+});
