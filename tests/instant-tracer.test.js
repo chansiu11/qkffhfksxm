@@ -45,17 +45,17 @@ function tracerHarness() {
   return {api,THREE,added,removed,viewmodel};
 }
 
-test('tracer becomes a bright yellow group of three thin parallel lines, never a sphere',()=>{
+test('tracer becomes a bright yellow group of five thin parallel lines, never a sphere',()=>{
   const {api,THREE,added}=tracerHarness();
   const start=new THREE.Vector3(0,0,-0.5), end=new THREE.Vector3(0,0,-100);
   api.spawnBulletTracer(start,end,0xff4655);
   assert.equal(added.length,1);
   assert(added[0] instanceof THREE.LineSegments);
   const points=added[0].geometry.points;
-  assert.equal(points.length,6,'3 parallel pairs make a ~2-3px visual tracer');
-  assert.equal(points[2].x,start.x);
-  assert.equal(points[3].z,end.z);
-  assert(points[0].x<points[2].x && points[4].x>points[2].x);
+  assert.equal(points.length,10,'5 parallel pairs widen the visual tracer');
+  assert.equal(points[4].x,start.x);
+  assert.equal(points[5].z,end.z);
+  assert(points[0].x<points[2].x && points[8].x>points[4].x);
   assert.equal(added[0].material.color,0xffe331,'all weapons use bright yellow tracers');
   assert.equal(api.activeTracers.length,1);
   assert.equal('progress' in api.activeTracers[0],false,'no travel animation');
