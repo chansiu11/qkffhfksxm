@@ -73,3 +73,28 @@ test('a reload-start ack is not allowed to re-lock an old weapon after switching
   assert.equal(c.player.reloading,false);
   assert.equal(c.started(),0);
 });
+test('reload reaches the server when a pre-shot snapshot briefly shows a full magazine',()=>{
+  const c=newClient();
+  c.mp.active=true;
+  c.gun.mag=c.gun.magSize;
+  const packets=[];
+  c.mp.send=packet=>{packets.push(packet);return true;};
+  Object.assign(c.context,c.api,{setTimeout(){}});
+  c.api.sfx.playUI=()=>{};
+  const html=fs.readFileSync(path.join(__dirname,'..','index.html'),'utf8');
+  vm.runInContext(html.slice(html.indexOf('window.triggerReload ='),html.indexOf('window.switchWeaponSlot =')),c.context);
+  c.context.window.triggerReload();
+  assert.equal(packets.length,1);
+  assert.equal(packets[0].type,'reload');
+  c.mp.receive({type:'reload_done',requestId:packets[0].requestId,weapon:'operator',mag:5,reserve:9});
+  assert.equal(c.gun.reserve,9);
+  assert.equal(c.player.reloading,false);
+});
+
+test('a delayed switch cancellation cannot cancel the newly equipped gun reload',()=>{
+  const c=newClient();
+  c.player.pendingReloadWeapon='operator';
+  c.player.reloading=true;
+  c.mp.receive({type:'reload_cancelled',weapon:'classic',reason:'switched'});
+  assert.equal(c.player.reloading,true);
+});
