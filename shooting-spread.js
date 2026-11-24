@@ -26,6 +26,36 @@
     outlaw:   [1.45,0.70,1.08,0.78,800],
     operator: [1.65,0.80,1.20,0.86,930]
   });
+  // Pitch samples in degrees at shots 1, 2, 3, 5, 8, 12, 20.
+  // Anchors are tuned approximations; published first-shot cones are separate.
+  const pitchAt = [0,1,2,4,7,11,19];
+  const handling = {
+    classic:  {hip:.4,  pitch:[0,.06,.24,.78,1.65,2.05,2.05]},
+    shorty:   {hip:4,   pitch:[0,.55,.55,.55,.55,.55,.55]},
+    frenzy:   {hip:.65, pitch:[0,.18,.85,3.5,3.5,3.5,3.5], bloom:4},
+    ghost:    {hip:.3,  pitch:[0,.045,.18,.65,1.25,1.6,1.6]},
+    sheriff:  {hip:.25, pitch:[0,.28,.8,2.25,3.1,3.1,3.1]},
+    stinger:  {hip:.65, ads:.35,pitch:[0,.18,.7,2.4,3.9,4.3,4.3], bloom:5},
+    spectre:  {hip:.4,  ads:.25,pitch:[0,.07,.28,1.15,2.65,3.4,3.4], protected:5},
+    bucky:    {hip:3,   pitch:[0,.09,.12,.12,.12,.12,.12]},
+    judge:    {hip:2.5, pitch:[0,.25,.72,1.65,2.4,2.4,2.4]},
+    bulldog:  {hip:.3,  ads:.3,pitch:[0,.09,.31,1.35,2.95,3.75,3.75], protected:5},
+    guardian: {hip:.1,  ads:0,pitch:[0,.15,.54,1.4,2.3,2.5,2.5]},
+    phantom:  {hip:.2,  ads:.11,pitch:[0,.055,.22,1.05,2.75,3.65,3.65], protected:8},
+    vandal:   {hip:.25, ads:.1575,pitch:[0,.085,.34,1.55,3.45,4.2,4.2], protected:6},
+    marshal:  {hip:1,   ads:0,pitch:[0,.06,.08,.08,.08,.08,.08]},
+    outlaw:   {hip:3.5, ads:0,pitch:[0,.52,.52,.52,.52,.52,.52]},
+    operator: {hip:5,   ads:0,pitch:[0,.025,.03,.03,.03,.03,.03]}
+  };
+  function pitchDegrees(curve, shot) {
+    for(let i=1;i<pitchAt.length;i++){
+      if(shot<=pitchAt[i]){
+        const t=(shot-pitchAt[i-1])/(pitchAt[i]-pitchAt[i-1]);
+        return curve[i-1]+t*(curve[i]-curve[i-1]);
+      }
+    }
+    return curve[curve.length-1];
+  }
   const clamp=(x,lo,hi)=>Math.min(hi,Math.max(lo,Number.isFinite(x)?x:lo));
   function weaponProfile(w){
     const p=profiles[w?.id]||profiles.vandal;
@@ -62,21 +92,24 @@
     const onMove=move*move*(3-2*move); // walking < running; no sudden binary penalty
     const air=options.airborne?1:0, crouch=options.crouched ? .85 : 1;
     const ads=options.ads&&w?.canScope?.68:1;
-    const scatterBase=Math.max(.0001,Number(w?.spreadBase)||0);
+    const tune=handling[w.id]||handling.vandal;
+    const rad=Math.PI/180;
+    const scatterBase=(options.ads && w.canScope ? (tune.ads ?? tune.hip) : tune.hip)*rad;
     const multi=(w?.pellets||1)>1;
     // Shotgun fan is an independent pellet cone; this term displaces its center.
     const base=multi?.0045:scatterBase;
     const moveCone=(Math.max(.012,Number(w?.spreadMove)||.04)*p.move)*onMove*crouch*ads;
     const airborneCone=air*.040*p.move;
-    const sprayCone=Math.min(12,shot)*.0020*p.growth*(ads*.83+.17);
-    const cone=Math.min(.19,base*ads + moveCone + airborneCone + sprayCone);
+    const sprayCone=Math.pow(Math.min(1,shot/(tune.bloom??11)),1.5)*.024*p.growth*(ads*.83+.17);
+    const cone=Math.min(.19,base + moveCone + airborneCone + sprayCone);
     const [randA,randB]=rand2(options.seed);
     const radius=Math.sqrt(randA)*cone; // uniform disk, not central-bias moving shots
     const theta=randB*2*Math.PI;
     const jitterX=Math.cos(theta)*radius;
     const jitterY=Math.sin(theta)*radius;
-    const climb=Math.min(14,shot)*.0016*p.rise*(1+onMove*.4);
-    const sway=shot===0?0:Math.sin(shot*.87)*Math.min(13,shot)*.00115*p.side;
+    const climb=pitchDegrees(tune.pitch,shot)*rad*(1+onMove*.4);
+    const lateral=Math.max(0,shot-(tune.protected??3)+1);
+    const sway=Math.sin(lateral*.82)*Math.min(10,lateral)*.0014*p.side;
     const yaw=options.yaw+jitterX+sway;
     const pitch=clamp(options.pitch+jitterY+climb,-1.48,1.48);
     const pelletCone=multi?Math.min(.17,scatterBase*(1+onMove*.65+shot*.045+air*.25)) : 0;
@@ -107,20 +140,6 @@
   function movementSpeed(id,crouching,walking){
     return 6.75*(runMultipliers[id]??.8)*(crouching?.35:walking?.6:1);
   }
-  function applyRecoil(player,w,nowMs){
-    const step=w.recoilPitch;
-    const cap=Math.min(.15,step*(w.id==='frenzy'?5:6));
-    player.recoilOffset=Math.max(player.recoilOffset||0,Math.min(cap,(player.recoilOffset||0)+step,1.48-player.lookPitch));
-    player.recoilStart=player.recoilOffset;
-    player.recoilAt=nowMs;
-    player.recoilDelay=Math.min(150,w.fireRate*1000+15);
-    player.recoilDuration=weaponProfile(w).recovery;
-  }
-  function recoverRecoil(player,nowMs){
-    if(!player.recoilOffset)return;
-    const t=clamp((nowMs-player.recoilAt-player.recoilDelay)/player.recoilDuration,0,1);
-    player.recoilOffset=player.recoilStart*(1-t)*(1-t);
-  }
   // Range start in map meters, then head, body and leg damage per projectile.
   const damageRanges={
     vandal: [[0, 160, 40, 34]],
@@ -150,5 +169,5 @@
     target.hp=Math.max(0,Math.round((target.hp-raw+absorbed)*10000)/10000);
     return previous-target.hp;
   }
-  return {applyGunDamage,movementSpeed,tagMultiplier,applyRecoil,recoverRecoil,profiles,weaponProfile,burstIndex,confirmShot,motion,sample,directions,crosshairError};
+  return {applyGunDamage,movementSpeed,tagMultiplier,profiles,weaponProfile,burstIndex,confirmShot,motion,sample,directions,crosshairError};
 });
