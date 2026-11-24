@@ -296,7 +296,8 @@ function fire(r, p, msg) {
   // Use the current camera origin if it is consistent with the last server move.
   // The move packet can arrive up to one network tick after the shot.
   const from=Array.isArray(msg.from)&&msg.from.length===3&&msg.from.every(Number.isFinite)?msg.from:null;
-  const useFrom=from && Math.hypot(from[0]-p.x,from[2]-p.z)<1.05 && Math.abs(from[1]-p.y)<.65;
+  const useFrom=from && Math.hypot(from[0]-p.x,from[2]-p.z)<1.05 && Math.abs(from[1]-p.y)<.65 &&
+    !blockers.some(box => rayBox(p.x,p.y,p.z,from[0]-p.x,from[1]-p.y,from[2]-p.z,box)<=1);
   const ox=useFrom?from[0]:p.x,oy=useFrom?from[1]:p.y,oz=useFrom?from[2]:p.z;
   // Clients aim at the interpolated previous snapshot; rewind ONLY character
   // positions, never walls, by a strictly bounded amount of server time.
@@ -338,7 +339,7 @@ function fire(r, p, msg) {
     let impactDistance = w.range;
     for (const b of blockers) {
       const wall = rayBox(ox, oy, oz, dx, dy, dz, b);
-      if (wall > .06 && wall < impactDistance) impactDistance = wall;
+      if (wall < impactDistance) impactDistance = wall;
     }
     let best = impactDistance, hit = null, headshot = false, legshot = false;
     for (const target of r.players.values()) {
