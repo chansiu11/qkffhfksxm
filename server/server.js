@@ -327,6 +327,7 @@ function fire(r, p, msg) {
     return;
   }
   let totalDamage = 0, anyHeadshot = false, hitCount = 0;
+  const taggedPlayers = new Set();
   const ends = [];
   for (const [dx, dy, dz] of directions) {
     let impactDistance = w.range;
@@ -351,6 +352,7 @@ function fire(r, p, msg) {
       // heavy armor (150 base damage vs 100 health + 50 armor).
       const damage = w.id==='operator' && !headshot ? Math.max(100,rawDamage-shield) : rawDamage-shield;
       hit.hp = Math.max(0, hit.hp - damage);
+      taggedPlayers.add(hit);
       totalDamage += damage; hitCount++; anyHeadshot ||= headshot;
       if (hit.hp === 0) {
         hit.alive = false; p.credits = clamp(p.credits + 200, 0, 9000);
@@ -372,6 +374,7 @@ function fire(r, p, msg) {
     for (const receiver of r.players.values())
       if (receiver.id !== p.id) send(receiver.client, shot);
   }
+  for (const target of taggedPlayers) if(target.alive) send(target.client,{type:'bullet_tag'});
   if (hitCount) send(p.client, {type:'hit', headshot:anyHeadshot,
     damage:totalDamage, pelletsHit:hitCount});
 }
