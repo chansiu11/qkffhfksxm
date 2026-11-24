@@ -82,3 +82,25 @@ test('buying a gun during reload allows the new gun to fire, reload, and fire ag
     assert.equal(p.mag,full-1);
   } finally { f.close(); }
 });
+
+test('round transition retains the survivor rifle and resets the eliminated player to Classic',async()=>{
+  const f=await setup('95');
+  try {
+    for(const p of [f.p,f.q]){
+      p.inventory.primary='vandal'; p.weapon='vandal'; p.mag=1;
+    }
+    f.q.alive=false;
+    f.room.phase='round_end'; f.room.until=Date.now()-1;
+    await wait(f.a,'round');
+    const state=await wait(f.a,'state');
+    const survivor=state.players.find(p=>p.id===f.p.id);
+    const revived=state.players.find(p=>p.id===f.q.id);
+    assert.equal(survivor.weapon,'vandal');
+    assert.equal(survivor.inventory.primary,'vandal');
+    assert.equal(survivor.mag,catalog.vandal.magSize);
+    assert.equal(revived.alive,true);
+    assert.equal(revived.weapon,'classic');
+    assert.equal(revived.inventory.primary,null);
+    assert.equal(revived.mag,catalog.classic.magSize);
+  } finally { f.close(); }
+});
