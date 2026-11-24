@@ -129,15 +129,27 @@ test('Haven room selection is shared and all three sites accept planting', async
   const packet = (ws, data) => ws.send(JSON.stringify(data));
   try {
     let joined = wait(host,'joined');
-    packet(host,{type:'create',code:'86',map:'haven'});
+    packet(host,{type:'create',code:'86',map:'ascent'});
     const info = await joined;
-    assert.equal(info.room.map,'haven');
+    assert.equal(info.room.map,'ascent');
     joined = wait(guest,'joined');
     packet(guest,{type:'join',code:'86',map:'ascent'});
-    assert.equal((await joined).room.map,'haven');
+    assert.equal((await joined).room.map,'ascent');
+    async function denied(ws, map, expected) {
+      const pong=wait(ws,'pong');
+      packet(ws,{type:'set_map',map});
+      packet(ws,{type:'ping',seq:2});
+      await pong;
+      assert.equal(rooms.get('86').map,expected);
+    }
+    await denied(guest,'haven','ascent');
+    const changes=Promise.all([wait(host,'lobby'),wait(guest,'lobby')]);
+    packet(host,{type:'set_map',map:'haven'});
+    for (const update of await changes) assert.equal(update.room.map,'haven');
     const started=wait(host,'started');
     packet(host,{type:'start'});
     await started;
+    await denied(host,'ascent','haven');
     const r=rooms.get('86'), p=r.players.get(info.id);
     for (const [site,[x,z]] of Object.entries(require('../config.js').haven.sites)) {
       r.phase='combat';r.spike=null;r.until=Date.now()+60000;

@@ -402,6 +402,12 @@ function receive(c,m) {
   if (m.type === 'create' || m.type === 'join') { createRoom(c,m); return; }
   const r=c.room, p=r?.players.get(c.id);
   if (!r || !p) return;
+  if (m.type === 'set_map') {
+    if (r.host !== p.id || r.started || !['ascent','haven'].includes(m.map)) return;
+    r.map = m.map;
+    broadcastLobby(r);
+    return;
+  }
   if (m.type === 'chat') {
     if (!r.started || typeof m.text !== 'string' || m.text.length > 180) return;
     const text = m.text.replace(/\s+/gu, ' ').trim();
