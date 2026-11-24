@@ -8,7 +8,7 @@
   const DURATION_MS=100;
   const ZOOM=Object.freeze({
     stinger:1.15,spectre:1.15,bulldog:1.25,guardian:1.5,
-    phantom:1.25,vandal:1.25,marshal:3.5,outlaw:3.5,operator:3.5
+    phantom:1.25,vandal:1.25,marshal:3.5,outlaw:3.5,operator:2.5
   });
   const SNIPERS=new Set(['marshal','outlaw','operator']);
   // Individual, purely cosmetic ADS sight themes for the game's non-scoped guns.
@@ -24,8 +24,8 @@
   const clamp=x=>Math.max(0,Math.min(1,Number(x)||0));
   function isEligible(weapon){return !!weapon&&weapon.slot==='primary'&&weapon.canScope===true&&Object.hasOwn(ZOOM,weapon.id);}
   function isSniper(weapon){return !!weapon&&SNIPERS.has(weapon.id);}
-  function fov(weapon,normal=75){
-    const zoom=ZOOM[weapon?.id]||1;
+  function fov(weapon,normal=75,level=1){
+    const zoom=weapon?.id==='operator'&&level===2?5:ZOOM[weapon?.id]||1;
     return 2*Math.atan(Math.tan(normal*Math.PI/360)/zoom)*180/Math.PI;
   }
   function current(player,now){
