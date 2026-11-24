@@ -156,7 +156,7 @@ function spawn(p, idx, map, keepWeapons = false) {
   p.actionFrom = 0;
   p.actionBase = 0;
   p.lastPosAt = 0;
-  p.lastShot = 0;p.lastInterval=0;p.equipUntil=0;
+  p.bulldogCount=0;p.lastShot = 0;p.lastInterval=0;p.equipUntil=0;
   p.spreadState = {};
   p.movementSpeed = 0;
   p.lastMovedAt = 0;
@@ -270,10 +270,12 @@ function fire(r, p, msg) {
   const w = catalog[p.weapon] || catalog.classic;
   const now = Date.now();
   const meleeMode = MeleeRules.modeFor(msg.mode);
-  const cooldown = w.id === 'knife' ? MeleeRules.MODES[meleeMode].cooldown : (msg.ads?w.scopedInterval:0)||w.fireRate;
+  if(now-p.lastShot>500)p.bulldogCount=0;
+  const cooldown = w.id === 'knife' ? MeleeRules.MODES[meleeMode].cooldown : (msg.ads && w.id==='bulldog' ? (((p.bulldogCount||0)%3===2)?.325:.075) : ((msg.ads?w.scopedInterval:0)||w.fireRate));
   if (now < p.equipUntil || now - p.lastShot < ((p.lastInterval??cooldown) * 1000 - 8)) return;
   if (w.id !== 'knife' && p.mag <= 0) {send(p.client,{type:'ammo_sync',weapon:p.weapon,mag:p.mag,reserve:p.reserve});return;}
-  p.lastShot = now;p.lastInterval=cooldown;
+  p.lastShot = now;
+      p.bulldogCount=msg.ads&&w.id==='bulldog'?((p.bulldogCount||0)+1)%3:0;p.lastInterval=cooldown;
   if (w.id !== 'knife') p.mag--;
   if (p.ammo?.[p.weapon]) p.ammo[p.weapon].mag = p.mag;
   const yaw = finite(msg.yaw, -100000, 100000, p.yaw);
@@ -454,7 +456,7 @@ function receive(c,m) {
     const slot=String(m.slot||'');
     const item=p.inventory?.[slot];
     if(!item||!catalog[item])return;
-    if (p.weapon !== item) {cancelEquipmentReload(p);p.lastShot=0;p.lastInterval=0;p.equipUntil=now+1000*catalog[item].equipTime;}
+    if (p.weapon !== item) {cancelEquipmentReload(p);p.bulldogCount=0;p.lastShot=0;p.lastInterval=0;p.equipUntil=now+1000*catalog[item].equipTime;}
     p.weapon=item;
     p.mag=p.ammo[item]?.mag ?? catalog[item].magSize;
     p.reserve=p.ammo[item]?.reserve ?? catalog[item].resSize;
