@@ -483,6 +483,7 @@
           <span id="hud-callout-name" class="font-bold text-[#ece8e1] text-[11px] tracking-wide uppercase">A LOBBY</span>
           <span id="hud-elevation-badge" class="font-num text-[10px] px-1.5 bg-[#38e2c7]/20 text-[#38e2c7] font-bold">+0.0m</span>
         </div>
+        <div id="hud-map-coordinates" class="val-cut-sm bg-[#0f1923]/95 border-l-4 border-[#38e2c7] px-2.5 py-0.5 font-num text-[10px] text-[#ece8e1] font-bold whitespace-nowrap">X: 0.0 / Z: 0.0</div>
       </div>
 
       <!-- Top-Center: VALORANT Trapezoid Scoreboard + 5v5 Alive Indicators + Phase Banner -->
@@ -1046,14 +1047,39 @@
        * ========================================================================= */
       const sfx = {
         ctx: null,
+        effectsBus: null,
+        stepsBus: null,
         init() {
           try {
             if (!this.ctx) {
               const AC = window.AudioContext || window.webkitAudioContext;
               if (AC) this.ctx = new AC();
             }
+            if (this.ctx && !this.effectsBus) {
+              const ctx = this.ctx;
+              const limiter = ctx.createDynamicsCompressor();
+              limiter.threshold.value = -3;
+              limiter.knee.value = 3;
+              limiter.ratio.value = 16;
+              limiter.attack.value = 0.003;
+              limiter.release.value = 0.10;
+              const effects = ctx.createGain(), steps = ctx.createGain();
+              effects.connect(limiter); steps.connect(limiter);
+              limiter.connect(ctx.destination);
+              this.effectsBus = effects;
+              this.stepsBus = steps;
+            }
             if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
           } catch (err) {}
+        },
+        // A short, mild mix adjustment keeps concurrent effects intelligible.
+        balanceEffects(strength) {
+          if (!this.effectsBus || !this.ctx) return;
+          const now = this.ctx.currentTime, gain = this.effectsBus.gain;
+          if (typeof gain.cancelAndHoldAtTime === 'function') gain.cancelAndHoldAtTime(now);
+          else { const value = gain.value; gain.cancelScheduledValues(now); gain.setValueAtTime(value, now); }
+          gain.linearRampToValueAtTime(1 - 0.18 * Math.max(0, Math.min(1, strength)), now + 0.008);
+          gain.linearRampToValueAtTime(1, now + 0.15);
         },
         playGunshot(freq = 160, dur = 0.11) {
           try {
@@ -1065,10 +1091,10 @@
             osc.type = 'sawtooth';
             osc.frequency.setValueAtTime(freq, now);
             osc.frequency.exponentialRampToValueAtTime(40, now + dur);
-            gain.gain.setValueAtTime(0.24, now);
+            gain.gain.setValueAtTime(0.36, now);
             gain.gain.exponentialRampToValueAtTime(0.001, now + dur);
             osc.connect(gain);
-            gain.connect(this.ctx.destination);
+            gain.connect(this.effectsBus || this.ctx.destination);
             osc.start(now);
             osc.stop(now + dur);
           } catch (e) {}
@@ -1082,7 +1108,7 @@
             o.frequency.exponentialRampToValueAtTime(125, now + 0.19);
             g.gain.setValueAtTime(0.10, now);
             g.gain.exponentialRampToValueAtTime(0.001, now + 0.19);
-            o.connect(g); g.connect(this.ctx.destination); o.start(now); o.stop(now + 0.20);
+            o.connect(g); g.connect(this.effectsBus || this.ctx.destination); o.start(now); o.stop(now + 0.20);
           } catch (_) {}
         },
         playHeadshotDing() {
@@ -1098,7 +1124,7 @@
             gain.gain.setValueAtTime(0.30, now);
             gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
             osc.connect(gain);
-            gain.connect(this.ctx.destination);
+            gain.connect(this.effectsBus || this.ctx.destination);
             osc.start(now);
             osc.stop(now + 0.18);
           } catch (e) {}
@@ -1115,7 +1141,7 @@
             gain.gain.setValueAtTime(0.10, now);
             gain.gain.exponentialRampToValueAtTime(0.001, now + 0.07);
             osc.connect(gain);
-            gain.connect(this.ctx.destination);
+            gain.connect(this.effectsBus || this.ctx.destination);
             osc.start(now);
             osc.stop(now + 0.07);
           } catch (e) {}
@@ -3597,13 +3623,17 @@
         osc.type=kind==='shot'?'sawtooth':step?'triangle':'square';
         const freq=kind==='shot'?180:step?130:kind==='plant'?680:kind==='half'?1400:970;
         osc.frequency.setValueAtTime(freq,t);osc.frequency.exponentialRampToValueAtTime(step?48:freq*1.45,t+.14);
-        gain.gain.setValueAtTime((step?.21:.13)*(1-d/radius),t);
+        const attenuation = 1-d/radius;
+        const volume = step ? .12 : kind==='shot' ? .195 : .13;
+        gain.gain.setValueAtTime(volume*attenuation,t);
+        if(step)sfx.balanceEffects(attenuation);
         gain.gain.exponentialRampToValueAtTime(.00001,t+(step?.14:.32));
         pan.panningModel='HRTF';pan.rolloffFactor=0;
         pan.setPosition(x,y,z);orientAudio();
         osc.connect(gain);
-        if(own)gain.connect(ctx.destination);
-        else {gain.connect(pan);pan.connect(ctx.destination);}
+        const output=(step?sfx.stepsBus:sfx.effectsBus)||ctx.destination;
+        if(own)gain.connect(output);
+        else {gain.connect(pan);pan.connect(output);}
         if(step||kind==='shot'){
           const length=Math.ceil(ctx.sampleRate*(step?.085:.12)),buffer=ctx.createBuffer(1,length,ctx.sampleRate);
           const samples=buffer.getChannelData(0);
@@ -3774,6 +3804,7 @@
           document.getElementById('hud-callout-name').textContent = player.callout;
           const elevSign = player.footY >= 0 ? '+' : '';
           document.getElementById('hud-elevation-badge').textContent = `${elevSign}${player.footY.toFixed(1)}m`;
+          document.getElementById('hud-map-coordinates').textContent = `X: ${player.pos.x.toFixed(1)} / Z: ${player.pos.z.toFixed(1)}`;
         } else {
           // PLAYER IS DEAD -> LIVE 1ST-PERSON TEAMMATE SPECTATOR CAMERA!
           const specAlly = getCurrentSpectatedAlly();
@@ -3791,6 +3822,7 @@
             document.getElementById('hud-callout-name').textContent = specAlly.callout;
             const elevSign = specAlly.footY >= 0 ? '+' : '';
             document.getElementById('hud-elevation-badge').textContent = `${elevSign}${specAlly.footY.toFixed(1)}m`;
+            document.getElementById('hud-map-coordinates').textContent = `X: ${specAlly.group.position.x.toFixed(1)} / Z: ${specAlly.group.position.z.toFixed(1)}`;
           }
         }
 
