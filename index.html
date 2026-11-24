@@ -259,6 +259,8 @@
     #chat-log { max-height:7em; overflow:auto; overflow-wrap:anywhere; }
     #chat-log div, #chat-input { background:#101923e8; padding:3px 8px; }
     #chat-input { width:100%; pointer-events:auto; color:white; }
+    #range-options select {background:#273b50;color:white}
+    body.in-range #ingame-hud > div:not(#range-controls):has(#hud-round-label), body.in-range #hud-cheat-btn, body.in-range #hud-skip-buy-btn {display:none}
   </style>
 </head>
 <body>
@@ -308,7 +310,7 @@
       <div class="mb-5 text-white">
         <label for="look-sensitivity">시점 감도 (마우스 · 터치)</label>
         <output id="look-value" for="look-sensitivity">1.00×</output>
-        <input id="look-sensitivity" class="block w-full" type="range" min="0.25" max="3" step="0.05" value="1">
+        <input id="look-sensitivity" class="block w-full" type="range" min="0.25" max="3" step="0.01" value="1">
       </div>
       <p class="text-sm text-slate-300 mb-4">발로란트에서 복사한 <code>0;P;...</code> 프로필 코드를 그대로 붙여넣으세요. 조준점 디자인만 변경되고 명중 방향은 유지됩니다.</p>
       <div class="bg-[#202c3a] border border-white/20 min-h-[160px] grid place-items-center mb-4" aria-label="조준점 미리보기">
@@ -423,7 +425,21 @@
   </div>
 
   <!-- ==================== 1:1 VALORANT IN-GAME HUD (ZERO ICONS / PURE GUNPLAY) ==================== -->
+  <dialog id="range-options" style="margin:auto;padding:1.5rem;background:#152333;color:white;border:1px solid #38e2c7;max-height:90vh;overflow:auto">
+    <h2>사격장 훈련 설정</h2><div style="display:grid;gap:.75rem;margin:1rem 0;color:inherit">
+    <label>훈련 <select id="range-mode"><option value="practice">자유 연습</option><option value="easy">30봇 · 쉬움</option><option value="medium">30봇 · 보통</option><option value="hard">30봇 · 어려움</option><option value="50">50봇 처치</option><option value="100">100봇 처치</option><option value="target">거리별 표적 · 피해 측정</option><option value="parkour">파쿠르</option></select></label>
+    <label>자유 연습 봇 <select id="range-count"><option>1</option><option selected>5</option><option>10</option></select></label>
+    <label>표적 거리 <select id="range-distance"><option>5</option><option>10</option><option selected>20</option><option>30</option><option>50</option></select> m</label>
+    <label><input type="checkbox" id="range-strafe"> 봇 좌우 이동</label>
+    <label><input type="checkbox" id="range-armor"> 봇 방어구</label>
+    <label><input type="checkbox" id="range-ammo" checked> 무한 탄약</label>
+    </div><button id="range-start">훈련 시작 / 다시 시작</button>
+  </dialog>
   <div id="ingame-hud" class="hidden fixed inset-0 pointer-events-none z-30 flex flex-col justify-between p-2 sm:p-3.5">
+    <div id="range-controls" hidden style="position:absolute;left:12px;top:32%;background:#101923dc;color:white;padding:8px;pointer-events:auto">
+      <button id="range-settings">훈련 설정 (F3)</button> · <button onclick="window.toggleShop(event)">무기 (B)</button> · <button onclick="window.openEntryScreen(event)">나가기</button>
+      <div id="range-score"></div><div id="range-result"></div>
+    </div>
     <section id="room-chat" aria-label="방 채팅">
       <div id="chat-log" role="log" aria-live="polite"></div>
       <input id="chat-input" hidden maxlength="180" autocomplete="off" aria-label="방 채팅 메시지" placeholder="Enter로 전송 · Esc로 닫기">
@@ -668,8 +684,8 @@
           <button type="button" onclick="window.openCrosshairSettings(event)"
                   class="mt-2 mb-3 px-4 py-2 text-sm font-bold border border-[#38e2c7]/60 text-[#38e2c7] hover:bg-[#38e2c7]/10 cursor-pointer">감도 · 조준점 설정</button>
           <div class="menu-feature-row"><span>◈ &nbsp; REALTIME 5 VS 5</span><span>◈ &nbsp; CUSTOM ROOMS</span><span>◈ &nbsp; CROSS PLATFORM</span></div>
-          <label class="menu-setting">플레이할 맵 <select id="map-choice" onchange="document.querySelector('.menu-hero-title em').textContent=this.value.toUpperCase()" style="color:white;background:#182530;padding:6px"><option value="ascent">어센트</option><option value="haven">헤이븐</option></select></label>
-          <button type="button" class="menu-practice-btn" onclick="window.quickStartMatch(event)"><span class="menu-practice-icon">↗</span><span><b>혼자 연습하기</b><small>OFFLINE · AI TRAINING</small></span><span class="menu-practice-arrow">→</span></button>
+          <label class="menu-setting">온라인 경기 맵 <select id="map-choice" onchange="document.querySelector('.menu-hero-title em').textContent=this.value.toUpperCase()" style="color:white;background:#182530;padding:6px"><option value="ascent">어센트</option><option value="haven">헤이븐</option></select></label>
+          <button type="button" class="menu-practice-btn" onclick="window.quickStartMatch(event)"><span class="menu-practice-icon">↗</span><span><b>혼자 연습하기</b><small>OFFLINE · 사격 연습장</small></span><span class="menu-practice-arrow">→</span></button>
           <div class="menu-hero-foot"><span>ASCENT / HAVEN</span><span>MOVE WITH PURPOSE.</span></div>
         </section>
         <section class="menu-hub" aria-label="온라인 게임 참여">
@@ -1522,7 +1538,7 @@
       let activeMap = 'ascent';
       buildAscentMap();
       function selectMap(id) {
-        const next = id === 'haven' ? 'haven' : 'ascent';
+        const next = ['haven','range'].includes(id) ? id : 'ascent';
         document.querySelector('.room-map-card h3').textContent = next.toUpperCase();
         document.querySelector('.room-map-card p').textContent = next === 'haven' ? 'A · B · C 사이트 / 헤이븐' : 'A · B 사이트 / 어센트';
         for(const id of ['radar-map-name','room-map-name']) document.getElementById(id).textContent=next.toUpperCase();
@@ -1535,6 +1551,7 @@
           group.clear();
         }
         for (const list of [wallBoxes3D,walkableSurfaces,mapTargetMeshes,blastDoors,floatingStructures]) list.length=0;
+        if (next === 'range') { buildPracticeHall();return; }
         if (next === 'ascent') { buildAscentMap(); return; }
         buildRoundObjects('haven');
         const map = AscentGround.haven;
@@ -1553,12 +1570,12 @@
       }
 
       function getSurfaceSupport(x, z, currentFootY) {
-        let bestY = activeMap === 'haven' ? 0 : AscentGround.height(z);
+        let bestY = activeMap !== 'ascent' ? 0 : AscentGround.height(z);
         let bestCallout = activeMap.toUpperCase();
         for (let i = 0; i < walkableSurfaces.length; i++) {
           const s = walkableSurfaces[i];
           if (x >= s.minX && x <= s.maxX && z >= s.minZ && z <= s.maxZ) {
-            let surfY = s.yStart === 0 && s.yEnd === 0 ? (activeMap === 'haven' ? 0 : AscentGround.height(z)) : s.yStart;
+            let surfY = s.yStart === 0 && s.yEnd === 0 ? (activeMap !== 'ascent' ? 0 : AscentGround.height(z)) : s.yStart;
             if (s.slopeAxis === 'x') {
               const t = Math.max(0, Math.min(1, (x - s.minX) / (s.maxX - s.minX)));
               surfY = s.yStart + (s.yEnd - s.yStart) * t;
@@ -1955,7 +1972,7 @@
         roleEl.textContent = isAtk ? 'ATTACKERS (공격팀)' : 'DEFENDERS (수비팀)';
         roleEl.className = isAtk ? 'font-bold text-[#ff4655] text-[10px] mt-0.5 uppercase tracking-wider' : 'font-bold text-[#38e2c7] text-[10px] mt-0.5 uppercase tracking-wider';
 
-        if (roomState.allowCheats && cheats.infiniteCreds) player.credits = 9000;
+        if (activeMap==='range' || roomState.allowCheats && cheats.infiniteCreds) player.credits = 9000;
         document.getElementById('hud-credits').textContent = player.credits.toLocaleString();
         const shopCredEl = document.getElementById('shop-credits-val');
         if (shopCredEl) shopCredEl.textContent = player.credits.toLocaleString();
@@ -1991,7 +2008,7 @@
 
         const w = specTarget ? specTarget.weapon : getActiveWeapon();
         document.getElementById('hud-weapon-title').textContent = w.name;
-        document.getElementById('hud-ammo-mag').textContent = w.slot === 'knife' ? 'INF' : ((roomState.allowCheats && cheats.infiniteAmmo && !specTarget) ? 'INF' : w.mag);
+        document.getElementById('hud-ammo-mag').textContent = w.slot === 'knife' ? 'INF' : (((activeMap==='range' && setting('ammo').checked || roomState.allowCheats && cheats.infiniteAmmo) && !specTarget) ? 'INF' : w.mag);
         document.getElementById('hud-ammo-res').textContent = w.slot === 'knife' ? '-' : w.reserve;
         viewmodel.setWeapon(w.id);
 
@@ -2067,7 +2084,7 @@
       }
 
       function syncCheatPermissionUI() {
-        const allowed = roomState.allowCheats;
+        const allowed = activeMap!=='range' && roomState.allowCheats;
         const createBtn = document.getElementById('create-cheat-toggle-btn');
         if (createBtn) {
           createBtn.textContent = allowed ? 'CHEATS: ON' : 'CHEATS: OFF';
@@ -2189,6 +2206,18 @@
       };
 
       window.openEntryScreen = function (e) {
+        if(activeMap==='range'){
+          document.body.classList.remove('in-range');setting('controls').hidden=true;
+          clearRangeMarks();
+          for(const b of bots.splice(0)){
+            scene.remove(b.group);
+            const geometries=new Set(), materials=new Set();
+            b.group.traverse(obj=>{if(obj.geometry)geometries.add(obj.geometry);if(obj.material)materials.add(obj.material);});
+            for(const g of geometries)g.dispose();
+            for(const m of materials)m.dispose();
+          }
+          selectMap(document.getElementById('map-choice').value);
+        }
         if (e) e.stopPropagation();
         if (window.MP.active) window.MP.disconnect();
         matchState.inMatch = false;
@@ -2205,6 +2234,7 @@
       };
 
       window.openWaitingLobby = function (e) {
+        if(activeMap==='range')return window.openEntryScreen(e);
         if (e) e.stopPropagation();
         matchState.inMatch = false;
         if (document.pointerLockElement) {
@@ -2271,22 +2301,136 @@
 
           refreshInputUI();
           syncCheatPermissionUI();
-          startNewRound();
+          if(activeMap==='range'){
+            matchState.phase='practice'; player.alive=true;player.hp=100;player.reloading=false;player.reloadId=(player.reloadId||0)+1;
+            resetADS();barrierGroup.visible=false;spikeMesh.visible=false;
+            player.primary=cloneWeaponInstance('vandal');player.activeSlot='primary';player.credits=9000;
+            for(const b of bots.splice(0))scene.remove(b.group);
+            for(let i=0;i<10;i++){
+              const m=createTacticalBotMesh(false);
+              bots.push({team:'enemy',name:'훈련 봇',footY:0,group:m.group,headMesh:m.head,bodyMesh:m.body});
+            }
+            player.vel.set(0,0,0);player.pendingReloadWeapon=null;viewmodel.stopReload();
+            document.body.classList.add('in-range');setting('controls').hidden=false;startRangeDrill();
+          } else startNewRound();
           tryLockPointerSafe();
         } catch (err) {
           console.error('Match start error:', err);
         }
       }
 
-      window.quickStartMatch = function (e) {
-        selectMap(document.getElementById('map-choice').value);
-        if (e) e.stopPropagation();
-        if (window.MP.active) window.MP.disconnect();
-        const inp = document.getElementById('create-code-input');
-        if (inp && inp.value) {
-          roomState.code = inp.value.replace(/\D/g, '').padStart(2, '0').slice(0, 2) || '07';
+      const rangeOptions = document.getElementById('range-options');
+      const setting = id => document.getElementById('range-'+id);
+      const drill = {kills:0, shown:0, started:0, finished:false, board:null, marks:[], damage:0};
+      const ledges=Array.from({length:10},(_,i)=>({x:18+(i%2)*2,z:15-i*3,y:.5+i*.6}));
+      function buildPracticeHall() {
+        for(const {x,z,y} of ledges)addWalkableSlab(x-1.1,x+1.1,z-1,z+1,y,.3,'파쿠르',matWoodFloor);
+        for(const [i,label] of ['START','PRACTICE','−0.10','−0.01','+0.01','+0.10'].entries()){
+          const sign=new THREE.Mesh(new THREE.PlaneGeometry(1.2,.7),new THREE.MeshBasicMaterial({
+            map:makeCalloutSignTexture(label,'RANGE CONTROL','#38e2c7'),side:THREE.DoubleSide}));
+          sign.position.set((i-2.5)*1.35,.8,11.95);sign.userData.control=i;
+          ascentGroup.add(sign);mapTargetMeshes.push(sign);
         }
-        launchAscentMatchImmediate();
+        addWalkableSlab(-23,23,-45,25,0,.6,'사격장',matTilesFloor);
+        for (const x of [-23,23]) addSolidBox3D(x,-10,1,70,0,7,matVenetianOchre);
+        addSolidBox3D(0,-45,46,1,0,9,matBrickWall);
+        addSolidBox3D(0,25,46,1,0,7,matVenetianWall);
+        for(const z of [-35,-20,-5,10,22]) {
+          for(const x of [-22,22]) addSolidBox3D(x,z,1,1,0,8,matWoodFloor);
+          addSolidBox3D(0,z,45,.7,7.5,8,matWoodFloor);
+        }
+        addIndoorCeiling(-23,23,10,25,8,.5);
+        addWalkableSlab(-22,22,13,23,.16,.16,'사격선',matWoodFloor);
+        for(const x of [-12,-6,0,6,12]) addSolidBox3D(x,11,.8,1,0,.85,matWoodFloor);
+        const face=document.createElement('canvas'); face.width=face.height=256;
+        const pen=face.getContext('2d');
+        for(let i=5;i>=1;i--) {
+          pen.fillStyle=['','#cc3440','#eae1cd','#334456','#eae1cd','#334456'][i];
+          pen.beginPath();pen.arc(128,128,i*24,0,Math.PI*2);pen.fill();
+        }
+        drill.board=new THREE.Mesh(new THREE.PlaneGeometry(3,3),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(face),side:THREE.DoubleSide}));
+        ascentGroup.add(drill.board);mapTargetMeshes.push(drill.board);
+        addWallCalloutSign(0,5,-44.4,0,'THE RANGE','SHOOTING TEST','#38e2c7');
+      }
+      function clearRangeMarks() {
+        for(const mark of drill.marks) {mark.parent?.remove(mark);mark.geometry.dispose();mark.material.dispose();}
+        drill.marks.length=0;
+      }
+      function placeRangeBot(b,i,count) {
+        b.alive=b.group.visible=true;b.hp=100;b.armor=setting('armor').checked?50:0;
+        b.baseX=count===1?(Math.random()-.5)*23:-13+26*(i+.5)/count;
+        b.group.position.set(b.baseX,0,-3-Math.random()*15);
+        b.deadline=performance.now()+({easy:2000,medium:1000,hard:500}[drill.mode]||Infinity);
+        drill.shown++;
+      }
+      function startRangeDrill() {
+        drill.mode=setting('mode').value;drill.kills=drill.shown=drill.damage=0;
+        drill.started=performance.now();drill.finished=false;
+        const board=drill.mode==='target';
+        clearRangeMarks();
+        drill.board.visible=board;
+        drill.board.position.set(0,1.65,16-Number(setting('distance').value));
+        player.pos.set(0,EYE_HEIGHT+.16,16);player.footY=.16;player.yaw=player.lookPitch=0;
+        drill.checkpoint=-1;
+        if(drill.mode==='parkour'){player.pos.set(18,EYE_HEIGHT,18);player.footY=0;}
+        const count=drill.mode==='parkour'?0:drill.mode==='practice'?Number(setting('count').value):1;
+        for(let i=0;i<bots.length;i++) {
+          const b=bots[i];b.inDrill=b.alive=b.group.visible=i<count;
+          if(b.alive) placeRangeBot(b,i,count);
+        }
+        if(board){bots[0].baseX=2.5;bots[0].group.position.set(2.5,0,drill.board.position.z);}
+        // Three.js raycasting also visits invisible objects. Only expose the board in target mode.
+        const index=mapTargetMeshes.indexOf(drill.board);
+        if(!board && index>=0)mapTargetMeshes.splice(index,1);
+        if(board && index<0)mapTargetMeshes.push(drill.board);
+        setting('result').textContent='';
+        updateHUD();
+      }
+      function updateRange(now) {
+        if(drill.mode==='parkour'){
+          if(drill.finished)return;
+          const next=ledges[drill.checkpoint+1];
+          if(player.onGround && Math.abs(player.footY-next.y)<.1 && Math.hypot(player.pos.x-next.x,player.pos.z-next.z)<1.55)drill.checkpoint++;
+          if(drill.checkpoint>=0 && player.onGround && player.footY<.25){
+            const last=ledges[drill.checkpoint];player.footY=last.y;player.pos.set(last.x,last.y+EYE_HEIGHT,last.z);
+          }
+          drill.finished=drill.checkpoint===ledges.length-1;
+          setting('score').textContent='파쿠르 '+(drill.checkpoint+1)+' / '+ledges.length+' · '+((now-drill.started)/1000).toFixed(1)+'초';
+          return;
+        }
+        const scored=['easy','medium','hard'].includes(drill.mode);
+        const goal=scored?30:Number(drill.mode);
+        if(!drill.finished) {
+          for(let i=0;i<bots.length;i++){
+            const b=bots[i];if(!b.inDrill)continue;
+            if(!b.alive || now>=b.deadline) {
+              if(!b.alive)drill.kills++;
+              if((scored && drill.shown>=goal)||(!scored && drill.kills>=goal)){
+                b.alive=b.group.visible=false;drill.finished=true;break;
+              }
+              placeRangeBot(b,i,drill.mode==='practice'?Number(setting('count').value):1);
+            }
+            if(drill.mode==='target'){b.baseX=2.5;b.group.position.set(2.5,0,drill.board.position.z);}
+            if(setting('strafe').checked)b.group.position.x=b.baseX+Math.sin(now*.0025+i)*1.6;
+          }
+          setting('score').textContent=drill.mode==='target'?'표적 · '+drill.marks.length+'발':(drill.finished?'완료 · ':'')+drill.kills+(scored?' / 30':Number.isFinite(goal)?' / '+goal:' 처치')+' · '+((now-drill.started)/1000).toFixed(1)+'초';
+        }
+      }
+      function rangeSettings() {
+        if(!rangeOptions.open){document.exitPointerLock?.();rangeOptions.showModal();}
+      }
+      setting('settings').onclick=rangeSettings;
+      setting('start').onclick=()=>{startRangeDrill();rangeOptions.close();};
+      rangeOptions.onclose=()=>{if(activeMap==='range' && matchState.inMatch)tryLockPointerSafe();};
+      window.addEventListener('keydown',e=>{
+        if(activeMap!=='range'||!matchState.inMatch)return;
+        if(e.code==='F3'){e.preventDefault();e.stopImmediatePropagation();rangeSettings();}
+        else if(rangeOptions.open)e.stopImmediatePropagation();
+      },true);
+      window.quickStartMatch = function(e) {
+        e?.stopPropagation();
+        if(window.MP.active)window.MP.disconnect();
+        selectMap('range');launchAscentMatchImmediate();
       };
 
       window.startMatchFromLobby = function (e) {
@@ -2312,7 +2456,7 @@
           tryLockPointerSafe();
           return;
         }
-        const canBuy = matchState.phase === 'buy' || (roomState.allowCheats && cheats.buyAnywhere);
+        const canBuy = activeMap==='range' || matchState.phase === 'buy' || (roomState.allowCheats && cheats.buyAnywhere);
         if (!canBuy) {
           showRoundBanner('BUY PHASE ENDED', '구매 페이즈에만 상점을 열 수 있습니다');
           return;
@@ -2334,7 +2478,7 @@
       window.buyItem = function (itemId) {
         if (window.MP.active) { window.MP.buy(itemId); return; }
         const fb = document.getElementById('shop-feedback');
-        if (roomState.allowCheats && cheats.infiniteCreds) player.credits = 9000;
+        if (activeMap==='range' || roomState.allowCheats && cheats.infiniteCreds) player.credits = 9000;
 
         if (itemId === 'light_shield' || itemId === 'heavy_shield') {
           const cost = itemId === 'light_shield' ? 400 : 1000;
@@ -2574,7 +2718,7 @@
       }
 
       function attemptFire() {
-        if (!matchState.inMatch) return;
+        if (!matchState.inMatch || (activeMap==='range' && rangeOptions.open)) return;
         if (window.MP.active) { window.MP.fire(); return; }
         if (!player.alive) {
           window.cycleSpectator(1);
@@ -2586,7 +2730,7 @@
         const now = performance.now() / 1000;
         if (now - player.lastShotTime < w.fireRate) return;
 
-        const infAmmo = (roomState.allowCheats && cheats.infiniteAmmo) || w.slot === 'knife';
+        const infAmmo = (activeMap==='range' && setting('ammo').checked) || (roomState.allowCheats && cheats.infiniteAmmo) || w.slot === 'knife';
         if (!infAmmo && w.mag <= 0) {
           window.triggerReload();
           return;
@@ -2645,15 +2789,38 @@
           if (hits.length > 0) {
             const firstHit = hits[0];
             endPt = firstHit.point;
+            if(activeMap==='range' && Number.isInteger(firstHit.object.userData.control) && p===0){
+              const button=firstHit.object.userData.control;
+              if(button<2){if(button===1)setting('mode').value='practice';startRangeDrill();}
+              else {
+                const step=[-.1,-.01,.01,.1][button-2];
+                sensitivityControl.value=(sensitivityControl.valueAsNumber+step).toFixed(2);
+                sensitivityControl.dispatchEvent(new Event('input'));
+                setting('result').textContent='감도 '+sensitivityControl.value;
+              }
+            }
+            if(activeMap==='range' && firstHit.object===drill.board){
+              const mark=new THREE.Mesh(new THREE.CircleGeometry(.033,8),new THREE.MeshBasicMaterial({color:0xff7030}));
+              mark.position.copy(drill.board.worldToLocal(endPt.clone()));mark.position.z=.012;
+              drill.board.add(mark);drill.marks.push(mark);
+              if(drill.marks.length>250){const old=drill.marks.shift();drill.board.remove(old);old.geometry.dispose();old.material.dispose();}
+            }
             if (firstHit.object.userData && firstHit.object.userData.bot) {
               const targetBot = firstHit.object.userData.bot;
               const isHead = firstHit.object.userData.isHead;
+              const before=targetBot.hp+targetBot.armor;
               if (w.slot === 'knife') targetBot.hp -= isHead ? w.headDmg : w.bodyDmg;
               else {
                 const zone=isHead?'head':endPt.y-targetBot.footY<.62?'leg':'body';
                 ShootingSpread.applyGunDamage(targetBot,w.id,firstHit.distance,zone);
                 targetBot.taggedAt=performance.now();
               }
+              if(activeMap==='range' && drill.mode==='target'){
+                const time=performance.now();
+                if(time-(drill.lastDamage||0)>1500)drill.damage=0;
+                drill.damage+=before-targetBot.hp-targetBot.armor;drill.lastDamage=time;
+                setting('result').textContent='누적 피해 '+Math.round(drill.damage)+' · '+firstHit.distance.toFixed(1)+' m';
+              } else if(activeMap==='range')setting('result').textContent=(isHead?'머리':'명중')+' · 피해 '+Math.round(before-targetBot.hp-targetBot.armor)+' · '+firstHit.distance.toFixed(1)+' m';
               showHitmarker(isHead);
               if (isHead) sfx.playHeadshotDing();
 
@@ -2919,7 +3086,7 @@
         if (editing) return;
         keys[e.code] = true;
 
-        if (e.code === 'F1') {
+        if (e.code === 'F1' && activeMap!=='range') {
           e.preventDefault();
           window.toggleCheatPanel();
           return;
@@ -3217,8 +3384,8 @@
         if(activeMap==='haven') {
           for(const [name,[x,z]] of Object.entries(AscentGround.haven.sites)) rCtx.fillText(name,toRx(x),toRz(z));
         } else {
-        rCtx.fillText('A', toRx(28), toRz(-4));
-        rCtx.fillText('B', toRx(-33), toRz(-19));
+        if(activeMap==='ascent')rCtx.fillText('A', toRx(28), toRz(-4));
+        if(activeMap==='ascent')rCtx.fillText('B', toRx(-33), toRz(-19));
         }
 
         bots.forEach(b => {
@@ -3686,8 +3853,8 @@
           updateADSFrame(now);
           updatePlayerAndSpectatorCamera(dt);
           window.updateCrosshairErrors?.(ShootingSpread.crosshairError(getActiveWeapon(), player, now), now);
-          updateBotsAndTeamCombat(dt);
-          updateSpikeAndMatchRules(dt);
+          if(activeMap==='range')updateRange(now);
+          else {updateBotsAndTeamCombat(dt);updateSpikeAndMatchRules(dt);}
           window.MP.tick(dt);
           if (now - lastRadarAt > 75) {drawAscentRadar();lastRadarAt = now;}
         } else {
