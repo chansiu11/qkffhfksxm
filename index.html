@@ -1396,187 +1396,54 @@
         ascentGroup.add(baseGround);
         mapTargetMeshes.push(baseGround);
 
-        addWalkableSlab(-56, 56, -56, 56, 0.0, 1.0, 'ASCENT', null, false);
-        addWalkableSlab(-22, 22, 32, 54, 0.0, 1.0, 'ATTACKER SPAWN', null, false);
-        addWalkableSlab(16, 42, 24, 38, 0.0, 1.0, 'A LOBBY', null, false);
-        addWalkableSlab(-42, -16, 24, 38, 0.0, 1.0, 'B LOBBY', null, false);
-        addWalkableSlab(-20, 20, -54, -30, 0.0, 1.0, 'DEFENDER SPAWN', null, false);
-        addWalkableSlab(18, 48, 8, 24, 0.0, 1.0, 'A MAIN', null, false);
-        addWalkableSlab(36, 50, 8, 22, 0.0, 1.0, 'A WINE', null, false);
-        addWalkableSlab(16, 46, -21, 8, 0.0, 1.0, 'A SITE', null, false);
-        addWalkableSlab(16, 44, -38, -21, 0.0, 1.0, 'A HELL', null, false);
-        addWalkableSlab(6, 16, -20, -10, 0.0, 1.0, 'A GARDEN / TREE', null, false);
-        addWalkableSlab(-12, 10, 14, 30, 0.0, 1.0, 'TOP MID', null, false);
-        addWalkableSlab(-10, 6, -11, 14, 0.0, 1.0, 'MID COURTYARD', null, false);
-        addWalkableSlab(-46, -20, -34, -12, 0.0, 1.0, 'B SITE PIT', null, false);
-        addWalkableSlab(-46, -20, -50, -34, 0.0, 1.0, 'B BOATHOUSE', null, false);
-
-        addVenetianBuilding(0, -MAP_LIMIT, MAP_LIMIT * 2, 3, 0, 13.5, matVenetianWall);
-        addVenetianBuilding(0, MAP_LIMIT, MAP_LIMIT * 2, 3, 0, 13.5, matVenetianOchre);
-        addVenetianBuilding(-MAP_LIMIT, 0, 3, MAP_LIMIT * 2, 0, 13.5, matVenetianPink);
-        addVenetianBuilding(MAP_LIMIT, 0, 3, MAP_LIMIT * 2, 0, 13.5, matVenetianWall);
-
-        addVenetianBuilding(15.5, 27, 9.5, 17, 0, 11.5, matVenetianOchre);
-        addVenetianBuilding(-15.5, 25, 11, 18, 0, 11.5, matVenetianPink);
-        addSolidBox3D(0, 29, 10, 2.5, 4.8, 10.5, matVenetianWall);
-        addSolidBox3D(27, 29, 12, 2.5, 5.2, 11.0, matVenetianWall);
-        addSolidBox3D(-30, 31, 14, 2.5, 5.2, 11.0, matVenetianWall);
-
-        addSolidBox3D(9.5, 21, 3.0, 4.5, 0, 9.5, matBrickWall);
-
-        /* --- ZONE A: A MAIN, A WINE, A SITE, A HEAVEN (+3.2m), A HELL (0.0m) --- */
-        addVenetianBuilding(14.5, 14, 5, 12, 0, 11.5, matVenetianWall);
-        addVenetianBuilding(49, 16, 8, 22, 0, 12, matVenetianOchre);
-        addSolidBox3D(36.5, 16.5, 1.4, 9, 0, 6.2, matBrickWall);
-        addIndoorCeiling(36, 46, 9, 23, 6.0, 0.8);
-        addSolidBox3D(42.5, 14, 2.2, 2.2, 0, 1.5, matWoodFloor, 'A WINE BARREL');
-        addVenetianBuilding(20.5, 8.8, 9, 2.2, 0, 10.5, matVenetianWall);
-        addVenetianBuilding(40.0, 8.8, 11, 2.2, 0, 10.5, matVenetianOchre);
-        addSolidBox3D(29.5, 8.8, 9, 2.2, 5.0, 10.5, matVenetianWall);
-
-        addVenetianBuilding(30, -43, 34, 6, 0, 14, matVenetianWall);
-        addSolidBox3D(35, -45, 7, 7, 14, 28, matBrickWall);
-        const belfry = new THREE.Mesh(new THREE.BoxGeometry(7.3, 3.2, 7.3), matVenetianWall);
-        belfry.position.set(35, 29.6, -45);
-        const spire = new THREE.Mesh(new THREE.ConeGeometry(5.5, 7, 4), matTerracottaRoof);
-        spire.position.set(35, 34.5, -45);
-        spire.rotation.y = Math.PI / 4;
-        ascentGroup.add(belfry, spire);
-
-        addVenetianBuilding(48.5, -14, 6, 48, 0, 12.5, matVenetianPink);
-        addWalkableSlab(41, 45.5, -21, 4, 3.2, 0.4, 'A RAFTERS', matUpperFloor, true);
-        addWalkableSlab(16, 44, -38, -21, 3.2, 0.45, 'A HEAVEN', matUpperFloor, true);
-        addSolidBox3D(21, -21.2, 9.5, 0.6, 3.2, 4.35, matVenetianWall, 'A HEAVEN RAIL');
-        addSolidBox3D(39, -21.2, 9.5, 0.6, 3.2, 4.35, matVenetianWall, 'A HEAVEN RAIL');
-
-        addSolidBox3D(16.5, -30, 1.2, 16, 0, 2.75, matDarkMetal);
-        addSolidBox3D(22, -21.4, 7, 0.8, 0, 2.75, matBrickWall);
-        addSolidBox3D(38, -21.4, 7, 0.8, 0, 2.75, matBrickWall);
-        addSolidBox3D(25, -28, 1.4, 1.4, 0, 2.75, matDarkMetal);
-        addSolidBox3D(34, -28, 1.4, 1.4, 0, 2.75, matDarkMetal);
-
-        addWalkableRamp(4, 16, -36, -27, 0.0, 3.2, 'x', 'A HEAVEN RAMP', matWoodFloor);
-
-        // Detailed A Site Generator + Stacked Radianite Dice
-        addSolidBox3D(27, -8, 4.4, 6.2, 0, 2.65, matGenerator, 'A GENERATOR');
-        addSolidBox3D(27, -8, 2.8, 4.4, 2.65, 3.15, matDarkMetal, 'A GENERATOR TOP');
-        addSolidBox3D(35.5, -4, 3.2, 3.2, 0, 1.75, matRadianite, 'A DICE');
-        addSolidBox3D(35.5, -4, 2.1, 2.1, 1.75, 3.1, matRadianite, 'A DICE STACK');
-        addSolidBox3D(35.5, -1.4, 2.0, 1.6, 0, 0.85, matWoodFloor, 'A DICE STEP');
-        addSolidBox3D(20.5, -4.5, 2.2, 2.2, 0, 1.65, matRadianite, 'A GREEN BOX');
-
-        /* --- A GARDEN / A TREE --- */
-        addWalkableSlab(6, 16, -6, 6, 1.4, 1.4, 'A TREE UPPER', matUpperFloor, true);
-        addWalkableRamp(8, 15, -13, -6, 0.0, 1.4, 'z', 'A TREE STAIRS', matWoodFloor);
-        addVenetianBuilding(16, 0, 1.6, 24, 0, 10.5, matVenetianWall);
-        addSolidBox3D(16, -14.5, 1.6, 5.2, 3.8, 10.5, matVenetianWall);
-        addIndoorCeiling(5, 16, -21, -7, 7.6, 0.5, true);
-
-        const aDoorObj = addSolidBox3D(16, -14.5, 0.45, 4.8, 3.6, 7.2, matDarkMetal);
+        addWalkableSlab(-56,56,-56,56,0,1,'ASCENT',null,false);
+        // Rectangular footprints sampled from the Ascent overhead map.
+        const footprints = [[-56,56,0,9,-56,-52],[6,56,0,9,-52,-42],[-56,-6,0,9,-52,-40],[10,56,0,9,-42,-40],[20,56,0,9,-40,-36],[-56,-24,0,9,-40,-36],[6,8,0,9,-36,-34],[-16,-12,0,9,-36,-34],[-56,-22,0,9,-36,-32],[-18,-6,0,9,-34,-32],[22,56,0,9,-36,-30],[12,18,0,9,-36,-30],[-56,-38,0,9,-32,-30],[4,8,0,9,-34,-28],[-18,-4,0,9,-32,-28],[-26,-24,0,9,-30,-28],[12,14,0,9,-30,-26],[-14,-4,0,9,-28,-26],[-56,-44,0,9,-30,-24],[-2,8,0,9,-28,-24],[-14,-12,0,9,-26,-24],[12,16,0,9,-26,-24],[18,28,0,9,-26,-24],[-6,-4,0,9,-26,-24],[36,56,0,9,-30,-22],[18,24,0,9,-24,-22],[2,10,0,9,-24,-22],[-38,-36,0,9,-22,-20],[4,10,0,9,-22,-18],[4,14,0,9,-18,-16],[-56,-42,0,9,-24,-14],[20,24,0,9,-22,-14],[-38,-36,0,9,-18,-14],[-26,-24,0,9,-16,-14],[4,16,0,9,-16,-12],[22,24,0,9,-14,-8],[-6,-4,0,9,-14,-8],[-14,-12,0,9,-12,-8],[-56,-36,0,9,-14,-6],[0,16,0,9,-12,-6],[-14,-4,0,9,-8,-6],[20,26,0,9,-8,-6],[38,56,0,9,-22,-4],[-56,-28,0,9,-6,0],[4,12,0,9,-6,0],[40,56,0,9,-4,0],[-12,-6,0,9,-6,2],[18,32,0,9,0,2],[34,56,0,9,0,2],[-22,-18,0,9,0,2],[36,56,0,9,2,4],[-22,-6,0,9,2,4],[24,32,0,9,2,4],[18,20,0,9,2,6],[10,14,0,9,4,6],[-22,-4,0,9,4,6],[44,56,0,9,4,8],[10,22,0,9,6,8],[-16,-12,0,9,6,8],[38,40,0,9,6,8],[26,56,0,9,8,10],[10,20,0,9,8,10],[-56,-26,0,9,0,14],[-12,-8,0,9,10,14],[12,20,0,9,10,14],[-12,4,0,9,14,16],[28,56,0,9,10,20],[-56,-24,0,9,14,20],[12,22,0,9,14,22],[-10,6,0,9,16,22],[-56,-14,0,9,20,26],[-10,8,0,9,22,26],[30,56,0,9,20,28],[-8,18,0,9,26,28],[-8,20,0,9,28,30],[22,56,0,9,28,32],[8,20,0,9,30,32],[-56,-12,0,9,26,36],[24,56,0,9,32,36],[26,56,0,9,36,40],[20,56,0,9,40,42],[-56,-10,0,9,36,44],[6,56,0,9,42,44],[4,56,0,9,44,50],[2,56,0,9,50,52],[-56,-4,0,9,44,54],[0,56,0,9,52,54],[-56,56,0,9,54,56]];
+        const facades = [matVenetianWall, matVenetianOchre, matVenetianPink];
+        footprints.forEach(([left,right,bottom,top,near,far],i) => {
+          addVenetianBuilding((left+right)/2,(near+far)/2,right-left,far-near,bottom,top,facades[i%3]);
+        });
+        addWalkableSlab(15.4,21.4,-6.0,0.0,0,1,'A TREE',null,false);
+        addWalkableSlab(22.6,28.6,15.0,21.0,0,1,'A LOBBY',null,false);
+        addWalkableSlab(26.0,32.0,2.8,8.8,0,1,'A MAIN',null,false);
+        addWalkableSlab(12.7,18.7,-31.4,-25.4,0,1,'A WINDOW',null,false);
+        addWalkableSlab(29.0,35.0,-11.0,-5.0,0,1,'A SITE',null,false);
+        addWalkableSlab(-3.0,3.0,37.0,43.0,0,1,'ATTACKER SIDE SPAWN',null,false);
+        addWalkableSlab(-15.3,-9.3,26.7,32.7,0,1,'B LOBBY',null,false);
+        addWalkableSlab(-24.5,-18.5,-5.3,0.7,0,1,'B MAIN',null,false);
+        addWalkableSlab(-43.8,-37.8,-27.8,-21.8,0,1,'B BOAT HOUSE',null,false);
+        addWalkableSlab(-3.8,2.2,-6.1,-0.1,0,1,'MID BOTTOM',null,false);
+        addWalkableSlab(-29.2,-23.2,-25.9,-19.9,0,1,'B SITE',null,false);
+        addWalkableSlab(6.6,12.6,7.0,13.0,0,1,'MID CATWALK',null,false);
+        addWalkableSlab(12.4,18.4,-0.2,5.8,0,1,'MID CUBBY',null,false);
+        addWalkableSlab(-3.0,3.0,-45.0,-39.0,0,1,'DEFENDER SIDE SPAWN',null,false);
+        addWalkableSlab(11.8,17.8,-26.0,-20.0,0,1,'A GARDEN',null,false);
+        addWalkableSlab(-5.9,0.1,-22.9,-16.9,0,1,'MID MARKET',null,false);
+        addWalkableSlab(-1.3,4.7,3.7,9.7,0,1,'MID COURTYARD',null,false);
+        addWalkableSlab(-13.4,-7.4,5.9,11.9,0,1,'MID LINK',null,false);
+        addWalkableSlab(-1.0,5.0,-21.3,-15.3,0,1,'MID PIZZA',null,false);
+        addWalkableSlab(26.7,32.7,-31.7,-25.7,0,1,'A RAFTERS',null,false);
+        addWalkableSlab(12.2,18.2,21.3,27.3,0,1,'MID TOP',null,false);
+        addWalkableSlab(39.6,45.6,3.0,9.0,0,1,'A WINE',null,false);
+        addSolidBox3D(26,-10,3,4,0,2.8,matGenerator);
+        addSolidBox3D(33,-5,2,2,0,2,matRadianite);
+        addSolidBox3D(-30,-25,3,3,0,2,matRadianite);
+        const aDoorObj = addSolidBox3D(18.4,-3.0, 0.45, 4.8, 3.6, 7.2, matDarkMetal);
         const aSwitch = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.65, 0.45), new THREE.MeshBasicMaterial({ color: 0x38e2c7 }));
-        aSwitch.position.set(17.0, 1.5, -11.5);
+        aSwitch.position.set(19.4,1.5,0.0);
         ascentGroup.add(aSwitch);
         blastDoors.push({
           id: 'A_DOOR', name: 'A GARDEN DOOR', closed: false, targetMinY: 3.6,
-          mesh: aDoorObj.mesh, collider: aDoorObj.collider, switchMesh: aSwitch, switchPos: new THREE.Vector3(17.2, 1.4, -11.5)
+          mesh: aDoorObj.mesh, collider: aDoorObj.collider, switchMesh: aSwitch, switchPos: new THREE.Vector3(19.6,1.4,0.0)
         });
-
-        addSolidBox3D(10.5, -16.5, 3.0, 3.0, 0, 0.95, matBrickWall, 'TREE PLANTER');
-        const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.58, 4.4, 8), matWoodFloor);
-        trunk.position.set(10.5, 2.9, -16.5);
-        const blossomMat = new THREE.MeshStandardMaterial({ color: 0xf472b6, emissive: 0x831843, emissiveIntensity: 0.25, roughness: 0.7 });
-        const canopyMain = new THREE.Mesh(new THREE.SphereGeometry(2.7, 14, 14), blossomMat);
-        canopyMain.position.set(10.5, 5.3, -16.5);
-        const canopySub1 = new THREE.Mesh(new THREE.SphereGeometry(1.8, 10, 10), blossomMat);
-        canopySub1.position.set(9.1, 4.8, -15.4);
-        const canopySub2 = new THREE.Mesh(new THREE.SphereGeometry(1.9, 10, 10), blossomMat);
-        canopySub2.position.set(11.9, 4.9, -17.3);
-        ascentGroup.add(trunk, canopyMain, canopySub1, canopySub2);
-
-        /* --- ZONE MID: CATWALK (+1.4m), COURTYARD (0.0m), TILES & PIZZA (+0.6m), MARKET (+0.6m) --- */
-        addWalkableSlab(4, 11, -6, 12, 1.4, 1.4, 'MID CATWALK', matUpperFloor, true);
-        addWalkableRamp(4, 11, 12, 20, 1.4, 0.0, 'z', 'CATWALK STAIRS', matWoodFloor);
-        addSolidBox3D(4.2, 2, 0.5, 14, 1.4, 2.45, matBrickWall, 'CATWALK RAIL');
-        addSolidBox3D(-2, 2, 3.8, 3.8, 0, 2.1, matRadianite, 'MID BOX');
-        addSolidBox3D(-2, 4.7, 2.2, 1.6, 0, 0.9, matWoodFloor, 'MID BOX STEP');
-        // Mid Courtyard Venetian Stone Fountain / Monument Base
-        addSolidBox3D(-6.2, -3.5, 2.8, 2.8, 0, 1.25, matVenetianWall, 'MID FOUNTAIN');
-        addSolidBox3D(-6.2, -3.5, 1.1, 1.1, 1.25, 2.8, matVenetianOchre, 'MID MONUMENT');
-
-        addWalkableSlab(-15, -9, -11, 6, 0.6, 0.6, 'MID TILES', matTilesFloor, true);
-        addWalkableRamp(-15, -9, 6, 10, 0.6, 0.0, 'z', 'MID TILES STEPS', matWoodFloor);
-        addWalkableSlab(-22, -15, -24, -15, 0.6, 0.6, 'MID PIZZA', matTilesFloor, true);
-        addSolidBox3D(-20.2, -21.5, 2.2, 2.0, 0.6, 1.9, matBrickWall, 'PIZZA OVEN');
-
-        addWalkableSlab(-18, -3, -27, -11, 0.6, 0.6, 'MID MARKET', matUpperFloor, true);
-        addWalkableRamp(-11, -5, -11, -8, 0.6, 0.0, 'z', 'MARKET STEPS', matWoodFloor);
-        addWalkableRamp(-11, -5, -31, -27, 0.0, 0.6, 'z', 'CT MARKET RAMP', matWoodFloor);
-        addVenetianBuilding(-3.2, -19, 1.6, 16, 0, 10.5, matVenetianPink);
-        addVenetianBuilding(-14.5, -11.2, 7, 1.5, 0, 10.5, matVenetianOchre);
-        addSolidBox3D(-7.5, -11.2, 7, 1.5, 4.2, 10.5, matVenetianOchre);
-        addVenetianBuilding(-15, -26.8, 7, 1.5, 0, 10.5, matVenetianWall);
-        addIndoorCeiling(-18, -3, -27, -11, 5.4, 0.8);
-        addSolidBox3D(-14, -16, 3.2, 2.0, 0.6, 1.9, matBrickWall, 'MARKET COUNTER');
-
-        addSolidBox3D(-18, -14, 1.5, 6, 0, 10.5, matBrickWall);
-        addSolidBox3D(-18, -24.5, 1.5, 5, 0, 10.5, matBrickWall);
-        addSolidBox3D(-18, -19.5, 1.5, 5, 4.2, 10.5, matBrickWall);
-        const bDoorObj = addSolidBox3D(-18, -19.5, 0.45, 4.8, 4.2, 7.8, matDarkMetal);
+        const bDoorObj = addSolidBox3D(-2.9,-19.9, 0.45, 4.8, 4.2, 7.8, matDarkMetal);
         const bSwitch = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.65, 0.45), new THREE.MeshBasicMaterial({ color: 0x38e2c7 }));
-        bSwitch.position.set(-17.1, 2.0, -16.8);
+        bSwitch.position.set(-2.0,2.0,-17.2);
         ascentGroup.add(bSwitch);
         blastDoors.push({
           id: 'B_DOOR', name: 'B MARKET DOOR', closed: false, targetMinY: 4.2,
-          mesh: bDoorObj.mesh, collider: bDoorObj.collider, switchMesh: bSwitch, switchPos: new THREE.Vector3(-16.8, 1.6, -16.8)
+          mesh: bDoorObj.mesh, collider: bDoorObj.collider, switchMesh: bSwitch, switchPos: new THREE.Vector3(-1.7,1.6,-17.2)
         });
-
-        addWalkableRamp(-20, -12, 2, 10, 1.6, 0.0, 'x', 'MID B LINK', matWoodFloor);
-        addVenetianBuilding(-17, -3.5, 6, 11, 0, 10.5, matVenetianWall);
-
-        /* --- ZONE B: B MAIN (+1.6m), B TERRACE (+1.6m), B PIT & SHED (0.0m), BOATHOUSE --- */
-        addWalkableSlab(-45, -20, 2, 22, 1.6, 1.6, 'B MAIN', matUpperFloor, true);
-        addWalkableRamp(-36, -24, 22, 32, 1.6, 0.0, 'z', 'B LOBBY RAMP', matWoodFloor);
-        addVenetianBuilding(-46, 12, 2, 22, 0, 11, matVenetianPink);
-        addVenetianBuilding(-20, 14, 1.8, 10, 0, 11, matVenetianWall);
-        addSolidBox3D(-38, 2.0, 14, 1.5, 1.6, 9.5, matBrickWall);
-        addSolidBox3D(-26, 2.0, 10, 1.5, 5.2, 9.5, matBrickWall);
-        addIndoorCeiling(-45, -20, 2, 22, 6.4, 0.8);
-        addSolidBox3D(-35, 11, 3.2, 3.2, 1.6, 3.4, matRadianite, 'B MAIN CRATE');
-
-        addWalkableSlab(-24, -18, -22, 2, 1.6, 1.6, 'B TERRACE', matUpperFloor, true);
-        addWalkableSlab(-45, -24, -6, 2, 1.6, 1.6, 'B LANE', matUpperFloor, true);
-        addWalkableRamp(-24, -18, -26, -18, 0.0, 1.6, 'z', 'B STAIRS', matWoodFloor);
-        addWalkableRamp(-44, -38, -15, -6, 0.0, 1.6, 'z', 'B LANE STAIRS', matWoodFloor);
-        addSolidBox3D(-31, -5.6, 11, 0.65, 1.6, 2.7, matBrickWall, 'B TERRACE RAIL');
-
-        addSolidBox3D(-36, -22.5, 0.85, 7.0, 0, 3.4, matBrickWall);
-        addSolidBox3D(-28, -20.2, 0.85, 2.6, 0, 3.4, matBrickWall);
-        addSolidBox3D(-28, -24.8, 0.85, 2.6, 0, 3.4, matBrickWall);
-        addSolidBox3D(-32, -19.0, 5.0, 0.85, 0, 3.4, matBrickWall);
-        addWalkableSlab(-36.5, -27.5, -26.5, -18.5, 3.6, 0.35, 'B SHED ROOF', matTerracottaRoof, true);
-        addSolidBox3D(-32, -22.5, 2.4, 2.4, 0, 1.75, matRadianite, 'B RADIANITE BOX');
-        addSolidBox3D(-41, -24.0, 2.4, 2.4, 0, 1.75, matRadianite, 'B PIT CRATE');
-        addSolidBox3D(-41, -24.0, 1.7, 1.7, 1.75, 3.0, matRadianite, 'B PIT STACK');
-
-        addSolidBox3D(-40, -34.5, 10, 1.2, 0, 6.5, matBrickWall);
-        addSolidBox3D(-23, -34.5, 8, 1.2, 0, 6.5, matBrickWall);
-        addIndoorCeiling(-46, -20, -48, -34.5, 6.0, 0.8);
-        const canalMesh = new THREE.Mesh(new THREE.BoxGeometry(24, 0.2, 6), matCanalWater);
-        canalMesh.position.set(-33, 0.02, -49);
-        // Venetian Gondola / Boat inside Boathouse Canal
-        const boatHull = new THREE.Mesh(new THREE.BoxGeometry(6.5, 0.65, 1.7), matWoodFloor);
-        boatHull.position.set(-33, 0.35, -48.5);
-        const boatCabin = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.9, 1.35), matDarkMetal);
-        boatCabin.position.set(-33, 0.95, -48.5);
-        ascentGroup.add(canalMesh, boatHull, boatCabin);
-
-        /* --- PAINTED ARCHITECTURAL CALLOUT SIGNS --- */
-        addWallCalloutSign(27, 4.2, 9.95, 0, 'A SITE //', 'MAIN ENTRY', '#ff4655');
-        addWallCalloutSign(14.8, 3.6, -9.5, -Math.PI / 2, 'A GARDEN', 'BLAST DOOR [G]', '#38e2c7');
-        addWallCalloutSign(-10.5, 3.6, -10.3, 0, 'MID MARKET', 'PIZZA & B DOOR', '#f5c542');
-        addWallCalloutSign(-26, 4.2, 2.85, 0, 'B SITE //', 'UPPER TERRACE', '#ff4655');
-        addWallCalloutSign(-31.5, 3.8, -33.8, 0, 'BOATHOUSE', 'DEFENDER CANAL', '#38e2c7');
-
         /* --- FLOATING VENETIAN SKY ISLAND ROCKS & RADIANITE CRYSTALS --- */
         const rockMat = new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.85 });
         const crystalMat = new THREE.MeshStandardMaterial({ color: 0x38e2c7, emissive: 0x0d9488, emissiveIntensity: 0.7, roughness: 0.2 });
@@ -1818,20 +1685,8 @@
         parts.forEach(part => { part.visible = !!isEnemy; });
       }
 
-      const ATK_PATROL_ROUTES = [
-        [new THREE.Vector3(28, 0, 18), new THREE.Vector3(29, 0, -8), new THREE.Vector3(29, 3.2, -26)],
-        [new THREE.Vector3(-30, 1.6, 12), new THREE.Vector3(-22, 1.6, -12), new THREE.Vector3(-32, 0, -22)],
-        [new THREE.Vector3(7.5, 1.4, 8), new THREE.Vector3(11, 1.4, -3), new THREE.Vector3(12, 0, -15), new THREE.Vector3(27, 0, -10)],
-        [new THREE.Vector3(-4, 0, 4), new THREE.Vector3(-10, 0.6, -18), new THREE.Vector3(-25, 0, -22)]
-      ];
-
-      const DEF_PATROL_ROUTES = [
-        [new THREE.Vector3(29, 3.2, -26), new THREE.Vector3(24, 3.2, -22), new THREE.Vector3(29, 0, -8)],
-        [new THREE.Vector3(29, 0.0, -26), new THREE.Vector3(34, 0.0, -6), new THREE.Vector3(26, 0, 4)],
-        [new THREE.Vector3(11, 0.0, -15), new THREE.Vector3(9, 1.4, -2), new THREE.Vector3(7.5, 1.4, 8)],
-        [new THREE.Vector3(-10, 0.6, -18), new THREE.Vector3(-3, 0.0, -4), new THREE.Vector3(-14, 0.6, -16)],
-        [new THREE.Vector3(-21, 1.6, -10), new THREE.Vector3(-32, 0.0, -22), new THREE.Vector3(-32, 1.6, 8)]
-      ];
+      const ATK_PATROL_ROUTES = [[[-1, 39], [21, 39], [21, 27], [25, 27], [25, 7], [29, 7], [29, 5], [33, 5], [33, -9]], [[-1, 39], [-1, 31], [-9, 31], [-9, 27], [-11, 27], [-11, 17], [-13, 17], [-13, 9], [-17, 9], [-17, 7], [-23, 7], [-23, -1], [-21, -1], [-21, -3], [-21, -23], [-27, -23]], [[-1, 39], [21, 39], [21, 23], [11, 23], [11, 11], [9, 11], [9, 3], [17, 3], [17, -1], [19, -1], [19, -3]], [[-1, 39], [-1, 31], [-9, 31], [-9, 27], [-11, 27], [-11, 17], [-13, 17], [-13, 9], [1, 9], [1, 7], [1, -5], [-1, -5], [-1, -19], [-3, -19]]].map(route => route.map(([x,z]) => new THREE.Vector3(x,0,z)));
+      const DEF_PATROL_ROUTES = ATK_PATROL_ROUTES.map(route => [...route].reverse());
 
       function spawnTeamsForRound() {
         bots.forEach(b => scene.remove(b.group));
@@ -2908,7 +2763,7 @@
             nearest = d;
           }
         });
-        if (!nearest) nearest = blastDoors[0];
+        if (!nearest) return false;
         nearest.closed = !nearest.closed;
         nearest.targetMinY = nearest.closed ? 0.0 : (nearest.id === 'A_DOOR' ? 3.6 : 4.2);
         if (nearest.switchMesh) {
@@ -3263,6 +3118,11 @@
         const toRx = (x) => ((x + MAP_LIMIT) / (MAP_LIMIT * 2)) * w;
         const toRz = (z) => ((z + MAP_LIMIT) / (MAP_LIMIT * 2)) * h;
 
+        rCtx.fillStyle = '#344452';
+        for (const wall of wallBoxes3D) {
+          if (wall.minY > 0 || wall.maxY < 1) continue;
+          rCtx.fillRect(toRx(wall.minX),toRz(wall.minZ),toRx(wall.maxX)-toRx(wall.minX),toRz(wall.maxZ)-toRz(wall.minZ));
+        }
         rCtx.fillStyle = 'rgba(255, 70, 85, 0.24)';
         rCtx.fillRect(toRx(20), toRz(-16), 24, 24);
         rCtx.fillRect(toRx(-40), toRz(-31), 24, 24);
@@ -3568,7 +3428,6 @@
         if (footY < -0.4 || footY > 2.2) return null;
         if (Math.hypot(x - 29, z + 8) < 9.0 && footY < 1.2) return 'A';
         if (Math.hypot(x + 32, z + 23) < 9.0) return 'B';
-        if (Math.hypot(x + 32, z - 10) < 10.0) return 'B';
         return null;
       }
       window.gameSpikeSiteAt = gameSpikeSiteAt;

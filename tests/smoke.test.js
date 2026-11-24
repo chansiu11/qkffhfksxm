@@ -74,12 +74,12 @@ test('Room creation/join, team capacity, start, synced player snapshots, damage'
   const down=await downward;
   assert(down.to[1]<down.from[1], 'negative camera pitch must shoot downward');
 
-  // SPIKE: raised B MAIN should be a valid plant site, and progress is server-authoritative.
-  p.x=-32;p.z=10;p.footY=1.6;p.y=3.25;p.heldSpike=true;
+  // SPIKE: B Site should be a valid plant site, and progress is server-authoritative.
+  p.x=-27;p.z=-23;p.footY=0;p.y=1.65;p.heldSpike=true;
   p.actionFrom=Date.now()-4200;
   r.phase='combat';r.until=Date.now()+25000;
   await new Promise(resolve=>setTimeout(resolve,190));
-  assert.equal(r.phase,'planted','B MAIN plant must complete after four seconds');
+  assert.equal(r.phase,'planted','B Site plant must complete after four seconds');
   assert.equal(r.spike?.site,'B');
   assert.equal(p.heldSpike,false,'server must clear held input after successful plant');
   // Defuse has a 3.5 second halfway checkpoint but still needs 7 seconds total.

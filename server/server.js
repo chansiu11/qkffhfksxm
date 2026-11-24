@@ -500,7 +500,7 @@ function receive(c,m) {
 function spikeSite(x,z,footY) {
   if(footY < -0.4 || footY > 2.2) return null;
   if(Math.hypot(x-29,z+8)<9.0 && footY<1.2) return 'A';
-  if(Math.hypot(x+32,z+23)<9.0 || Math.hypot(x+32,z-10)<10.0) return 'B';
+  if(Math.hypot(x+32,z+23)<9.0) return 'B';
   return null;
 }
 function spikeAction(r,p,now) {
