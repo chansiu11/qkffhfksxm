@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=Rajdhani:wght@600;700&family=Teko:wght@600;700&display=swap" rel="stylesheet">
   <script src="config.js"></script>
-  <script src="multiplayer-client.js?v=round9"></script>
+  <script src="multiplayer-client.js?v=room-chat"></script>
   <link rel="stylesheet" href="menu.css" />
   <!-- Three.js r128 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -255,6 +255,10 @@
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: #091017; }
     ::-webkit-scrollbar-thumb { background: #ff4655; border-radius: 3px; }
+    #room-chat { position:absolute; left:12px; bottom:25%; width:min(330px,70vw); font:14px/1.4 sans-serif; color:white; }
+    #chat-log { max-height:7em; overflow:auto; overflow-wrap:anywhere; }
+    #chat-log div, #chat-input { background:#101923e8; padding:3px 8px; }
+    #chat-input { width:100%; pointer-events:auto; color:white; }
   </style>
 </head>
 <body>
@@ -420,6 +424,10 @@
 
   <!-- ==================== 1:1 VALORANT IN-GAME HUD (ZERO ICONS / PURE GUNPLAY) ==================== -->
   <div id="ingame-hud" class="hidden fixed inset-0 pointer-events-none z-30 flex flex-col justify-between p-2 sm:p-3.5">
+    <section id="room-chat" aria-label="방 채팅">
+      <div id="chat-log" role="log" aria-live="polite"></div>
+      <input id="chat-input" hidden maxlength="180" autocomplete="off" aria-label="방 채팅 메시지" placeholder="Enter로 전송 · Esc로 닫기">
+    </section>
     
     <!-- TOP BAR: Ascent Radar (Left), Scoreboard & 5v5 Alive Bar (Center), System Controls & Killfeed (Right) -->
     <div class="flex items-start justify-between gap-2 w-full">
@@ -2922,6 +2930,57 @@
       let isSpikeKeyHeld = false;
       let isSpikeMobileToggleLock = false;
 
+      const chatInput = document.getElementById('chat-input');
+      const chatLog = document.getElementById('chat-log');
+      let restoreChatPointer = false;
+
+      function appendChat(name, text) {
+        const line = document.createElement('div');
+        line.textContent = name + ' · ' + text;
+        chatLog.append(line);
+        if (chatLog.children.length > 30) chatLog.firstChild.remove();
+        chatLog.scrollTop = chatLog.scrollHeight;
+      }
+      function closeChat(restore) {
+        chatInput.hidden = true;
+        chatInput.value = '';
+        chatInput.blur();
+        if (restore && restoreChatPointer && matchState.inMatch) tryLockPointerSafe();
+        restoreChatPointer = false;
+      }
+      function resetChat() {
+        closeChat(false);
+        chatLog.replaceChildren();
+      }
+      window.addEventListener('keydown', e => {
+        if (!chatInput.hidden) {
+          e.stopImmediatePropagation();
+          if (e.isComposing || e.keyCode === 229) return;
+          if (e.key === 'Escape' || e.key === 'Enter') {
+            e.preventDefault();
+            const text = chatInput.value.trim();
+            if (e.key === 'Enter' && text && !window.MP.send({type:'chat', text})) {
+              appendChat('시스템', '전송 실패 · 연결 후 다시 시도하세요.');
+              return;
+            }
+            closeChat(true);
+          }
+          return;
+        }
+        if (e.code !== 'KeyM' || e.repeat || e.ctrlKey || e.altKey || e.metaKey ||
+            !matchState.inMatch || !window.MP.started || window.isCrosshairSettingsOpen?.() ||
+            e.target?.matches?.('input, textarea, select, [contenteditable]')) return;
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        for (const key of Object.keys(keys)) keys[key] = false;
+        isMouseFiring = isKeyboardFiring = isLeftTouchFiring = isRightTouchFiring = false;
+        isSpikeKeyHeld = isSpikeMobileToggleLock = false;
+        restoreChatPointer = document.pointerLockElement === canvas;
+        if (restoreChatPointer) document.exitPointerLock();
+        chatInput.hidden = false;
+        chatInput.focus();
+      }, true);
+
       window.addEventListener('keydown', (e) => {
         const editing = e.target?.matches?.('input, textarea, select, [contenteditable]');
         if (window.isCrosshairSettingsOpen?.()) {
@@ -3000,6 +3059,7 @@
       });
 
       canvas.addEventListener('mousedown', (e) => {
+        if (!chatInput.hidden) { e.preventDefault(); chatInput.focus(); return; }
         if (!matchState.inMatch) return;
         const isTouchEnv = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
         if (!isTouchEnv && !inputSystem.touchModeEnabled && document.pointerLockElement !== canvas) {
@@ -3722,7 +3782,7 @@
         renderer.render(scene, camera);
       }
 
-      window.MP.install({roomState,matchState,player,bots,scene,spikeMesh,barrierGroup,gunGroup,muzzleFlashMesh,viewmodel,gameSpikeSiteAt,sfx,
+      window.MP.install({resetChat,appendChat,roomState,matchState,player,bots,scene,spikeMesh,barrierGroup,gunGroup,muzzleFlashMesh,viewmodel,gameSpikeSiteAt,sfx,
         createTacticalBotMesh,setEnemyOutline,spawnBulletTracer,drawLocalShot,
         cloneWeaponInstance,WEAPON_CATALOG,getActiveWeapon,startNewRound,
         updateHUD,flashDamage,showHitmarker,showRoundBanner,addKillFeed,syncCheatPermissionUI,

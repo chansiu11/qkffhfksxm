@@ -104,3 +104,23 @@ test('round transition retains the survivor rifle and resets the eliminated play
     assert.equal(revived.mag,catalog.classic.magSize);
   } finally { f.close(); }
 });
+test('chat echoes Korean text within the match and uses the server player name', async () => {
+  const first = await setup('81');
+  const other = await setup('82');
+  const leaked = [];
+  other.a.addEventListener('message', e => {
+    if (JSON.parse(e.data).type === 'chat') leaked.push(e.data);
+  });
+  try {
+    const messages = Promise.all([wait(first.a,'chat'), wait(first.b,'chat')]);
+    first.a.send(JSON.stringify({type:'chat', text:'   '}));
+    first.a.send(JSON.stringify({type:'chat', name:'fake', text:' 안녕하세요! '}));
+    for (const message of await messages) {
+      assert.deepEqual(message, {type:'chat', name:first.p.name, text:'안녕하세요!'});
+    }
+    const pong = wait(other.a,'pong');
+    other.a.send(JSON.stringify({type:'ping',seq:1}));
+    await pong;
+    assert.deepEqual(leaked, []);
+  } finally { first.close(); other.close(); }
+});
