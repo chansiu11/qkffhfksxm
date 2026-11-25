@@ -282,7 +282,6 @@ if (typeof window !== "undefined") window.GAME_SERVER_URL = 'https://qkffhfksxm-
     interactives[id]=id==='ascent'?{
       A_DOOR:panel(40.835,-25,3.95,.64,0,3.6,{switchAt:[43.6,-27.08],switchHeight:1.15,lift:3.6,hp:500}),
       B_DOOR:panel(3,-34,.44,4.5,0,3.6,{switchAt:[-10.8,-35.2],switchHeight:1.09,lift:4.2,hp:500}),
-      MID_PANEL:panel(20,4,2.8,.18,.2,2.2,{hp:400}),LINK_PANEL:panel(-4,-3,2,.18,.2,2.2,{hp:400}),
       GARDEN_GLASS:panel(39.6,-42.3,2.8,.15,.7,2.2,{hp:1})
     }:{
       GARAGE_LEFT:panel(-18.05,3.05,.22,1.65,0,2.95,{hp:400}),GARAGE_RIGHT:panel(-13.95,3.05,.22,1.65,0,2.95,{hp:400})
