@@ -18,7 +18,7 @@
   <link rel="stylesheet" href="menu.css" />
   <!-- Three.js r128 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <script src="match-samples.js?v=knife21"></script>
+  <script src="match-samples.js?v=recording2"></script>
   <script src="melee-rules.js?v=equipment2"></script>
   <script src="shotgun-pellets.js"></script>
   <script src="shooting-spread.js?v=alt22"></script>
@@ -1127,14 +1127,7 @@
         playKnifeSlash(mode = 'light') {
           try {
             this.init(); if (!this.ctx) return;
-            if (MatchSamples.play(this.ctx, this.effectsBus, 'slash', mode === 'heavy' ? 'knife-heavy' : 'knife-light', null, 0.65)) return;
-            const now = this.ctx.currentTime, o = this.ctx.createOscillator(), g = this.ctx.createGain();
-            o.type = 'triangle';
-            o.frequency.setValueAtTime(930, now);
-            o.frequency.exponentialRampToValueAtTime(125, now + 0.19);
-            g.gain.setValueAtTime(0.10, now);
-            g.gain.exponentialRampToValueAtTime(0.001, now + 0.19);
-            o.connect(g); g.connect(this.effectsBus || this.ctx.destination); o.start(now); o.stop(now + 0.20);
+            MatchSamples.play(this.ctx,this.effectsBus,'slash',mode==='heavy'?'knife-heavy':'knife-light',null,.65);
           } catch (_) {}
         },
         playHeadshotDing() {
@@ -1173,13 +1166,18 @@
           } catch (e) {}
         },
         playUI() {
-          this.playBeep(640);
+          this.init();
+          if(this.ctx) MatchSamples.play(this.ctx,this.effectsBus,'ui','menu-click',null,.42);
         }
       };
 
       /* =========================================================================
        * 3. THREE.JS SCENE, CAMERA & PROCEDURAL VENETIAN TEXTURES
        * ========================================================================= */
+      document.addEventListener('click', event=>{
+        const button=event.target.closest?.('button,[role="button"]');
+        if(button && !button.disabled && button.getAttribute('aria-disabled')!=='true' && !button.id.startsWith('mob-')) sfx.playUI();
+      },true);
       const canvas = document.getElementById('game-canvas');
       const coarseDevice = matchMedia('(pointer: coarse)').matches;
       const renderer = new THREE.WebGLRenderer({ canvas, antialias: !coarseDevice, powerPreference: 'high-performance' });
@@ -2135,7 +2133,7 @@
         const aliveAllies = getAliveAllies();
         if (aliveAllies.length === 0) return;
         player.spectateIdx = (player.spectateIdx + dir + aliveAllies.length) % aliveAllies.length;
-        sfx.playUI();
+
         updateHUD();
       };
 
@@ -2406,7 +2404,7 @@
           Object.keys(cheats).forEach(k => { cheats[k] = false; });
           document.getElementById('hud-ghost-banner').classList.add('hidden');
         }
-        sfx.playUI();
+
         syncCheatPermissionUI();
       };
 
@@ -2421,7 +2419,7 @@
         roomState.code = rand;
         const inp = document.getElementById('create-code-input');
         if (inp) inp.value = rand;
-        sfx.playUI();
+
       };
 
       window.setCreateWinTarget = function (rounds) {
@@ -2432,14 +2430,14 @@
           b13.classList.toggle('menu-segment-active', rounds === 13);
           b5.classList.toggle('menu-segment-active', rounds === 5);
         }
-        sfx.playUI();
+
       };
 
       window.menuBackspaceCode = function () {
         roomState.joinBuffer = roomState.joinBuffer.slice(0, -1);
         document.getElementById('join-digit-0').textContent = roomState.joinBuffer[0] || '-';
         document.getElementById('join-digit-1').textContent = roomState.joinBuffer[1] || '-';
-        sfx.playUI();
+
       };
       window.copyRoomCode = async function () {
         const code = roomState.code;
@@ -2453,7 +2451,7 @@
       };
 
       window.pressKeypad = function (key) {
-        sfx.playUI();
+
         if (key === 'CLR') {
           roomState.joinBuffer = '';
         } else if (roomState.joinBuffer.length < 2) {
@@ -2485,7 +2483,7 @@
             atkBtn.className = 'px-3 py-1 bg-slate-800 text-slate-300 text-xs font-bold cursor-pointer';
           }
         }
-        sfx.playUI();
+
       };
 
       window.openEntryScreen = function (e) {
@@ -2760,7 +2758,7 @@
         if (window.MP.active) { window.MP.send({type:'skip'}); return; }
         if (!matchState.inMatch || matchState.phase !== 'buy') return;
         matchState.timer = 0.05;
-        sfx.playUI();
+
       };
 
       window.toggleShop = function (e) {
@@ -2782,7 +2780,7 @@
         }
         document.getElementById('shop-credits-val').textContent = player.credits.toLocaleString();
         shopEl.classList.remove('hidden');
-        sfx.playUI();
+
       };
 
       window.closeShop = function (e) {
@@ -2809,7 +2807,7 @@
           }
           player.credits -= cost;
           player.armor = targetArmor;
-          sfx.playUI();
+  
           if (fb) fb.textContent = `EQUIPPED ${itemId === 'light_shield' ? 'LIGHT SHIELD (+25)' : 'HEAVY SHIELD (+50)'}.`;
           updateHUD();
           return;
@@ -2829,7 +2827,7 @@
           player.secondary = cloneWeaponInstance(itemId);
           window.switchWeaponSlot('secondary');
         }
-        sfx.playUI();
+
         if (fb) fb.textContent = `PURCHASED & EQUIPPED ${spec.name}.`;
         updateHUD();
       };
@@ -2847,7 +2845,7 @@
           modal.classList.add('hidden');
           if (matchState.inMatch) tryLockPointerSafe();
         }
-        sfx.playUI();
+
       };
 
       window.toggleCheatOption = function (key) {
@@ -2864,7 +2862,7 @@
         if (key === 'infiniteCreds' && cheats.infiniteCreds) {
           player.credits = 9000;
         }
-        sfx.playUI();
+
         updateHUD();
       };
 
@@ -3438,7 +3436,7 @@
         if (nearest.switchMesh) {
           nearest.switchMesh.material.color.setHex(nearest.closed ? 0xff4655 : 0x38e2c7);
         }
-        sfx.playUI();
+
         showRoundBanner('ASCENT DOOR SWITCH', `${nearest.name} // ${nearest.closed ? 'CLOSED' : 'OPEN'}`);
         return true;
       };

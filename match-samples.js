@@ -6,12 +6,26 @@ const MatchSamples = (() => {
   let loading = false;
   let previousStep = -1;
 
+  const clips = new Map();
+  function loadClip(ctx,name) {
+    if (!clips.has(name)) {
+      const folder=name==='menu-click'?'ui':'melee';
+      const request=fetch('audio/'+folder+'/'+name+'.wav?v=recording2')
+        .then(response=>{if(!response.ok)throw Error(response.status);return response.arrayBuffer();})
+        .then(bytes=>ctx.decodeAudioData(bytes))
+        .then(buffer=>buffers.set(name,buffer))
+        .catch(()=>{clips.delete(name);return null;});
+      clips.set(name,request);
+    }
+    return clips.get(name);
+  }
   function preload(ctx) {
     if (loading) return;
     loading = true;
-    for (const name of [...weapons, ...footsteps, 'land-01', 'knife-light', 'knife-heavy']) {
+    for (const name of ['menu-click','knife-light','knife-heavy']) loadClip(ctx,name);
+    for (const name of [...weapons, ...footsteps, 'land-01']) {
       const folder = weapons.includes(name) ? 'guns' : 'movement';
-      fetch(name.startsWith('knife-') ? 'audio/melee/' + name + '.wav' : 'audio/' + folder + '/' + name + '.ogg')
+      fetch('audio/' + folder + '/' + name + '.ogg')
         .then(response => {
           if (!response.ok) throw new Error(String(response.status));
           return response.arrayBuffer();
@@ -30,6 +44,13 @@ const MatchSamples = (() => {
       name = footsteps[previousStep];
     }
     const buffer = buffers.get(name);
+    if (!buffer && (name==='menu-click'||name==='knife-light'||name==='knife-heavy')) {
+      const requested=performance.now();
+      loadClip(ctx,name).then(loaded=>{
+        if(loaded && performance.now()-requested<400) play(ctx,output,kind,name,position,volume);
+      });
+      return true;
+    }
     if (!buffer) return false;
     const source = ctx.createBufferSource();
     const gain = ctx.createGain();
