@@ -25,7 +25,7 @@
   <script src="crosshair-profile.js"></script>
   <script src="crosshair-ui.js" defer></script>
   <script src="ads-system.js?v=armory20"></script>
-  <script src="weapon-viewmodels.js?v=sidearm-video3"></script>
+  <script src="weapon-viewmodels.js?v=sidearm-reload4"></script>
 
   <style>
     :root {
@@ -425,6 +425,8 @@
             class="vm-btn pointer-events-auto z-20 fixed bottom-10 right-36 sm:bottom-12 sm:right-44 w-14 h-14 sm:w-16 sm:h-16 rounded-full">
       <span class="font-num text-[10px] font-black tracking-wider pointer-events-none">CROUCH</span>
     </button>
+
+    <button type="button" id="mob-inspect-btn" aria-label="자세히 보기 (Y)" class="vm-btn pointer-events-auto z-20 fixed bottom-28 right-48 sm:bottom-36 sm:right-60 w-12 h-12 rounded-full font-num font-black">Y</button>
 
     <!-- Arc Around Main Fire: RELOAD -->
     <button type="button" id="mob-reload-btn"
@@ -3752,6 +3754,7 @@
       bindInstantTouchButton('mob-ads-btn', secondaryInput);
       bindInstantTouchButton('mob-jump-btn', () => window.triggerJump());
       bindInstantTouchButton('mob-crouch-btn', () => window.toggleCrouchMobile());
+      bindInstantTouchButton('mob-inspect-btn', () => { if (player.alive && gameplayInputAllowed()) viewmodel.inspect(); });
       bindInstantTouchButton('mob-reload-btn', () => window.triggerReload());
       bindInstantTouchButton('mob-walk-btn', () => window.toggleWalkMobile());
       bindInstantTouchButton('mob-door-btn', () => window.toggleAscentDoor());
