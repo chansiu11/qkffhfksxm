@@ -13,6 +13,12 @@ const layer={content:'',classes:new Set(),classList:{toggle(n,v){if(v)layer.clas
 const ctx={window:{innerWidth:1440,innerHeight:900},performance:{now:()=>clock},
   document:{getElementById:id=>id==='fps-weapon-sprite-layer'?layer:null}};
 vm.runInNewContext(fs.readFileSync(path.join(root,'weapon-viewmodels.js'),'utf8'),ctx);
+const sidearms=new Set(['classic','shorty','frenzy','ghost','bandit','sheriff']);
+let overlayDraws=0;
+ctx.window.PistolView={create:()=>({
+  select:id=>sidearms.has(id), update(){}, cancel(){}, inspect(){}, toggleAim(){},
+  muzzleScreen:()=>({x:720,y:430,depth:1}), render(){overlayDraws++;}
+})};
 const api=ctx.window.WeaponViewmodels;
 class Group{constructor(){this.children=[]}}
 class Vector3{constructor(x,y,z){this.x=x;this.y=y;this.z=z;}}
@@ -20,13 +26,21 @@ const T={Group,Vector3};
 const alive={alive:true,vel:{x:0,z:0},isScoped:false};
 const running={inMatch:true};
 
-test('all 21 equipped items use their mapped photo without any 3D meshes, hands or arms',()=>{
+test('sidearms render through the mesh overlay and remaining items use their mapped photo',()=>{
   const view=api.create(T);
   assert.equal(view.group.children.length,0);
   assert.equal(Object.keys(api.styles).length,21);
   for(const id of Object.keys(api.styles)){
     view.setWeapon(id);
     assert.equal(view.current,id);
+    if(sidearms.has(id)){
+      assert(!layer.content.includes('<img'));
+      view.update(.016,alive,running);
+      const before=overlayDraws;view.render({});
+      assert.equal(overlayDraws,before+1);
+      assert.equal(view.getMuzzleScreenPosition().x,720);
+      continue;
+    }
     assert.match(layer.content,new RegExp(`assets/weapons/${api.referenceImages[id]}\\.webp`));
     assert(layer.content.includes('<img class="fps-paper-weapon"'));
     assert(!/glove|paper-hand|sleeve|<svg|<path|holdingHands/i.test(layer.content));
