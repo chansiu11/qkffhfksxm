@@ -10,6 +10,7 @@
     peers: new Map(),
     install(api) {
       this.api = api;
+      this.hostTransport=window.createHostTransport?.(this);
       this.status('온라인 서버에 연결하지 않았습니다.');
       // Fast heartbeat and measured network RTT; never label a prediction as real ping.
       this.heartbeat = setInterval(() => {
@@ -31,7 +32,8 @@
       const net = document.getElementById('hud-network-stats');
       if (net && this.reconnecting) { net.textContent = '연결 복구 중...'; net.style.color = '#ffd166'; }
     },
-    send(value) {
+    send(value) {return this.hostTransport?this.hostTransport.send(value):this.rawSend(value);},
+    rawSend(value) {
       if (this.socket?.readyState === WebSocket.OPEN) {
         // Position packets are replaceable. Never overload a clogged connection.
         if (value.type === 'move' && this.socket.bufferedAmount > 8192) return false;
@@ -40,6 +42,7 @@
       return false;
     },
     disconnect() {
+      this.hostTransport?.reset();
       this.api?.resetChat?.();
       this.disconnecting = true;
       clearTimeout(this.reconnectTimer); this.reconnectTimer = null;
@@ -146,6 +149,14 @@
     receive(data) {
       const a = this.api;
       switch (data.type) {
+        case 'host_signal': this.hostTransport?.signal(data);break;
+        case 'host_begin': this.hostTransport?.begin(data.room);break;
+        case 'host_input': this.hostTransport?.relayInput(data);break;
+        case 'host_output': this.hostTransport?.relayOutput(data);break;
+        case 'host_peer_left': this.hostTransport?.left(data.id);break;
+        case 'host_fallback':
+          this.hostTransport?.fallback();this.started=false;this.lastRound=0;this.removePeers();
+          this.status('Render 서버로 전환 · 경기 재시작',true);break;
         case 'hello': if (!this.reconnecting) this.myId = data.id; break;
         case 'pong': {
           const start = this.pingSent.get(data.seq);
@@ -184,6 +195,7 @@
             this.lastRound = 0;
           } else if (!returnToMatch) {this.started = false; a.openWaitingLobby();}
           this.renderLobby(data.room);
+          if(data.room.hostMode&&!this.hostTransport?.active)this.hostTransport?.begin(data.room);
           this.status('다시 연결되었습니다 · ROOM #' + data.room.code);
           break;
         }
@@ -346,6 +358,7 @@
         document.getElementById('lobby-map-control').hidden = room.host !== this.myId || room.started;
       }
       this.room = room;
+      this.hostTransport?.update(room);
       const a = this.api;
       a.roomState.code = room.code;
       a.roomState.isHost = room.host === this.myId;

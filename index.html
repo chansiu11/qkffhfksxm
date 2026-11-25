@@ -12,7 +12,8 @@
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=Rajdhani:wght@600;700&family=Teko:wght@600;700&display=swap" rel="stylesheet">
   <script src="match-plans.js?v=map-barrier-layout5"></script>
   <script src="config.js?v=perf19"></script>
-  <script src="multiplayer-client.js?v=perf19"></script>
+  <script src="host-transport.js?v=host20"></script>
+  <script src="multiplayer-client.js?v=host20"></script>
   <link rel="stylesheet" href="menu.css" />
   <!-- Three.js r128 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -755,7 +756,7 @@
         <div class="room-grid"><section class="room-teams" aria-label="참가자와 팀 선택"><div class="room-section-top"><div><span class="menu-kicker">TEAM ASSIGNMENT</span><h2>팀 선택</h2></div><span class="room-team-hint">버튼을 눌러 팀 변경</span></div>
             <div class="room-team-controls"><div class="room-team-control attack"><div><span class="room-team-num">01 / ATTACK</span><strong>공격팀</strong></div><button type="button" onclick="window.switchTeam('attack')" id="btn-team-attack">공격팀 선택 ↗</button></div><div class="room-team-control defense"><div><span class="room-team-num">02 / DEFENSE</span><strong>수비팀</strong></div><button type="button" onclick="window.switchTeam('defense')" id="btn-team-defense">수비팀 선택 ↗</button></div></div>
             <div id="online-roster" class="room-roster-grid" aria-live="polite"><div class="room-roster-list"><div class="room-roster-top">ATTACKERS <span>0/5</span></div><div class="room-slot empty">플레이어를 기다리는 중</div></div><div class="room-roster-list"><div class="room-roster-top">DEFENDERS <span>0/5</span></div><div class="room-slot empty">플레이어를 기다리는 중</div></div></div>
-          </section><aside class="room-info" aria-label="방 정보 및 게임 시작"><div class="room-map-card"><div class="room-map-card-head"><span>MAP SELECTED</span><span>01 / 01</span></div><div class="room-map-graphic" aria-hidden="true"><span class="room-map-a">A</span><span class="room-map-b">B</span><div class="room-map-lines"></div></div><h3>ASCENT</h3><p>전략적인 진입 · 스파이크 설치 · 폭파 저지</p></div><div class="room-match-rules"><div><small>MATCH TYPE</small><b>CUSTOM · UNRATED</b></div><div><small>TEAM SIZE</small><b>5 VS 5</b></div><div><small>WIN CONDITION</small><b id="room-win-target">13 ROUNDS</b></div><div><small>SERVER</small><b>RENDER · SINGAPORE</b></div></div><label id="lobby-map-control" hidden>경기 맵 <select id="lobby-map-select" style="padding:6px;color:white;background:#182530" onchange="window.MP.send({type:'set_map',map:this.value})"><option value="ascent">어센트</option><option value="haven">헤이븐</option></select></label><button type="button" id="lobby-cheat-perm-btn" onclick="window.toggleHostCheatPermission(event)" class="room-cheat-btn">HOST CHEATS: OFF</button><button type="button" id="online-start-btn" onclick="window.startMatchFromLobby(event)" class="menu-action-btn room-start-btn">경기 시작하기 <span>→</span></button><div class="room-start-help">방장만 경기를 시작할 수 있습니다.</div></aside></div>
+          </section><aside class="room-info" aria-label="방 정보 및 게임 시작"><div class="room-map-card"><div class="room-map-card-head"><span>MAP SELECTED</span><span>01 / 01</span></div><div class="room-map-graphic" aria-hidden="true"><span class="room-map-a">A</span><span class="room-map-b">B</span><div class="room-map-lines"></div></div><h3>ASCENT</h3><p>전략적인 진입 · 스파이크 설치 · 폭파 저지</p></div><div class="room-match-rules"><div><small>MATCH TYPE</small><b>CUSTOM · UNRATED</b></div><div><small>TEAM SIZE</small><b>5 VS 5</b></div><div><small>WIN CONDITION</small><b id="room-win-target">13 ROUNDS</b></div><div><small>SERVER</small><b id="host-transport-status">Render 서버 연결</b></div></div><label id="lobby-map-control" hidden>경기 맵 <select id="lobby-map-select" style="padding:6px;color:white;background:#182530" onchange="window.MP.send({type:'set_map',map:this.value})"><option value="ascent">어센트</option><option value="haven">헤이븐</option></select></label><button type="button" id="lobby-cheat-perm-btn" onclick="window.toggleHostCheatPermission(event)" class="room-cheat-btn">HOST CHEATS: OFF</button><label style="display:block;margin:8px 0;font-size:12px"><input type="checkbox" id="host-transport-opt" onchange="window.MP.hostTransport?.setEnabled(this.checked);this.checked=!!window.MP.room?.players.find(p=>p.id===window.MP.myId)?.direct"> 신뢰하는 방에서 직접 연결(P2P) 허용</label><button type="button" id="online-start-btn" onclick="window.startMatchFromLobby(event)" class="menu-action-btn room-start-btn">경기 시작하기 <span>→</span></button><div class="room-start-help">방장만 경기를 시작할 수 있습니다.</div></aside></div>
       </main><footer class="menu-footer"><span>TACTICAL FPS // CUSTOM MATCH</span><span>PLAY TOGETHER. STAY SHARP.</span></footer>
     </div>
   </div>
@@ -4228,7 +4229,7 @@
         renderQuality.warmup++;
         if (perfStats) {
           const ping = window.MP?.active ? (window.MP.rtt == null ? '--' : Math.round(window.MP.rtt) + 'ms') : '오프라인';
-          perfStats.textContent = `FPS ${fps} · PING ${ping}`;
+          perfStats.textContent = `FPS ${fps} · PING ${ping} · ${window.MP?.active?(window.MP.hostTransport?.label||'RENDER'):''}`;
           perfStats.style.color = window.MP?.reconnecting ? '#ffd166'
             : (window.MP?.rtt != null && window.MP.rtt > 100) ? '#ff8585' : '#38e2c7';
         }

@@ -1,0 +1,117 @@
+/* Optional trusted-room host transport; no credentials or IPs are persisted. */
+(function(){
+'use strict';
+const CONTROL=new Set(['create','join','resume','leave','host_opt','host_signal','host_input','host_output','host_abort','host_finish']);
+function make(mp){
+  let room=null,worker=null,workerReady=false,mode=false,enabled=false,epoch=0;
+  const links=new Map(),early=[];
+  const raw=m=>mp.rawSend(m);
+  function clearLink(id){const l=links.get(id);if(!l)return;links.delete(id);try{l.pc.close();}catch(_){}}
+  function stopWorker(){if(worker)worker.terminate();worker=null;workerReady=false;}
+  function reset(){epoch++;mode=false;enabled=false;room=null;early.length=0;for(const id of [...links.keys()])clearLink(id);stopWorker();}
+  function report(){const el=document.getElementById('host-transport-status');if(el)el.textContent=mode?'방장 호스트 연결':enabled?'직접 연결 '+[...links.values()].filter(l=>l.dc?.readyState==='open').length+'명':'Render 서버 연결';}
+  function setEnabled(value){
+    if(mode||!room||room.started)return;
+    if(value&&!window.confirm('신뢰하는 참가자끼리만 직접 연결하세요. WebRTC 연결에서는 상대방에게 네트워크 주소가 노출될 수 있습니다. 방장이 경기를 제어하며 연결이 끊기면 경기가 재시작될 수 있습니다. 동의하시겠습니까?'))return;
+    if(value&&(!window.RTCPeerConnection||!window.Worker)){report();return;}
+    enabled=!!value;raw({type:'host_opt',enabled});if(!enabled){for(const id of [...links.keys()])clearLink(id);stopWorker();}report();
+  }
+  function getWorker(){
+    if(worker)return;
+    try{worker=new Worker('host-runtime.js?v=host20');}catch(_){return;}
+    worker.onmessage=e=>{
+      const m=e.data;
+      if(m.type==='ready'){workerReady=true;report();}
+      else if(m.type==='failed'){stopWorker();if(mode)raw({type:'host_abort'});}
+      else if(m.type==='output'&&mode){if(m.to===mp.myId)mp.receive(m.data);else route(m.to,{kind:'output',data:m.data});}
+      else if(m.type==='finished'&&mode){raw({type:'host_finish'});mode=false;stopWorker();report();}
+    };
+    worker.onerror=()=>{stopWorker();if(mode)raw({type:'host_abort'});};
+  }
+  function isHost(){return room?.host===mp.myId;}
+  function route(to,packet){
+    const link=links.get(to),dc=link?.dc;
+    const encoded=JSON.stringify(packet);
+    if(dc?.readyState==='open'&&dc.bufferedAmount<32768){try{dc.send(encoded);return true;}catch(_){}}
+    if(packet.kind==='input')return raw({type:'host_input',data:packet.data});
+    return raw({type:'host_output',to,data:packet.data});
+  }
+  function deliver(from,packet){
+    if(!packet||!packet.data||typeof packet.data.type!=='string')return;
+    if(!mode){if(packet.kind==='output'&&early.length<64)early.push([from,packet]);return;}
+    if(packet.kind==='input'&&isHost()&&room.players.some(p=>p.id===from)&&!CONTROL.has(packet.data.type)){
+      worker?.postMessage({type:'input',from,data:packet.data});
+    }else if(packet.kind==='output'&&!isHost()&&from===room.host&&!CONTROL.has(packet.data.type)&&!['host_begin','host_fallback','hello','joined','resumed','resume_failed'].includes(packet.data.type))mp.receive(packet.data);
+  }
+  function attach(link,dc){
+    link.dc=dc;
+    dc.onopen=report;dc.onclose=report;
+    dc.onmessage=e=>{if(typeof e.data!=='string'||e.data.length>65536)return;try{deliver(link.id,JSON.parse(e.data));}catch(_){}};
+  }
+  function createLink(id,offer){
+    if(links.has(id))return links.get(id);
+    const pc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
+    const link={id,pc,dc:null,ice:[],chain:Promise.resolve()};links.set(id,link);
+    pc.onicecandidate=e=>{if(e.candidate&&links.get(id)===link)raw({type:'host_signal',to:id,signal:{kind:'ice',candidate:e.candidate.toJSON()}});};
+    pc.ondatachannel=e=>{if(links.get(id)===link)attach(link,e.channel);};
+    pc.onconnectionstatechange=report;
+    if(offer){
+      attach(link,pc.createDataChannel('room',{ordered:true}));
+      link.chain=link.chain.then(async()=>{await pc.setLocalDescription(await pc.createOffer());raw({type:'host_signal',to:id,signal:{kind:'offer',sdp:pc.localDescription.toJSON()}});}).catch(()=>clearLink(id));
+    }
+    return link;
+  }
+  function update(lobby){
+    if(room&&room.code!==lobby.code)reset();
+    const oldHost=room?.host;
+    room=lobby;
+    if(oldHost&&oldHost!==room.host&&!mode){for(const id of [...links.keys()])clearLink(id);stopWorker();}
+    const me=room.players.find(p=>p.id===mp.myId);
+    enabled=!!me?.direct;
+    const cb=document.getElementById('host-transport-opt');if(cb){cb.checked=enabled;cb.disabled=!!room.started;}
+    if(!enabled||!window.RTCPeerConnection){report();return;}
+    const eligible=room.players.filter(p=>p.id!==mp.myId&&p.direct&&(isHost()||p.id===room.host));
+    for(const id of [...links.keys()])if(!eligible.some(p=>p.id===id))clearLink(id);
+    if(isHost()&&!room.started){getWorker();for(const p of eligible)if(!links.has(p.id))try{createLink(p.id,true);}catch(_){}}
+    report();
+  }
+  function signal(m){
+    if(!enabled||!room||!room.players.some(p=>p.id===m.from&&p.direct)||(m.from!==room.host&&!isHost()))return;
+    let l;try{l=links.get(m.from)||createLink(m.from,false);}catch(_){return;}
+    const s=m.signal;
+    l.chain=l.chain.then(async()=>{
+      if(s.kind==='ice'){
+        if(l.pc.remoteDescription)await l.pc.addIceCandidate(s.candidate);else l.ice.push(s.candidate);
+      }else if(s.kind==='offer'||s.kind==='answer'){
+        if((s.kind==='offer'&&isHost())||(s.kind==='answer'&&!isHost()))return;
+        await l.pc.setRemoteDescription(s.sdp);
+        for(const c of l.ice.splice(0))await l.pc.addIceCandidate(c);
+        if(s.kind==='offer'){await l.pc.setLocalDescription(await l.pc.createAnswer());raw({type:'host_signal',to:m.from,signal:{kind:'answer',sdp:l.pc.localDescription.toJSON()}});}
+      }
+    }).catch(()=>clearLink(m.from));
+  }
+  function begin(lobby){
+    room=lobby;mode=true;mp.rtt=null;mp.jitter=0;mp.pingSent.clear();report();
+    if(isHost()){
+      if(!workerReady){raw({type:'host_abort'});return;}
+      worker.postMessage({type:'init',room:lobby});
+    }else for(const [from,p] of early.splice(0))deliver(from,p);
+  }
+  function fallback(){mode=false;early.length=0;stopWorker();mp.rtt=null;mp.jitter=0;mp.pingSent.clear();report();}
+  function send(m){
+    if(m.type==='start'&&!mode&&isHost()){
+      const ready=[...links.values()].filter(l=>l.dc?.readyState==='open').map(l=>l.id);
+      return raw({...m,hostReady:enabled&&workerReady,ready});
+    }
+    if(!mode||CONTROL.has(m.type))return raw(m);
+    if(isHost()){if(!worker)return false;worker.postMessage({type:'input',from:mp.myId,data:m});return true;}
+    return route(room.host,{kind:'input',data:m});
+  }
+  return {reset,update,signal,begin,fallback,send,setEnabled,
+    relayInput:m=>deliver(m.from,{kind:'input',data:m.data}),
+    relayOutput:m=>deliver(room?.host,{kind:'output',data:m.data}),
+    left:id=>{clearLink(id);worker?.postMessage({type:'left',id});},
+    get active(){return mode;},get label(){return mode?(isHost()?'HOST':links.get(room?.host)?.dc?.readyState==='open'?'P2P':'RELAY'):'RENDER';}};
+}
+window.createHostTransport=make;
+})();
