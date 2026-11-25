@@ -14,7 +14,7 @@
   <script src="config.js?v=perf19"></script>
   <script src="host-transport.js?v=audio22"></script>
   <script src="movement-physics.js?v=move25"></script>
-  <script src="multiplayer-client.js?v=move23"></script>
+  <script src="multiplayer-client.js?v=spike-mp3"></script>
   <link rel="stylesheet" href="menu.css" />
   <!-- Three.js r128 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -2873,6 +2873,7 @@
       function endRound(winnerTeam, reasonText) {
         if (window.MP.active) return;
         if (matchState.phase === 'round_end') return;
+        spikeRoundResult(reasonText);
         matchState.phase = 'round_end';
         matchState.timer = 4.0;
 
@@ -3786,7 +3787,98 @@
         listener.setOrientation(forward.x,forward.y,forward.z,up.x,up.y,up.z);
       }
       const audioForward=new THREE.Vector3(),audioUp=new THREE.Vector3();
+      const spikeBuffers = new Map();
+      const spikeVoices = new Map();
+      let countdownRound = null;
+      let spikeHalf = false;
+
+      function loadSpikeClip(name) {
+        if (!spikeBuffers.has(name)) {
+          const pending = fetch('audio/spike/' + name + '.mp3')
+            .then(response => {
+              if (!response.ok) throw new Error(name + ': ' + response.status);
+              return response.arrayBuffer();
+            })
+            .then(bytes => sfx.ctx.decodeAudioData(bytes))
+            .catch(error => { spikeBuffers.delete(name); throw error; });
+          spikeBuffers.set(name, pending);
+        }
+        return spikeBuffers.get(name);
+      }
+
+      function stopSpikeClip(slot) {
+        const voice = spikeVoices.get(slot);
+        if (!voice) return;
+        spikeVoices.delete(slot);
+        if (voice.source) voice.source.stop();
+      }
+
+      function playSpikeClip(name, slot, x, y, z, own, offset = 0) {
+        stopSpikeClip(slot);
+        sfx.init();
+        const ctx = sfx.ctx;
+        if (!ctx) return;
+        const voice = { source: null };
+        const requested = performance.now();
+        spikeVoices.set(slot, voice);
+        loadSpikeClip(name).then(buffer => {
+          if (spikeVoices.get(slot) !== voice) return;
+          const start = Math.max(0, offset + (performance.now() - requested) / 1000);
+          if (start >= buffer.duration) { spikeVoices.delete(slot); return; }
+          const source = ctx.createBufferSource();
+          source.buffer = buffer;
+          const gain = ctx.createGain();
+          gain.gain.value = 0.55;
+          const pan = own ? null : ctx.createPanner();
+          if (pan) {
+            pan.panningModel = 'HRTF';
+            pan.distanceModel = 'linear';
+            pan.refDistance = 1;
+            pan.maxDistance = 60;
+            pan.setPosition(x, y, z);
+            source.connect(pan).connect(gain);
+          } else source.connect(gain);
+          gain.connect(sfx.effectsBus || ctx.destination);
+          source.onended = () => {
+            source.disconnect(); pan?.disconnect(); gain.disconnect();
+            if (spikeVoices.get(slot) === voice) spikeVoices.delete(slot);
+          };
+          voice.source = source;
+          source.start(0, start);
+        }).catch(error => {
+          if (spikeVoices.get(slot) === voice) spikeVoices.delete(slot);
+          console.warn('Spike audio unavailable', name, error);
+        });
+      }
+
+      function syncSpikeCountdown() {
+        const active = matchState.inMatch && matchState.phase === 'planted' && matchState.spikePlanted;
+        if (!active) {
+          stopSpikeClip('countdown');
+          countdownRound = null;
+          spikeHalf = false;
+          return;
+        }
+        if (countdownRound === matchState.round) return;
+        countdownRound = matchState.round;
+        const p = matchState.spikePos;
+        playSpikeClip('planted', 'countdown', p.x, p.y, p.z, false, Math.max(0, 45 - matchState.timer));
+      }
+
+      function spikeRoundResult(reason) {
+        stopSpikeClip('countdown');
+        const p = matchState.spikePos;
+        if (/defused|해체/i.test(reason)) playSpikeClip('defused', 'result', p.x, p.y, p.z, false);
+        else if (/detonat|explod|explosion|폭발/i.test(reason)) playSpikeClip('boom', 'result', p.x, p.y, p.z, false);
+      }
       function gameSound(kind,x,z,own=false,y=AscentGround.height(activeMap,x,z)+.8){
+        if (kind === 'half') { spikeHalf = true; return; }
+        if (kind === 'plant' || kind === 'defuse') {
+          const clip = kind === 'plant' ? 'planting' : (spikeHalf || matchState.halfDefuseReached ? 'defuse_start_2' : 'defuse_start_1');
+          if (own) { soundCircleUntil = performance.now() + 550; soundRadius = 60; }
+          playSpikeClip(clip, kind + (own ? '-local' : '-world'), x, y, z, own);
+          return;
+        }
         const land=kind==='land',step=kind==='step'||land,radius=step?40:kind==='shot'?100:60;
         const d=own?0:Math.hypot(x-camera.position.x,y-camera.position.y,z-camera.position.z);
         if(own){soundCircleUntil=performance.now()+550;soundRadius=radius;}
@@ -4358,7 +4450,9 @@
         document.body.classList.toggle('planting-spike',!!plant);
         const action=plant?'plant':matchState.inMatch&&player.alive&&isSpikeKeyHeld&&matchState.phase==='planted'&&roomState.playerSide==='defense'&&player.pos.distanceTo(matchState.spikePos)<4.5?'defuse':'';
         if(!window.MP.active&&action&&action!==lastAction)gameSound(action,player.pos.x,player.pos.z,true);
+        if (!action && lastAction) stopSpikeClip(lastAction + '-local');
         lastAction=action;
+        syncSpikeCountdown();
         if (matchState.inMatch) {
           const holdingAnyFire = isMouseFiring || isKeyboardFiring || isLeftTouchFiring || isRightTouchFiring;
           if ((holdingAnyFire || (player.bulldogCount && player.isScoped && getActiveWeapon().id==='bulldog')) && player.alive && getActiveWeapon().auto) attemptFire();
@@ -4367,14 +4461,6 @@
           window.updateCrosshairErrors?.(ShootingSpread.crosshairError(getActiveWeapon(), player, now), now);
           if(activeMap==='range')updateRange(now);
           else {updateBotsAndTeamCombat(dt);updateSpikeAndMatchRules(dt);}
-        if (matchState.spikePlanted && matchState.phase === 'planted') {
-          const interval = matchState.timer < 10 ? 0.22 : matchState.timer < 20 ? 0.45 : 0.9;
-          matchState.beepAccum += dt;
-          if (matchState.beepAccum >= interval) {
-            matchState.beepAccum = 0;
-            gameSound('beep',matchState.spikePos.x,matchState.spikePos.z);
-          }
-        }
 
           window.MP.tick(dt);orientAudio();
           if (now - lastRadarAt > 75) {drawAscentRadar();lastRadarAt = now;}
@@ -4403,7 +4489,7 @@
         renderer.render(scene, camera);
       }
 
-      window.MP.install({gameSound,afterScopedShot,syncMapObjects,selectMap,resetChat,appendChat,roomState,matchState,player,bots,scene,spikeMesh,barrierGroup,gunGroup,muzzleFlashMesh,viewmodel,gameSpikeSiteAt,sfx,
+      window.MP.install({spikeRoundResult,stopSpikeClip,gameSound,afterScopedShot,syncMapObjects,selectMap,resetChat,appendChat,roomState,matchState,player,bots,scene,spikeMesh,barrierGroup,gunGroup,muzzleFlashMesh,viewmodel,gameSpikeSiteAt,sfx,
         createTacticalBotMesh,setEnemyOutline,spawnBulletTracer,spawnHitBurst,drawLocalShot,
         cloneWeaponInstance,WEAPON_CATALOG,getActiveWeapon,startNewRound,
         updateHUD,flashDamage,showHitmarker,showRoundBanner,addKillFeed,syncCheatPermissionUI,

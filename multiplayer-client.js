@@ -341,7 +341,7 @@
           break;
         }
         case 'spike_planted': a.showRoundBanner('SITE ' + data.spike.site, 'SPIKE PLANTED'); break;
-        case 'round_end': a.showRoundBanner(data.reason, data.team === a.roomState.playerSide ? 'ROUND WON' : 'ROUND LOST'); break;
+        case 'round_end': a.spikeRoundResult(data.reason); a.showRoundBanner(data.reason, data.team === a.roomState.playerSide ? 'ROUND WON' : 'ROUND LOST'); break;
         case 'match_end':
           a.resetChat();
           a.showRoundBanner('MATCH COMPLETE', 'MATCH FINISHED');
@@ -422,6 +422,10 @@
       a.updateHUD();
     },
     applyState(state) {
+      if (this.state?.players?.some(q => q.id !== this.myId && q.spikeAction?.progress > 0) &&
+          !state.players.some(q => q.id !== this.myId && q.spikeAction?.progress > 0)) {
+        this.api?.stopSpikeClip('plant-world');
+      }
       this.state = state;
       if (!this.started || !this.api.matchState.inMatch) return;
       const a = this.api;
