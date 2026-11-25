@@ -48,5 +48,62 @@ const MatchSamples = (() => {
     return true;
   }
 
-  return {preload, play};
+  // Equip and reload sounds: Technolimit/ValorantReal and HsHappy/valorant-mc-mod.
+  const handlingBuffers = new Map();
+  const oggReloads = new Set(['bucky', 'marshal', 'outlaw']);
+  let handlingKey = '';
+  let handlingSource = null;
+  let handlingGeneration = 0;
+
+  function loadHandling(ctx, weapon, action) {
+    if (!weapons.includes(weapon) || (weapon === 'outlaw' && action === 'equip')) return;
+    const key = weapon + '-' + action;
+    if (!handlingBuffers.has(key)) {
+      const extension = action === 'reload' && oggReloads.has(weapon) ? 'ogg' : 'mp3';
+      handlingBuffers.set(key, fetch('audio/handling/' + key + '.' + extension)
+        .then(response => {
+          if (!response.ok) throw new Error(String(response.status));
+          return response.arrayBuffer();
+        })
+        .then(bytes => ctx.decodeAudioData(bytes))
+        .catch(() => { handlingBuffers.delete(key); return null; }));
+    }
+    return handlingBuffers.get(key);
+  }
+
+  function updateHandling(ctx, output, weapon, reloading, duration) {
+    if (weapon && (!ctx || !output)) return;
+    const key = weapon ? weapon + (reloading ? ':reload' : ':ready') : '';
+    if (key === handlingKey) return;
+    const previous = handlingKey;
+    handlingKey = key;
+    const generation = ++handlingGeneration;
+    if (handlingSource) { handlingSource.stop(); handlingSource = null; }
+    if (!weapon || !ctx || !output) return;
+    if (!reloading) loadHandling(ctx, weapon, 'reload');
+    if (!reloading && previous === weapon + ':reload') return;
+    const clip = loadHandling(ctx, weapon, reloading ? 'reload' : 'equip');
+    if (!clip || !(duration > 0)) return;
+    const started = ctx.currentTime;
+    clip.then(buffer => {
+      if (!buffer || generation !== handlingGeneration) return;
+      const rate = buffer.duration / duration;
+      const offset = (ctx.currentTime - started) * rate;
+      if (offset >= buffer.duration) return;
+      const source = ctx.createBufferSource();
+      const gain = ctx.createGain();
+      gain.gain.value = 0.48;
+      source.buffer = buffer;
+      source.playbackRate.value = rate;
+      source.connect(gain).connect(output);
+      source.onended = () => {
+        source.disconnect(); gain.disconnect();
+        if (handlingSource === source) handlingSource = null;
+      };
+      handlingSource = source;
+      source.start(0, offset);
+    });
+  }
+
+  return {preload, play, updateHandling};
 })();

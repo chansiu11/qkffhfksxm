@@ -18,7 +18,7 @@
   <link rel="stylesheet" href="menu.css" />
   <!-- Three.js r128 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <script src="match-samples.js?v=1"></script>
+  <script src="match-samples.js?v=handling2"></script>
   <script src="melee-rules.js?v=equipment2"></script>
   <script src="shotgun-pellets.js"></script>
   <script src="shooting-spread.js?v=spray16"></script>
@@ -3227,7 +3227,6 @@
         const reloadId = (player.reloadId = (player.reloadId || 0) + 1);
         const reloadWeaponId = w.id;
         viewmodel.beginReload();
-        sfx.playUI();
         if (window.MP.active) {
           player.reloadRequestedAt = performance.now();
           player.reloadServerConfirmed = false;
@@ -4455,6 +4454,10 @@
         prevTime = now;
         updateRenderQuality(now, frameMs);
 
+        const heldWeapon = matchState.inMatch && player.alive ? getActiveWeapon() : null;
+        const audibleReload = player.reloading && (!window.MP.active || player.reloadServerConfirmed);
+        MatchSamples.updateHandling(sfx.ctx, sfx.effectsBus, heldWeapon?.id, audibleReload,
+          audibleReload ? 1.1 : heldWeapon?.equipTime);
         const plant=planting();
         document.body.classList.toggle('planting-spike',!!plant);
         const action=plant?'plant':matchState.inMatch&&player.alive&&isSpikeKeyHeld&&matchState.phase==='planted'&&roomState.playerSide==='defense'&&player.pos.distanceTo(matchState.spikePos)<4.5?'defuse':'';
