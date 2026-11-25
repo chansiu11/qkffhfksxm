@@ -210,7 +210,7 @@
       classic.cancel();
       const now=performance.now();
       combo=mode==='heavy'||now-fireAt>850?0:(combo+1)%3;
-      fireMode=mode==='heavy'?'heavy':'light';fireAt=now;
+      fireMode=mode==='alt'?'alt':mode==='heavy'?'heavy':'light';fireAt=now;
     }
     function beginReload(){classic.cancel();if(shown!=='knife'){reloadAt=performance.now();reloading=true;}}
     function stopReload(){reloading=false;}
@@ -246,7 +246,7 @@
       photo.style.opacity=sniper?String(1-adsT):String(1-.96*adsT*adsT);
       layer.classList.toggle('weapon-sniper-full',sniper&&adsT>=.999);
       muzzleScreen={x:p.muzzle.x,y:p.muzzle.y,depth:p.frontDepth};
-      if(classic.update(shown==='classic',now,drawProgress,reloading,(now-reloadAt)/((catalog.classic?.reloadTime||1.1)*1000),firing,bob)){
+      if(classic.update(shown==='classic',now,drawProgress,reloading,(now-reloadAt)/((catalog.classic?.reloadTime||1.1)*1000),now-fireAt,bob,fireMode==='alt')){
         photo.style.opacity='0'; muzzleScreen=classic.muzzle(w,h);
       }
       if(flashNode){
