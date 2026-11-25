@@ -1,6 +1,6 @@
 // Single-shot weapon and movement samples from github.com/unkwsr/open-aim.
 const MatchSamples = (() => {
-  const weapons = 'bucky bulldog classic frenzy ghost judge marshal operator phantom sheriff shorty spectre stinger vandal guardian outlaw'.split(' ');
+  const weapons = 'bucky bulldog classic frenzy ghost judge marshal operator phantom sheriff shorty spectre stinger vandal guardian outlaw ares odin'.split(' ');
   const footsteps = Array.from({length: 7}, (_, i) => 'step-0' + (i + 1));
   const buffers = new Map();
   let loading = false;

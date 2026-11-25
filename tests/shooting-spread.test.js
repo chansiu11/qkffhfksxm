@@ -6,9 +6,9 @@ const Pellets=require('../shotgun-pellets.js');
 const catalog=require('../server/weapons.json');
 const base=(weapon,extra={})=>({yaw:0,pitch:0,speed:0,airborne:false,crouched:false,ads:false,shotIndex:0,seed:123457,scatter:.4,...extra});
 
-test('all 16 game firearms use individual movement and spray profiles; knife is not fired',()=>{
+test('all 20 game firearms use individual movement and spray profiles; knife is not fired',()=>{
   const ids=Object.keys(catalog).filter(id=>id!=='knife');
-  assert.equal(ids.length,16);
+  assert.equal(ids.length,20);
   for(const id of ids){
     const w=catalog[id];
     const p=Spread.weaponProfile(w);
@@ -83,6 +83,7 @@ test('integration wiring and static hosting include the shared shot spread sourc
   assert(online.includes('a.drawLocalShot(w,pelletRotation,spreadResult)'));
   assert(online.includes('burst,seed,speed:'));
   assert(server.includes('const ShootingSpread = require'));
-  assert(server.includes('ShootingSpread.directions(w'));
+  const room = fs.readFileSync(path.join(root,'server/room-core.js'),'utf8');
+  assert(room.includes('ShootingSpread.directions(w'));
   assert(workflow.includes('shooting-spread.js'));
 });

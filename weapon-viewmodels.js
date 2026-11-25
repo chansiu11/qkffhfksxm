@@ -6,6 +6,8 @@
 (function () {
   'use strict';
   const styles = Object.freeze({
+    bandit:{kind:'pistol',mark:'BANDIT'},warden:{kind:'rifle',mark:'WARDEN'},
+    ares:{kind:'rifle',mark:'ARES'},odin:{kind:'rifle',mark:'ODIN'},
     knife:{kind:'blade',mark:'EDGE'},classic:{kind:'pistol',mark:'CLASSIC'},
     shorty:{kind:'short',mark:'SHORTY'},frenzy:{kind:'machine',mark:'FRENZY'},
     ghost:{kind:'pistol',mark:'GHOST'},sheriff:{kind:'revolver',mark:'SHERIFF'},
@@ -19,6 +21,10 @@
   // Stylized screen-space animation only: x, y, roll (degrees).
   // Each photo moves as one rigid visual element; no mechanical part animation.
   const equipMotion=Object.freeze({
+    bandit: [[60,214,15],[18,39,-5],[-3,-7,1]],
+    warden: [[112,254,-16],[22,55,6],[-6,-9,-2]],
+    ares: [[164,280,14],[36,59,-3],[-7,-10,2]],
+    odin: [[180,315,-17],[45,74,5],[-9,-12,-3]],
     knife:    [[145,230,-32],[36,46,12],[-12,-10,-5]],
     classic:  [[35,220,11],[8,35,-4],[-4,-6,1]],
     shorty:   [[100,235,19],[20,47,6],[-5,-8,-2]],
@@ -48,13 +54,13 @@
     return {x:values[0]*scale,y:values[1]*scale,roll:values[2]*Math.PI/180};
   }
   const referenceImages=Object.freeze({
-    bandit:'bandit',classic:'classic',shorty:'shorty',frenzy:'frenzy',ghost:'ghost',
+    warden:'guardian',bandit:'bandit',classic:'classic',shorty:'shorty',frenzy:'frenzy',ghost:'ghost',
     sheriff:'sheriff',stinger:'stinger',spectre:'spectre',bucky:'bucky',judge:'judge',
     bulldog:'bulldog',guardian:'guardian',phantom:'phantom',vandal:'vandal',
     marshal:'marshal',outlaw:'outlaw',operator:'operator',ares:'ares',odin:'odin',knife:'knife'
   });
   const sourceSize=Object.freeze({
-    bandit:[294,182],classic:[308,234],shorty:[668,231],sheriff:[444,246],
+    warden:[671,159],bandit:[294,182],classic:[308,234],shorty:[668,231],sheriff:[444,246],
     ghost:[664,228],frenzy:[285,233],stinger:[647,255],spectre:[626,245],
     bucky:[653,138],judge:[623,214],bulldog:[663,222],guardian:[671,159],
     phantom:[669,181],vandal:[663,232],marshal:[672,129],operator:[661,143],
@@ -63,7 +69,7 @@
   // From the edge-alpha pixels of the user's cutout images, NOT an arbitrary
   // center of the whole screenshot. Values are fractions of the source height.
   const muzzleEdgeY=Object.freeze({
-    bandit:.138,classic:.171,shorty:.180,sheriff:.214,ghost:.151,frenzy:.151,
+    warden:.188,bandit:.138,classic:.171,shorty:.180,sheriff:.214,ghost:.151,frenzy:.151,
     stinger:.156,spectre:.150,bucky:.262,judge:.270,bulldog:.307,
     guardian:.188,phantom:.273,vandal:.226,marshal:.311,operator:.272,
     ares:.265,odin:.342,knife:.459,outlaw:.340
@@ -173,7 +179,7 @@
     // Keep a compatibility SVG public method for existing tooling; the real HUD
     // uses an <img> warped with the paper's four projected corners.
     const name=Object.hasOwn(referenceImages,id)?id:'classic';
-    const [w,h]=sourceSize[name];return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}"><title>${styles[name]?.mark||name}</title><image class="weapon-texture" data-weapon-id="${name}" href="assets/weapons/${name}.webp" width="${w}" height="${h}"/></svg>`;
+    const [w,h]=sourceSize[name];return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}"><title>${styles[name]?.mark||name}</title><image class="weapon-texture" data-weapon-id="${name}" href="assets/weapons/${referenceImages[name]}.webp" width="${w}" height="${h}"/></svg>`;
   }
   function referencePlacement(id){const [w,h]=sourceSize[id]||sourceSize.classic;return {x:0,y:0,width:w,height:h};}
   function create(THREE,catalog={}){
@@ -191,7 +197,7 @@
       equipMs=Math.max(1,(equipTime??catalog[id]?.equipTime??(id==='knife'?.6:1))*1000);fireAt=-100000;combo=0;
       shown=id;switchAt=performance.now();reloading=false;
       const [w,h]=sourceSize[id];
-      layer.innerHTML=`<img class="fps-paper-weapon" src="assets/weapons/${id}.webp" width="${w}" height="${h}" alt="" draggable="false" aria-hidden="true">`+
+      layer.innerHTML=`<img class="fps-paper-weapon" src="assets/weapons/${referenceImages[id]}.webp" width="${w}" height="${h}" alt="" draggable="false" aria-hidden="true">`+
         `<span class="weapon-shot-flash" aria-hidden="true"></span>`;
       photo=layer.querySelector('.fps-paper-weapon');
       flashNode=layer.querySelector('.weapon-shot-flash');

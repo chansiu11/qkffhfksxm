@@ -21,11 +21,13 @@ jobs:
         uses: actions/checkout@v4
       - name: Prepare public files
         run: |
-          mkdir -p public
+          mkdir -p public/server
           cp index.html menu.css match-plans.js config.js multiplayer-client.js weapon-viewmodels.js ads-system.js \
-            shotgun-pellets.js shooting-spread.js melee-rules.js crosshair-profile.js crosshair-ui.js public/
+            host-runtime.js host-transport.js movement-physics.js match-samples.js shotgun-pellets.js shooting-spread.js melee-rules.js crosshair-profile.js crosshair-ui.js public/
           mkdir -p public/assets
           cp -r assets/weapons public/assets/weapons
+          cp server/room-core.js server/hit-registry.js server/weapons.json public/server/
+          cp -r audio public/audio
           touch public/.nojekyll
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5

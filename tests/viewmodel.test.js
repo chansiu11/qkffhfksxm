@@ -20,14 +20,14 @@ const T={Group,Vector3};
 const alive={alive:true,vel:{x:0,z:0},isScoped:false};
 const running={inMatch:true};
 
-test('all 17 equipped guns/knife use their own photo without any 3D meshes, hands or arms',()=>{
+test('all 21 equipped items use their mapped photo without any 3D meshes, hands or arms',()=>{
   const view=api.create(T);
   assert.equal(view.group.children.length,0);
-  assert.equal(Object.keys(api.styles).length,17);
+  assert.equal(Object.keys(api.styles).length,21);
   for(const id of Object.keys(api.styles)){
     view.setWeapon(id);
     assert.equal(view.current,id);
-    assert.match(layer.content,new RegExp(`assets/weapons/${id}\\.webp`));
+    assert.match(layer.content,new RegExp(`assets/weapons/${api.referenceImages[id]}\\.webp`));
     assert(layer.content.includes('<img class="fps-paper-weapon"'));
     assert(!/glove|paper-hand|sleeve|<svg|<path|holdingHands/i.test(layer.content));
     clock+=350;view.update(.016,alive,running);

@@ -184,7 +184,7 @@ function fire(r, p, msg) {
   const now = Date.now();
   const meleeMode = MeleeRules.modeFor(msg.mode);
   if(now-p.lastShot>500)p.bulldogCount=0;
-  const cooldown = w.id === 'knife' ? MeleeRules.MODES[meleeMode].cooldown : (msg.ads && w.id==='bulldog' ? (((p.bulldogCount||0)%3===2)?.325:.075) : ((msg.ads?w.scopedInterval:0)||w.fireRate));
+  const cooldown = w.id === 'knife' ? MeleeRules.MODES[meleeMode].cooldown : (msg.ads && w.id==='bulldog' ? (((p.bulldogCount||0)%3===2)?.325:.075) : ShootingSpread.fireInterval(w,msg.ads,p.spreadState,now));
   if (now < p.equipUntil || now - p.lastShot < ((p.lastInterval??cooldown) * 1000 - 8)) return;
   if (w.id !== 'knife' && p.mag <= 0) {send(p.client,{type:'ammo_sync',weapon:p.weapon,mag:p.mag,reserve:p.reserve});return;}
   p.lastShot = now;
@@ -461,7 +461,7 @@ function receive(c,m) {
     }
     p.reloading=true;
     p.reloadWeapon=weaponId;
-    const duration=1100;
+    const duration=Math.round((w.reloadTime || 1.1) * 1000);
     p.reloadEndsAt=now+duration;
     const sequence=p.reloadSeq=(p.reloadSeq || 0)+1;
     send(c,{type:'reload_started',weapon:weaponId,requestId,remainingMs:duration});

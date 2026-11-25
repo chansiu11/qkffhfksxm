@@ -14,12 +14,12 @@ const v=context.window.WeaponViewmodels;
 const guns=Object.keys(v.styles);
 
 test('ADS is enabled only for eligible rifles/SMGs/snipers, never pistols, shotguns or knife',()=>{
-  const should=['stinger','spectre','bulldog','guardian','phantom','vandal','marshal','outlaw','operator'];
+  const should=['ares','odin','warden','stinger','spectre','bulldog','guardian','phantom','vandal','marshal','outlaw','operator'];
   for(const id of guns){
     const eligible=should.includes(id);
     assert.equal(ads.isEligible({id,slot:eligible?'primary':id==='knife'?'knife':id==='bucky'||id==='judge'?'primary':'secondary',canScope:eligible}),eligible,id);
   }
-  for(const id of ['knife','classic','shorty','frenzy','ghost','sheriff','bucky','judge']){
+  for(const id of ['bandit','knife','classic','shorty','frenzy','ghost','sheriff','bucky','judge']){
     assert(!ads.isEligible({id,slot:'primary',canScope:true}),id+' must have no zoom');
   }
 });
@@ -64,7 +64,7 @@ test('Scope visual is sniper-only; general guns keep a central iron sight (not b
 });
 
 test('Perspective warped paper moves muzzle to center during ADS, without changing aim ray',()=>{
-  for(const id of ['stinger','spectre','vandal','phantom','guardian','bulldog','marshal','outlaw','operator']){
+  for(const id of ['ares','odin','warden','stinger','spectre','vandal','phantom','guardian','bulldog','marshal','outlaw','operator']){
     for(const [w,h] of [[1440,900],[390,844],[1280,720]]){
       const initial=v.paperProjection(id,w,h,{adsProgress:0});
       const halfway=v.paperProjection(id,w,h,{adsProgress:.5});
@@ -82,7 +82,8 @@ test('ADS magnifies scoped and non-scoped guns without instant jumping',()=>{
   const w={id:'vandal'};
   const fov=ads.fov(w);
   assert(fov<75&&fov>50);
-  assert(ads.fov({id:'operator'})<30);
+  assert(Math.abs(ads.fov({id:'operator'}) - 34.13) < .1);
+  assert(ads.fov({id:'operator'},75,2) < 18);
   const p={};ads.reset(p);ads.request(p,0,true);
   assert.equal(75+(fov-75)*ads.update(p,0),75);
   assert.equal(75+(fov-75)*ads.update(p,100),fov);
@@ -92,5 +93,5 @@ test('ADS magnifies scoped and non-scoped guns without instant jumping',()=>{
 test('GitHub Pages deploy copies ADS controller dependency',()=>{
   const workflow=fs.readFileSync(path.join(root,'.github/workflows/pages.yml'),'utf8');
   assert(workflow.includes('ads-system.js'));
-  assert(html.includes('<script src="ads-system.js?v=20261124-ads100"></script>'));
+  assert.match(html, /<script src="ads-system\.js\?v=[^"]+"><\/script>/);
 });

@@ -1,7 +1,7 @@
 /* Dedicated browser worker: uses the same room engine as Render. */
 'use strict';
 self.window=self;
-importScripts('match-plans.js?v=audio22','config.js?v=audio22','shotgun-pellets.js','shooting-spread.js','melee-rules.js','server/room-core.js?v=audio22');
+importScripts('match-plans.js?v=audio22','config.js?v=audio22','shotgun-pellets.js','shooting-spread.js?v=armory20','melee-rules.js','server/room-core.js?v=armory20');
 self.module={exports:{}};
 importScripts('server/hit-registry.js');
 const registry=self.module.exports;
@@ -11,7 +11,7 @@ let core=null,room=null,timer=null;
 const forbidden=new Set(['create','join','resume','leave','start','host_opt','host_signal','host_input','host_output','host_abort','host_finish']);
 function send(peer,data){if(!peer||peer.closed)return false;postMessage({type:'output',to:peer.id,data});return true;}
 function remove(peer){if(!peer||peer.closed)return;peer.closed=true;peers.delete(peer.id);room?.players.delete(peer.id);if(room)core.broadcastLobby(room);}
-fetch('server/weapons.json').then(r=>{if(!r.ok)throw Error('catalog unavailable');return r.json();}).then(catalog=>{
+fetch('server/weapons.json?v=armory20').then(r=>{if(!r.ok)throw Error('catalog unavailable');return r.json();}).then(catalog=>{
   core=createRoomCore({rooms,send,close:remove,crypto:self.crypto,catalog,ground:AscentGround,
     ShotgunPellets,ShootingSpread,MeleeRules,...registry,
     sendSnapshot(r,state){for(const p of r.players.values())send(p.client,state);}

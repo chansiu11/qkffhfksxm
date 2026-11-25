@@ -563,7 +563,7 @@
       const w=a.getActiveWeapon();
       const now=performance.now()/1000;
       if(now-p.lastShotTime>.5)p.bulldogCount=0;
-      const rate = w.slot === 'knife' ? MeleeRules.MODES[MeleeRules.modeFor(knifeMode)].cooldown : (p.isScoped && w.id==='bulldog' ? (((p.bulldogCount||0)%3===2)?.325:.075) : ((p.isScoped?w.scopedInterval:0)||w.fireRate));
+      const rate = w.slot === 'knife' ? MeleeRules.MODES[MeleeRules.modeFor(knifeMode)].cooldown : (p.isScoped && w.id==='bulldog' ? (((p.bulldogCount||0)%3===2)?.325:.075) : ShootingSpread.fireInterval(w,p.isScoped,w._spreadState,now*1000));
       if(now<p.equipUntil || now-p.lastShotTime < (p.lastInterval??rate)) return;
       if(w.slot !== 'knife' && w.mag<=0){window.triggerReload?.();return;}
       const pelletRotation=Math.random()*Math.PI*2;

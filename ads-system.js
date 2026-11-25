@@ -7,12 +7,14 @@
   'use strict';
   const DURATION_MS=100;
   const ZOOM=Object.freeze({
-    stinger:1.15,spectre:1.15,bulldog:1.25,guardian:1.5,
+    warden:2,ares:1.15,odin:1.15,stinger:1.15,spectre:1.15,bulldog:1.25,guardian:1.5,
     phantom:1.25,vandal:1.25,marshal:3.5,outlaw:3.5,operator:2.5
   });
   const SNIPERS=new Set(['marshal','outlaw','operator']);
   // Individual, purely cosmetic ADS sight themes for the game's non-scoped guns.
   const SIGHTS=Object.freeze({
+    warden:{accent:'#b8d1ec',shape:'precision'},
+    ares:{accent:'#c8ceb0',shape:'standard'},odin:{accent:'#d2c3a5',shape:'standard'},
     stinger:{accent:'#b795fc',shape:'compact'},
     spectre:{accent:'#80d8ee',shape:'compact'},
     bulldog:{accent:'#7ce2b2',shape:'bullpup'},

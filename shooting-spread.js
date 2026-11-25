@@ -9,6 +9,8 @@
 })(typeof globalThis!=='undefined'?globalThis:this,function(){
   'use strict';
   const profiles=Object.freeze({
+    bandit:[.85,.8,.7,.75,440], warden:[1.08,.86,.95,.91,450],
+    ares:[1.2,1.05,.95,.98,460], odin:[1.28,1.08,1.04,1.02,480],
     classic:  [0.76,0.73,0.65,0.70,405],
     shorty:   [1.00,0.82,0.52,0.82,680],
     frenzy:   [0.84,1.14,1.00,1.08,360],
@@ -30,6 +32,10 @@
   // Anchors are tuned approximations; published first-shot cones are separate.
   const pitchAt = [0,1,2,4,7,11,19];
   const handling = {
+    bandit:{hip:.275,pitch:[0,.12,.45,1.1,2,2,2]},
+    warden:{hip:.23,ads:.04,pitch:[0,.16,.52,1.5,3.1,3.6,3.6]},
+    ares:{hip:1,ads:.9,pitch:[0,.1,.45,1.4,2.7,3.4,3.5]},
+    odin:{hip:.8,ads:.79,pitch:[0,.1,.42,1.5,3,3.7,3.8]},
     classic:  {hip:.4,  pitch:[0,.06,.24,.78,1.65,2.05,2.05]},
     shorty:   {hip:4,   pitch:[0,.55,.55,.55,.55,.55,.55]},
     frenzy:   {hip:.65, pitch:[0,.18,.85,3.5,3.5,3.5,3.5], bloom:4},
@@ -129,7 +135,7 @@
     return clamp((moving*7)+(m.airborne?3:0)+(Math.min(10,recent)*.45),0,10);
   }
   const runMultipliers=Object.freeze({
-    knife:1, classic:.85, frenzy:.85, ghost:.85, shorty:.8, sheriff:.8,
+    bandit:.8,warden:.8,ares:.76,odin:.76,knife:1, classic:.85, frenzy:.85, ghost:.85, shorty:.8, sheriff:.8,
     stinger:.85, spectre:.85, bucky:.75, judge:.75, bulldog:.8, guardian:.8,
     phantom:.8, vandal:.8, marshal:.8, outlaw:.8, operator:.76
   });
@@ -142,6 +148,10 @@
   }
   // Range start in map meters, then head, body and leg damage per projectile.
   const damageRanges={
+    bandit:[[0,152,39,33],[10,128,39,33],[30,112,34,28]],
+    warden:[[0,200,50,42]],
+    ares:[[0,75,30,25],[30,70,28,23]],
+    odin:[[0,95,38,32],[30,77,31,26]],
     vandal: [[0, 160, 40, 34]],
     bulldog: [[0, 115.5, 35, 29.75]],
     phantom: [[0, 156, 39, 33.15], [20, 140, 35, 29.75]],
@@ -159,6 +169,10 @@
     spectre: [[0, 78, 26, 22.1], [15, 66, 22, 18.7], [30, 60, 20, 17]],
     stinger: [[0, 67.5, 27, 22.95], [15, 57, 23, 19]]
   };
+  function fireInterval(w, ads, state, nowMs){
+    if(w.id==='odin' && !ads) return 1 / (12 + Math.min(burstIndex(state || {}, w, nowMs), 6) * .6);
+    return (ads && w.scopedInterval) || w.fireRate;
+  }
   function applyGunDamage(target,id,distance,zone){
     const ranges=damageRanges[id];
     const band=ranges.findLast(row=>distance>=row[0]);
@@ -169,5 +183,5 @@
     target.hp=Math.max(0,Math.round((target.hp-raw+absorbed)*10000)/10000);
     return previous-target.hp;
   }
-  return {applyGunDamage,movementSpeed,tagMultiplier,profiles,weaponProfile,burstIndex,confirmShot,motion,sample,directions,crosshairError};
+  return {fireInterval,applyGunDamage,movementSpeed,tagMultiplier,profiles,weaponProfile,burstIndex,confirmShot,motion,sample,directions,crosshairError};
 });
