@@ -225,6 +225,7 @@ function fire(r, p, msg) {
   // positions, never walls, by a strictly bounded amount of server time.
   const shotAt=finite(msg.seenAt,now-MAX_REWIND_MS,now,now);
   if (w.id === 'knife') {
+    emitRoom(r, {type:'knife_swing', shooter:p.id, mode:meleeMode, x:ox, y:oy, z:oz});
     const candidates = [...r.players.values()].filter(target => target.alive && target.team !== p.team)
       .map(target => Object.assign({player: target, alive: true}, samplePosition(target, shotAt)));
     const meleeHit = MeleeRules.selectTarget({x: ox,y: oy,z: oz}, yaw,pitch,meleeMode,candidates,

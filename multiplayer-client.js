@@ -305,6 +305,12 @@
           a.updateHUD();
           break;
         }
+        case 'knife_swing':
+          if (data.shooter !== this.myId && this.started && a.matchState.inMatch) {
+            const sample = data.mode === 'heavy' ? 'knife-heavy' : 'knife-light';
+            a.gameSound('shot', data.x, data.z, false, data.y, sample);
+          }
+          break;
         case 'shot': {
           if (data.shooter === this.myId || !this.started || !this.api.matchState.inMatch) break;
           const xyz = v => Array.isArray(v) && v.length === 3 && v.every(Number.isFinite);
