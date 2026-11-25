@@ -185,20 +185,21 @@ if (typeof window !== "undefined") window.GAME_SERVER_URL = 'https://qkffhfksxm-
         box('step',x-w/2+(i+.5)*w/22,stairZ,w/22+.012,stairD,entry-.35,entry+rise*f);
       }
       box('step',x,rampZ,rampD,w,(entry+top)/2-.24,(entry+top)/2,Math.PI/2,rise/w);
-      box('deck',46.18,-53,4.76,3.25,top-.38,top);
+      box('deck',46.16,-53,4.84,3.25,top-.38,top);
       box('deck',46.8,-48.64,3.65,8.74,top-.38,top);
       // The entrance arch follows the relocated stair, clear of the tread.
       const archX=x-w/2-.5,base=height(id,archX,z),half=d/2;
       for(const side of [-1,1])
-        box('limestone',archX,z+side*(half+.21),.72,.42,base-.3,base+3.1);
+        box('limestone',archX,z+side*(half+.18),.72,.48,base-.3,base+3.25);
       for(let i=0;i<18;i++){
         const u=(i+.5)*d/18-half,b=base+2.85+.9*Math.sqrt(1-(u/half)**2);
-        box('limestone',archX,z+u,.72,d/18+.014,b,b+.3);
+        // Overlap the curved stone slices vertically so the arch has no open seams.
+        box('limestone',archX,z+u,.72,d/18+.024,b,b+.36);
       }
       // Cloth-covered scaffold sections at the ends, with an open central span.
       // Keep the underside open and the floor continuous.
       for(const [px,span,h] of [[51.45,2.7,2.45],[68.1,3.15,2.55]]){
-        box('tarp',px,-40.48,span,.14,top+.06,top+h);
+        box('tarp',px,-40.48,span,.14,top-.015,top+h);
         for(const side of [-1,1])box('beam',px+side*span/2,-40.48,.15,.24,top-.32,top+h+.2);
         box('beam',px,-40.48,span+.14,.22,top+h-.08,top+h+.08);
       }
@@ -217,12 +218,14 @@ if (typeof window !== "undefined") window.GAME_SERVER_URL = 'https://qkffhfksxm-
       // Join the window facade to the existing masonry return under the roof.
       box('gardenWall',43.88,-40.12,.64,4.42,-5,wallTop);
       box('limestone',43.88,-40.12,.76,4.42,-5,gy+.54);
-      box('gardenWall',wx,wz,2.8,.58,head,wallTop);
+      box('gardenWall',wx,wz,2.86,.58,head,wallTop);
+      // Tie the raised sill to the facade, below the actual window opening.
+      box('gardenWall',wx,wz,2.86,.58,-5,sill);
       box('gardenPlinth',39.95,-41.88,4.45,1.48,gy-.2,sill-.12);
       box('gardenPlinth',39.95,-41.88,4.64,1.62,sill-.12,sill);
       // Decorative limestone bands and recessed timber opening.
       for(const px of [38.08,41.12])box('beam',px,wz,.25,.74,sill,head+.18);
-      box('beam',wx,wz,3.18,.74,head,head+.2);
+      box('beam',wx,wz,3.18,.74,head-.02,head+.21);
       box('limestone',wx,wz,3.2,.82,head+.2,head+.4);
       for(const px of [38.55,39.95,41.35]){
         box('limestone',px,-41.11,1.02,.13,gy+.18,sill-.23);
