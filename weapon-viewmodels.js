@@ -348,7 +348,7 @@
     const light=new T.DirectionalLight(0xffffff,1.4);
     light.position.set(-1,2,1); scene.add(light);
     let selected, model, visible=false, equipped=0, inspected=-Infinity, fired=-Infinity;
-    let duration=750;
+    let duration=750, reloadStarted=0;
     function select(id) {
       if(selected===id)return;
       selected=id; equipped=performance.now(); inspected=fired=-Infinity;
@@ -361,21 +361,32 @@
     api.setWeapon=(id,time)=>{set(id,time);duration=(time??catalog[id]?.equipTime??.75)*1000;select(api.current);};
     api.inspect=()=>{inspect();if(model&&!api.isReloading && performance.now()-equipped>=duration)inspected=performance.now();};
     api.fire=(mode)=>{inspected=-Infinity;fired=performance.now();fire(mode);};
-    api.beginReload=()=>{inspected=-Infinity;reload();};
+    api.beginReload=()=>{inspected=-Infinity;reloadStarted=performance.now();reload();};
     api.update=(dt,player,state)=>{
       update(dt,player,state);
       visible=!!(model&&player?.alive&&state?.inMatch);
       if(!visible)return;
       const now=performance.now(), age=(now-inspected)/1000;
       const smooth=x=>{x=Math.max(0,Math.min(1,x));return x*x*(3-2*x);};
-      const lift=smooth(age/.32)*(1-smooth((age-1.65)/.4));
-      const turn=smooth((age-.35)/.5)*(1-smooth((age-1.35)/.45));
-      const draw=1-smooth((now-equipped)/duration);
+      const lift=smooth(age/.34)*(1-smooth((age-2.54)/.38));
+      const turn=smooth((age-1.12)/.42)*(1-smooth((age-2.48)/.40));
+      const equip=Math.min(1,(now-equipped)/duration);
+      const draw=1-smooth(equip);
+      const liftBarrel=Math.sin(Math.PI*equip)*(1-equip);
+      const reloadT=api.isReloading?(now-reloadStarted)/(1000*(catalog[selected]?.reloadTime||1.1)):1;
+      const dip=smooth(reloadT/.28)*(1-smooth((reloadT-.39)/.28));
+      const seat=smooth((reloadT-.34)/.29)*(1-smooth((reloadT-.73)/.27));
       const shot=(now-fired)/1000, kick=shot<.25?Math.sin(Math.PI*Math.min(1,shot/.055)/2)*Math.exp(-shot*18):0;
       const move=Math.min(1,Math.hypot(player.vel?.x||0,player.vel?.z||0)/7.6);
       camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();
-      pivot.position.set(.19*Math.min(camera.aspect,1.8)/1.78-.14*lift,-.16+.09*lift-.32*draw+(api.isReloading?-.12:0)+.003*move*Math.sin(now*.01),-.52+.045*kick);
-      pivot.rotation.set(.08+.25*kick+.34*lift-.55*draw,.27+.96*lift-.55*turn,-.04-.38*lift+.27*draw);
+      // Reference at 23.5–24.5 s: Classic grip sits below and right of the crosshair.
+      const scale=({classic:.54,shorty:.82,ghost:.74,sheriff:.64,bandit:.59,frenzy:.65})[selected];
+      pivot.scale.setScalar(scale);
+      pivot.position.set(.146*Math.min(camera.aspect,2.1)/1.78-.013*lift-.087*turn,
+        -.143+.048*lift-.08*turn-.26*draw-.25*dip+.015*seat+.003*move*Math.sin(now*.01),
+        -.54+.05*lift+.045*kick);
+      pivot.rotation.set(.12+.30*kick+.20*lift+.73*liftBarrel+.48*seat,
+        .30+.95*lift-.45*turn+.16*dip,-.06-.24*lift-1.04*turn+.31*draw-.54*dip-.22*seat);
       const photo=document.querySelector('#fps-weapon-sprite-layer .fps-paper-weapon');
       if(photo)photo.style.opacity='0';
     };
