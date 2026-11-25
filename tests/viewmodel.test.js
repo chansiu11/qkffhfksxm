@@ -117,3 +117,23 @@ test('rifle projection preserves proportions on wide, tablet and portrait displa
   });
   for(const v of spans)for(let axis=0;axis<2;axis++)assert(Math.abs(v[axis]-spans[0][axis])<1e-6);
 });
+
+test('all equip motions are distinct, bounded, and return to the exact base projection',()=>{
+  const ids=Object.keys(api.styles),unique=new Set();
+  for(const id of ids){
+    const start=api.equipPose(id,0);
+    unique.add([start.x,start.y,start.roll].join(','));
+    for(const [w,h] of [[1440,900],[390,844],[1920,1080]]){
+      const base=api.paperProjection(id,w,h);
+      for(let i=0;i<=100;i++){
+        const pose=api.equipPose(id,i/100,Math.min(w,h*16/9)/1440);
+        const p=api.paperProjection(id,w,h,{equipPose:pose});
+        assert(p.corners.every(q=>Number.isFinite(q.x)&&Number.isFinite(q.y)));
+        assert(!/NaN|Infinity/.test(p.matrix));
+        assert(Math.hypot(p.muzzle.x-p.front.x,p.muzzle.y-p.front.y)<.001);
+        if(i===100)assert.equal(p.matrix,base.matrix);
+      }
+    }
+  }
+  assert.equal(unique.size,ids.length);
+});

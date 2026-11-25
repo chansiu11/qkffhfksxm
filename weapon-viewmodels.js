@@ -16,6 +16,37 @@
     marshal:{kind:'sniper',mark:'MARSHAL'},outlaw:{kind:'sniper',mark:'OUTLAW'},
     operator:{kind:'sniper',mark:'OPERATOR'}
   });
+  // Stylized screen-space animation only: x, y, roll (degrees).
+  // Each photo moves as one rigid visual element; no mechanical part animation.
+  const equipMotion=Object.freeze({
+    knife:    [[145,230,-32],[36,46,12],[-12,-10,-5]],
+    classic:  [[35,220,11],[8,35,-4],[-4,-6,1]],
+    shorty:   [[100,235,19],[20,47,6],[-5,-8,-2]],
+    frenzy:   [[75,205,-19],[15,31,8],[-5,-6,-2]],
+    ghost:    [[-45,225,-12],[-10,40,3],[5,-8,0]],
+    sheriff:  [[115,240,30],[25,45,-10],[-7,-8,3]],
+    stinger:  [[120,225,15],[23,37,-5],[-6,-7,1]],
+    spectre:  [[85,240,-10],[15,40,4],[-4,-7,-1]],
+    bucky:    [[160,250,25],[42,56,9],[-7,-10,-2]],
+    judge:    [[100,270,12],[26,62,-3],[-6,-7,1]],
+    bulldog:  [[125,250,18],[32,44,-6],[-6,-8,2]],
+    guardian: [[55,265,-17],[12,60,4],[-3,-9,-1]],
+    phantom:  [[90,250,9],[20,39,-3],[-5,-6,1]],
+    vandal:   [[140,250,-14],[30,50,5],[-8,-9,-2]],
+    marshal:  [[-60,265,-24],[-15,55,-8],[7,-8,2]],
+    outlaw:   [[150,285,21],[38,62,6],[-6,-10,-2]],
+    operator: [[180,310,16],[48,75,-4],[-7,-12,1]]
+  });
+  function equipPose(id,progress,scale=1){
+    const frames=equipMotion[id]||equipMotion.classic;
+    const t=Math.max(0,Math.min(1,progress));
+    const times=[0,.48,.82,1],points=[...frames,[0,0,0]];
+    let i=0;while(i<2&&t>times[i+1])i++;
+    let u=(t-times[i])/(times[i+1]-times[i]);
+    u=u*u*(3-2*u);
+    const values=points[i].map((a,j)=>a+(points[i+1][j]-a)*u);
+    return {x:values[0]*scale,y:values[1]*scale,roll:values[2]*Math.PI/180};
+  }
   const referenceImages=Object.freeze({
     bandit:'bandit',classic:'classic',shorty:'shorty',frenzy:'frenzy',ghost:'ghost',
     sheriff:'sheriff',stinger:'stinger',spectre:'spectre',bucky:'bucky',judge:'judge',
@@ -119,14 +150,24 @@
     const actual=(u,v)=>point(u,v-alpha+.5);
     const corners=[actual(0,0),actual(1,0),actual(1,1),actual(0,1)].map(p=>project(p,w,h,fl));
     const [iw,ih]=sourceSize[id]||sourceSize.classic;
-    const muzzle=project(actual(0,alpha),w,h,fl);
+    let muzzle=project(actual(0,alpha),w,h,fl);
     if(id==='knife'){
       const dx=rear.x-front.x,dy=rear.y-front.y;
       const corner=(u,v)=>({x:front.x+dx*u-dy*(v-alpha)*ih/iw,y:front.y+dy*u+dx*(v-alpha)*ih/iw});
       corners.splice(0,4,corner(0,0),corner(1,0),corner(1,1),corner(0,1));
     }
+    // Rotate and translate the entire projected image, including its visual anchor.
+    const pose=options.equipPose;
+    let renderedFront=front,renderedRear=rear;
+    if(pose&&(pose.x||pose.y||pose.roll)){
+      const c=Math.cos(pose.roll),s=Math.sin(pose.roll);
+      const transform=p=>{const x=p.x-rear.x,y=p.y-rear.y;return {
+        x:rear.x+x*c-y*s+pose.x,y:rear.y+x*s+y*c+pose.y};};
+      for(let i=0;i<corners.length;i++)corners[i]=transform(corners[i]);
+      muzzle=transform(muzzle);renderedFront=transform(front);renderedRear=transform(rear);
+    }
     return {matrix:quadToMatrix(corners,iw,ih),corners,muzzle,
-      frontDepth:endpoints.frontDepth,rearDepth:REAR_DEPTH,source:{width:iw,height:ih},front,rear};
+      frontDepth:endpoints.frontDepth,rearDepth:REAR_DEPTH,source:{width:iw,height:ih},front:renderedFront,rear:renderedRear};
   }
   function makeSvg(id){
     // Keep a compatibility SVG public method for existing tooling; the real HUD
@@ -135,7 +176,7 @@
     const [w,h]=sourceSize[name];return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}"><title>${styles[name]?.mark||name}</title><image class="weapon-texture" data-weapon-id="${name}" href="assets/weapons/${name}.webp" width="${w}" height="${h}"/></svg>`;
   }
   function referencePlacement(id){const [w,h]=sourceSize[id]||sourceSize.classic;return {x:0,y:0,width:w,height:h};}
-  function create(THREE){
+  function create(THREE,catalog={}){
     const group=new THREE.Group(); // compatibility-only; no 3D gun meshes or limbs
     const flash={visible:false,material:{opacity:0}};
     const layer=document.getElementById('fps-weapon-sprite-layer');
@@ -147,7 +188,7 @@
     function setWeapon(id,equipTime){
       id=Object.hasOwn(styles,id)?id:'classic';
       if(id===shown)return;
-      equipMs=(equipTime??(id==='knife'?.6:1))*1000;fireAt=-100000;combo=0;
+      equipMs=Math.max(1,(equipTime??catalog[id]?.equipTime??(id==='knife'?.6:1))*1000);fireAt=-100000;combo=0;
       shown=id;switchAt=performance.now();reloading=false;
       const [w,h]=sourceSize[id];
       layer.innerHTML=`<img class="fps-paper-weapon" src="assets/weapons/${id}.webp" width="${w}" height="${h}" alt="" draggable="false" aria-hidden="true">`+
@@ -176,13 +217,14 @@
       const reloadProgress=reloading?Math.min(1,(now-reloadAt)/1170):0;
       const drop=reloading?Math.sin(Math.PI*reloadProgress)*78:0;
       const scale=Math.min(w,h*16/9)/1440;
-      const draw=Math.pow(Math.max(0,1-(now-switchAt)/equipMs),1.6)*180*scale;
+      const drawProgress=Math.min(1,Math.max(0,(now-switchAt)/equipMs));
+      const drawPose=equipPose(shown,drawProgress,scale);
       const phase=Math.min(1,(now-fireAt)/(fireMode==='heavy'?560:330));
       const stroke=shown==='knife'?Math.sin(Math.PI*phase)**2*scale:0;
       const swing=stroke*(fireMode==='heavy'?-106:[-148,128,-80][combo]);
       const adsT=shown==='knife'?0:Math.max(0,Math.min(1,player.adsProgress||0));
       const args={recoil:shown==='knife'?0:firing,motionX:bob,
-        gripY:stroke*18,motionY:Math.abs(bob)+breath-stroke*(fireMode==='heavy'?48:30),drop:drop+draw*(1-adsT),swing,adsProgress:adsT};
+        gripY:stroke*18,motionY:Math.abs(bob)+breath-stroke*(fireMode==='heavy'?48:30),drop,swing,adsProgress:adsT,equipPose:{x:drawPose.x*(1-adsT),y:drawPose.y*(1-adsT),roll:drawPose.roll*(1-adsT)}};
       const p=paperProjection(shown,w,h,args);
       if(p.matrix!==lastTransform){photo.style.transform=p.matrix;lastTransform=p.matrix;}
       const viewport=`${w}x${h}`;if(viewport!==lastViewport){
@@ -219,5 +261,5 @@
       get isReloading(){return reloading;},get current(){return shown;},styles};
   }
   window.WeaponViewmodels={create,styles,makeSvg,referenceImages,referencePlacement,
-    viewEndpoints,paperProjection,quadToMatrix,muzzleEdgeY};
+    viewEndpoints,paperProjection,quadToMatrix,muzzleEdgeY,equipPose};
 })();
