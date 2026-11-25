@@ -500,9 +500,12 @@
       if (newRound) {
         a.player.pos.set(me.x, me.y, me.z);
         a.player.footY = me.footY;
+        window.GameMovement?.reset(a.player);
+        a.player.audioAirTime=0;a.player.audioJumped=false;a.player.audioPeak=me.footY;a.player.audioGrounded=true;
         a.player.yaw = me.yaw;
       } else if (Math.hypot(a.player.pos.x - me.x, a.player.pos.z - me.z) > 2.5) {
         a.player.pos.x = me.x; a.player.pos.z = me.z;
+        a.player.vel.x=0;a.player.vel.z=0;
       }
       const present = new Set();
       for (const rp of state.players) {

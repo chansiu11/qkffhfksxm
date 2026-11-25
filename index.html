@@ -13,7 +13,8 @@
   <script src="match-plans.js?v=map-barrier-layout5"></script>
   <script src="config.js?v=perf19"></script>
   <script src="host-transport.js?v=audio22"></script>
-  <script src="multiplayer-client.js?v=audio22"></script>
+  <script src="movement-physics.js?v=move23"></script>
+  <script src="multiplayer-client.js?v=move23"></script>
   <link rel="stylesheet" href="menu.css" />
   <!-- Three.js r128 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -2016,7 +2017,7 @@
         player.pos.set(x,player.footY+EYE_HEIGHT,z);
         player.yaw=isAtk?0:Math.PI;player.pitch=0;player.taggedAt=undefined;
         player.vel.set(0, 0, 0);
-        player.onGround=true;resetMovementAudio(player);
+        GameMovement.reset(player);resetMovementAudio(player);
         player.hp = 100;
         player.alive = true;
         resetADS();
@@ -2264,7 +2265,7 @@
       }
 
       function startNewRound() {
-        resetMovementAudio(player);
+        GameMovement.reset(player);resetMovementAudio(player);
         player.reloadId = (player.reloadId || 0) + 1;
         player.reloading = false;
         player.pendingReloadWeapon = null;
@@ -2639,6 +2640,7 @@
         player.pos.set(0,EYE_HEIGHT+.16,16);player.footY=.16;player.yaw=player.lookPitch=0;
         drill.checkpoint=-1;
         if(drill.mode==='parkour'){player.pos.set(18,EYE_HEIGHT,18);player.footY=0;}
+        GameMovement.reset(player);resetMovementAudio(player);
         const count=drill.mode==='parkour'?0:drill.mode==='practice'?Number(setting('count').value):1;
         for(let i=0;i<bots.length;i++){
           const b=bots[i];b.inDrill=i<count;b.alive=b.group.visible=false;b.rangeSpawn=null;
@@ -2659,6 +2661,7 @@
           if(player.onGround && Math.abs(player.footY-next.y)<.1 && Math.hypot(player.pos.x-next.x,player.pos.z-next.z)<1.55)drill.checkpoint++;
           if(drill.checkpoint>=0 && player.onGround && player.footY<.25){
             const last=ledges[drill.checkpoint];player.footY=last.y;player.pos.set(last.x,last.y+EYE_HEIGHT,last.z);
+            GameMovement.reset(player);resetMovementAudio(player);
           }
           drill.finished=drill.checkpoint===ledges.length-1;
           setting('score').textContent='파쿠르 '+(drill.checkpoint+1)+' / '+ledges.length+' · '+((now-drill.started)/1000).toFixed(1)+'초';
@@ -2838,8 +2841,7 @@
         player.hp = 100;
         player.footY = footY;
         player.pos.set(x, footY + EYE_HEIGHT, z);
-        resetMovementAudio(player);
-        player.vel.set(0, 0, 0);
+        GameMovement.reset(player);resetMovementAudio(player);
         document.getElementById('cheat-modal').classList.add('hidden');
         showRoundBanner('ASCENT TELEPORT', label);
         updateHUD();
@@ -3346,11 +3348,7 @@
           player.pos.y += 2.2;
           return;
         }
-        if (player.onGround) {
-          player.audioJumped=true;player.audioPeak=player.footY;player.audioAirTime=0;
-          player.vel.y = 7.6;
-          player.onGround = false;
-        }
+        GameMovement.queueJump(player,performance.now());
       };
 
       window.toggleAscentDoor = function () {
@@ -3513,7 +3511,7 @@
         }
 
         if (e.code === 'KeyV' && roomState.allowCheats) window.toggleCheatOption('ghost');
-        if (e.code === 'Space') window.triggerJump();
+        if (e.code === 'Space' && !e.repeat) {e.preventDefault();window.triggerJump();}
         if (e.code === 'KeyR' && !e.repeat) window.triggerReload();
         if (e.code === 'Digit1') window.switchWeaponSlot('primary');
         if (e.code === 'Digit2') window.switchWeaponSlot('secondary');
@@ -3927,22 +3925,29 @@
             if (keys['Space']) player.pos.y += 14 * dt;
             if (keys['ControlLeft'] || keys['ShiftLeft']) player.pos.y -= 14 * dt;
             player.footY = player.pos.y - EYE_HEIGHT;
+            GameMovement.reset(player);
             player.audioRunning=false;player.audioAirTime=0;player.audioJumped=false;player.audioPeak=player.footY;stepDistance=0;
           } else {
-            const isCrouching = planting() || keys['ControlLeft'] || player.crouchToggle;
+            const locked=!!planting();
+            const isCrouching = locked || keys['ControlLeft'] || player.crouchToggle;
             const isWalkingSlow = keys['ShiftLeft'] || player.walkToggle || (joyState.active && joyState.distRatio < 0.52);
             const walkSpeed = ShootingSpread.movementSpeed(getActiveWeapon().id,isCrouching,isWalkingSlow)
               * ShootingSpread.tagMultiplier(player,performance.now());
 
-            player.vel.x = wishDir.x * walkSpeed;
-            player.vel.z = wishDir.z * walkSpeed;
+            // Buffered manual jumps consume on contact; no automatic held-key jumping.
+            GameMovement.consumeJump(player,performance.now(),!locked);
+            const wasGrounded=player.onGround;
+            const groundContact=wasGrounded||(!player.audioJumped&&player.audioGrounded&&player.vel.y<=0);
+            GameMovement.advance(player.vel,wishDir.x,wishDir.z,walkSpeed,groundContact,dt,locked);
             const oldX=player.pos.x, oldZ=player.pos.z;
-            player.pos.x += player.vel.x * dt;
-            player.pos.z += player.vel.z * dt;
+            const dx=player.vel.x*dt,dz=player.vel.z*dt;
+            player.pos.x += dx;
+            player.pos.z += dz;
 
             if (isBuy) AscentGround.stopAtGate(activeMap,roomState.playerSide,oldX,oldZ,player.pos,.62);
             resolveCollisions3D(player.pos, player.footY, 0.62, matchState.phase === 'buy', roomState.playerSide);
             if(isBuy)AscentGround.stopAtGate(activeMap,roomState.playerSide,oldX,oldZ,player.pos,.62);
+            GameMovement.collision(player.vel,dx,dz,player.pos.x-oldX,player.pos.z-oldZ);
 
             const sup = getSurfaceSupport(player.pos.x, player.pos.z, player.footY);
             player.callout = sup.callout;
@@ -3951,13 +3956,17 @@
             player.vel.y -= 21.0 * dt;
             player.footY += player.vel.y * dt;
             if (player.footY <= sup.y) {
+              const actualLanding=!wasGrounded&&(player.audioJumped||(player.audioAirTime>=.12&&Math.max(player.audioPeak??oldFootY,oldFootY)-sup.y>=.30));
               player.footY = sup.y;
-              player.vel.y = 0;              player.onGround = true;
+              player.vel.y = 0;player.onGround = true;
+              if(actualLanding)GameMovement.land(player.vel);
             } else {
               player.onGround = false;
             }
-            player.running=player.onGround&&!isCrouching&&!isWalkingSlow&&wishDir.lengthSq()>.01;
-            movementAudio(player,oldFootY,sup.y,dt,!isCrouching&&!isWalkingSlow&&wishDir.lengthSq()>.01,
+            const horizontalSpeed=Math.hypot(player.vel.x,player.vel.z);
+            const running=!locked&&!isCrouching&&!isWalkingSlow&&horizontalSpeed>Math.max(.35,walkSpeed*.32);
+            player.running=player.onGround&&running;
+            movementAudio(player,oldFootY,sup.y,dt,running,
               Math.hypot(player.pos.x-oldX,player.pos.z-oldZ));
             const crouchOffset = isCrouching ? -0.45 : 0;
             player.pos.y = player.footY + EYE_HEIGHT + crouchOffset;
