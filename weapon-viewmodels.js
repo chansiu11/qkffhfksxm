@@ -373,7 +373,8 @@
       const equip=Math.min(1,(now-equipped)/duration);
       const draw=1-smooth(equip);
       const reloadT=api.isReloading?Math.min(1,(now-reloadStarted)/(1000*(catalog[selected]?.reloadTime||1.1))):1;
-      const liftBarrel=Math.sin(Math.PI*reloadT)*(1-reloadT);
+      const liftProgress = selected === 'classic' ? equip : reloadT;
+      const liftBarrel = Math.sin(Math.PI * liftProgress) * (1 - liftProgress);
       const dip=smooth(reloadT/.28)*(1-smooth((reloadT-.39)/.28));
       const seat=smooth((reloadT-.34)/.29)*(1-smooth((reloadT-.73)/.27));
       const shot=(now-fired)/1000, kick=shot<.25?Math.sin(Math.PI*Math.min(1,shot/.055)/2)*Math.exp(-shot*18):0;
