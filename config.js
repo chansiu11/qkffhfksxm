@@ -193,9 +193,16 @@ if (typeof window !== "undefined") window.GAME_SERVER_URL = 'https://qkffhfksxm-
       const stripEdge=z-d/2;
       map.stairs.push({x,z:(rearEdge+stripEdge)/2,w,d:stripEdge-rearEdge+.02,axis:'x',near:entry,far:top});
       // Join the extended ramp to the upper landing and the rear wall.
-      box('deck',46.16,-53.94,4.84,5.12,top-.38,top);
+      box('deck',46.57,-53.94,5.70,5.12,top-.38,top);
       // Widen the passage floor westward to the masonry face at x=44.25.
-      box('deck',46.39,-48.64,4.47,8.74,top-.38,top);
+      box('deck',46.75,-48.64,5.55,8.74,top-.38,top);
+      // Close the small notches where the adjoining masonry turns diagonally.
+      // These slabs continue the same floor elevation, rather than blocking the walkway.
+      box('deck',44.02,-50.99,.50,.77,top-.38,top);
+      box('deck',44.03,-44.54,.52,.62,top-.38,top);
+      // The connector runs along the existing Garden partition on its west side.
+      box('deck',44.50,-43.38,1.18,2.25,top-.38,top);
+      box('deck',44.52,-40.54,1.20,3.68,top-.38,top);
       // The entrance arch follows the relocated stair, clear of the tread.
       const archX=x-w/2-.5,base=height(id,archX,z),half=d/2;
       for(const side of [-1,1])
@@ -249,6 +256,10 @@ if (typeof window !== "undefined") window.GAME_SERVER_URL = 'https://qkffhfksxm-
       box('roof',40.5,-40.65,7.15,4.05,wallTop-.22,wallTop);
       for(const px of [37.25,39.45,41.65,43.85])
         box('beam',px,-40.65,.18,4.05,wallTop-.42,wallTop-.22);
+      // Close the unintended passage beneath the west end of the gallery,
+      // as reported in screenshot 1. Connect the existing partition to
+      // the underside without extending across the main lower recess.
+      box('gardenWall',49.88,-40.30,.62,3.78,-5,top-.36);
       // A slim timber fascia and joists beneath the open gallery.
       box('beam',59.9,-40.27,20.9,.18,top-.65,top-.38);
       for(const px of [51.2,54.7,58.2,61.7,65.2,68.7])
