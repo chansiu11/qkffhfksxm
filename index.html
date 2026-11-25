@@ -25,7 +25,7 @@
   <script src="crosshair-profile.js"></script>
   <script src="crosshair-ui.js" defer></script>
   <script src="ads-system.js?v=armory20"></script>
-  <script src="weapon-viewmodels.js?v=armory20"></script>
+  <script src="weapon-viewmodels.js?v=knifeinspect"></script>
 
   <style>
     :root {
@@ -3535,6 +3535,7 @@
           e.preventDefault(); window.openCrosshairSettings(); return;
         }
         if (editing) return;
+        if(e.code==='KeyY' && !e.repeat && matchState.inMatch && player.alive && document.pointerLockElement){viewmodel.inspect();return;}
         keys[e.code] = true;
 
         if (e.code === 'F1' && activeMap!=='range') {

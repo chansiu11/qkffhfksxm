@@ -190,12 +190,16 @@
     let shown='',photo=null,flashNode=null,fireAt=-100000,reloadAt=-100000,
       switchAt=-100000,reloading=false,fireMode='light',lastVisible=false,
       lastTransform='',lastViewport='',muzzleScreen=null;
-    let equipMs=750,combo=0;
+    let equipMs=750,combo=0,inspectAt=-Infinity;
+    function inspect(){
+      const now=performance.now();
+      if(shown==='knife' && now-switchAt>=equipMs && now-fireAt>=(fireMode==='heavy'?560:330))inspectAt=now;
+    }
     function setWeapon(id,equipTime){
       id=Object.hasOwn(styles,id)?id:'classic';
       if(id===shown)return;
       equipMs=Math.max(1,(equipTime??catalog[id]?.equipTime??(id==='knife'?.6:1))*1000);fireAt=-100000;combo=0;
-      shown=id;switchAt=performance.now();reloading=false;
+      inspectAt=-Infinity;shown=id;switchAt=performance.now();reloading=false;
       const [w,h]=sourceSize[id];
       layer.innerHTML=`<img class="fps-paper-weapon" src="assets/weapons/${referenceImages[id]}.webp" width="${w}" height="${h}" alt="" draggable="false" aria-hidden="true">`+
         `<span class="weapon-shot-flash" aria-hidden="true"></span>`;
@@ -206,6 +210,7 @@
     }
     function fire(mode='light'){
       const now=performance.now();
+      inspectAt=-Infinity;
       combo=mode==='heavy'||now-fireAt>850?0:(combo+1)%3;
       fireMode=mode==='heavy'?'heavy':'light';fireAt=now;
     }
@@ -214,7 +219,7 @@
     function update(dt,player,state){
       const visible=!!(player?.alive&&state?.inMatch);
       if(visible!==lastVisible){layer.classList.toggle('weapon-visible',visible);lastVisible=visible;}
-      if(!visible||!photo)return;
+      if(!visible||!photo){inspectAt=-Infinity;return;}
       const now=performance.now(),w=window.innerWidth||1440,h=window.innerHeight||900;
       const moving=Math.min(1,Math.hypot(player.vel?.x||0,player.vel?.z||0)/7.6);
       const bob=Math.sin(now*.010)*2.8*moving;
@@ -231,6 +236,18 @@
       const adsT=shown==='knife'?0:Math.max(0,Math.min(1,player.adsProgress||0));
       const args={recoil:shown==='knife'?0:firing,motionX:bob,
         gripY:stroke*18,motionY:Math.abs(bob)+breath-stroke*(fireMode==='heavy'?48:30),drop,swing,adsProgress:adsT,equipPose:{x:drawPose.x*(1-adsT),y:drawPose.y*(1-adsT),roll:drawPose.roll*(1-adsT)}};
+      if(shown==='knife'){
+        const age=(now-inspectAt)/1000;
+        const smooth=t=>{t=Math.min(1,Math.max(0,t));return t*t*(3-2*t);};
+        const lift=smooth(age/.35)*(1-smooth((age-1.75)/.42));
+        const turn=smooth((age-.60)/.32)*(1-smooth((age-1.48)/.30));
+        const cut=Math.sin(Math.PI*phase)**2;
+        const wind=Math.sin(Math.PI*Math.min(1,phase/.23));
+        const direction=combo===1?-1:1;
+        args.equipPose.x+=scale*(-210*lift+(fireMode==='heavy'?-90:-52*direction)*cut);
+        args.equipPose.y+=scale*(-118*lift-25*turn+(fireMode==='heavy'?-32:12)*cut);
+        args.equipPose.roll+=.61*lift-.52*turn+(fireMode==='heavy'?.13:direction*.68)*cut-direction*.18*wind;
+      }
       const p=paperProjection(shown,w,h,args);
       if(p.matrix!==lastTransform){photo.style.transform=p.matrix;lastTransform=p.matrix;}
       const viewport=`${w}x${h}`;if(viewport!==lastViewport){
@@ -262,7 +279,7 @@
       return camera.localToWorld(world);
     }
     setWeapon('classic');
-    return {group,flash,setWeapon,fire,beginReload,stopReload,update,
+    return {group,flash,setWeapon,inspect,fire,beginReload,stopReload,update,
       getMuzzleScreenPosition,getMuzzleWorldPosition,
       get isReloading(){return reloading;},get current(){return shown;},styles};
   }
