@@ -7,13 +7,29 @@ const MatchSamples = (() => {
   let previousStep = -1;
 
   const clips = new Map();
+  let clickRequest=0;
+  function cleanClick(ctx,buffer) {
+    // Retain the first attack of the recorded click and fade the room tail.
+    const pcm=buffer.getChannelData(0), rate=buffer.sampleRate;
+    let peak=0;
+    for(const sample of pcm) peak=Math.max(peak,Math.abs(sample));
+    if(!peak)return buffer;
+    const start=Math.max(0,pcm.findIndex(v=>Math.abs(v)>peak*.12)-Math.round(rate*.002));
+    const length=Math.min(buffer.length-start,Math.round(rate*.08));
+    const clip=ctx.createBuffer(buffer.numberOfChannels,length,rate);
+    for(let ch=0;ch<buffer.numberOfChannels;ch++){
+      const out=clip.getChannelData(ch),input=buffer.getChannelData(ch);
+      for(let i=0;i<length;i++)out[i]=input[start+i]*Math.min(1,i/(rate*.001),(length-1-i)/(rate*.018));
+    }
+    return clip;
+  }
   function loadClip(ctx,name) {
     if (!clips.has(name)) {
       const folder=name==='menu-click'?'ui':'melee';
       const request=fetch('audio/'+folder+'/'+name+'.wav?v=recording2')
         .then(response=>{if(!response.ok)throw Error(response.status);return response.arrayBuffer();})
         .then(bytes=>ctx.decodeAudioData(bytes))
-        .then(buffer=>buffers.set(name,buffer))
+        .then(buffer=>buffers.set(name,name==='menu-click'?cleanClick(ctx,buffer):buffer))
         .catch(()=>{clips.delete(name);return null;});
       clips.set(name,request);
     }
@@ -46,8 +62,9 @@ const MatchSamples = (() => {
     const buffer = buffers.get(name);
     if (!buffer && (name==='menu-click'||name==='knife-light'||name==='knife-heavy')) {
       const requested=performance.now();
+      const sequence=name==='menu-click'?++clickRequest:0;
       loadClip(ctx,name).then(loaded=>{
-        if(loaded && performance.now()-requested<400) play(ctx,output,kind,name,position,volume);
+        if(loaded && (name!=='menu-click'||sequence===clickRequest) && performance.now()-requested<(name==='menu-click'?120:400)) play(ctx,output,kind,name,position,volume);
       });
       return true;
     }
