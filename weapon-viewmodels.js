@@ -350,6 +350,21 @@
       }
     });
     if(count && sum<0) body.rotation.y+=Math.PI;
+    body.updateMatrixWorld(true);
+    const bounds=new T.Box3().setFromObject(body);
+    const cap=new T.Box3();
+    const cutoff=bounds.min.z+.025*(bounds.max.z-bounds.min.z);
+    mesh.traverse(node=>{
+      if(!node.isMesh)return;
+      const vertices=node.geometry.attributes.position;
+      for(let i=0;i<vertices.count;i++){
+        p.fromBufferAttribute(vertices,i).applyMatrix4(node.matrixWorld);
+        if(p.z<=cutoff)cap.expandByPoint(p);
+      }
+    });
+    const tip=cap.getCenter(new T.Vector3());
+    tip.z=bounds.min.z;
+    body.userData.muzzle=body.worldToLocal(tip);
     return body;
   }
   WeaponViewmodels.create = function(T,catalog) {
@@ -372,7 +387,7 @@
       selected=id; equipped=performance.now(); inspected=fired=-Infinity;
       pivot.clear(); model=null; visible=false;
       if(!files[id])return;
-      getModel(id).then(asset=>{if(asset && selected===id){model=asset;pivot.add(asset).catch(err=>console.warn('Pistol model',id,err));}});
+      getModel(id).then(asset=>{if(asset && selected===id){model=asset;pivot.add(asset);}}).catch(err=>console.warn('Pistol model',id,err));
     }
     const set=api.setWeapon, update=api.update, fire=api.fire, inspect=api.inspect, reload=api.beginReload;
     api.setWeapon=(id,time)=>{set(id,time);duration=(time??catalog[id]?.equipTime??.75)*1000;select(api.current);};
@@ -413,6 +428,28 @@
         .30+pose.inspectYaw*lift-.45*turn+.16*dip+.25*shortyInspect-.56*shortyTurn,-.06-.24*lift-pose.turnRoll*turn-pose.reloadRoll*dip-.22*seat-.47*shortyReload);
       const photo=document.querySelector('#fps-weapon-sprite-layer .fps-paper-weapon');
       if(photo)photo.style.opacity='0';
+      const flash=photo?.nextElementSibling;
+      if(flash && now-fired<135){
+        const muzzle=projectTip();
+        flash.style.left=muzzle.x+'px';
+        flash.style.top=muzzle.y+'px';
+      }
+    };
+    const spriteScreen=api.getMuzzleScreenPosition, spriteWorld=api.getMuzzleWorldPosition;
+    const tip=new T.Vector3();
+    function projectTip(){
+      model.localToWorld(tip.copy(model.userData.muzzle));
+      const depth=-tip.z;
+      tip.project(camera);
+      return {x:(tip.x+1)*innerWidth/2,y:(1-tip.y)*innerHeight/2,depth};
+    }
+    api.getMuzzleScreenPosition=()=>visible&&model?projectTip():spriteScreen();
+    api.getMuzzleWorldPosition=worldCamera=>{
+      if(!visible||!model||!worldCamera)return spriteWorld(worldCamera);
+      const {depth}=projectTip();
+      const ray=new T.Vector3(tip.x,tip.y,.5).unproject(worldCamera);
+      worldCamera.worldToLocal(ray);
+      return worldCamera.localToWorld(ray.multiplyScalar(-depth/ray.z));
     };
     api.renderModel=renderer=>{
       if(!visible)return;
