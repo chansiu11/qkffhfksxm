@@ -150,12 +150,38 @@ if (typeof window !== "undefined") window.GAME_SERVER_URL = 'https://qkffhfksxm-
       const top=height(id,60.7,-42.6)+3.05;
       box('deck',59.9,-42.55,20.9,4.5,top-.38,top);
       box('deck',47.35,-42.2,4.35,4.4,top-.38,top);
-      const x=46.85,z=-48.35,w=3.65,d=8.1;
-      const entry=height(id,x,z-d/2);
+      // In-game screenshots show a narrow flight next to a timber ramp,
+      // approached through a stone arch. Dimensions fitted to our existing world.
+      const x=46.55,z=-47.9,w=3.9,d=7.2;
+      const entry=height(id,x,z-d/2),rise=top-entry;
+      const stairW=1.58,rampW=w-stairW;
+      const stairX=x+(w-stairW)/2,rampX=x-(w-rampW)/2;
       map.stairs.push({x,z,w,d,near:entry,far:top});
-      for(let i=0;i<24;i++){
-        const f=(i+1)/24;
-        box('step',x,z-d/2+(i+.5)*d/24,w,d/24+.012,entry-.35,entry+(top-entry)*f);
+      for(let i=0;i<22;i++){
+        const f=(i+1)/22;
+        box('step',stairX,z-d/2+(i+.5)*d/22,stairW,d/22+.012,entry-.35,entry+rise*f);
+      }
+      box('step',rampX,z,rampW,d,(entry+top)/2-.24,(entry+top)/2,0,rise/d);
+      // Entry jambs and curved stone lintel; leave the full walking width clear.
+      const archZ=-52.05,base=height(id,x,archZ),half=w/2;
+      for(const side of [-1,1]){
+        box('limestone',x+side*(half+.21),archZ,.42,.72,base-.3,base+3.1);
+      }
+      for(let i=0;i<18;i++){
+        const u=(i+.5)*w/18-half,b=base+2.85+.9*Math.sqrt(1-(u/half)**2);
+        box('limestone',x+u,archZ,w/18+.014,.72,b,b+.3);
+      }
+      // Cloth-covered scaffold sections at the ends, with an open central span.
+      // Keep the underside open and the floor continuous.
+      for(const [px,span,h] of [[51.45,2.7,2.45],[68.1,3.15,2.55]]){
+        box('tarp',px,-40.48,span,.14,top+.06,top+h);
+        for(const side of [-1,1])box('beam',px+side*span/2,-40.48,.15,.24,top-.32,top+h+.2);
+        box('beam',px,-40.48,span+.14,.22,top+h-.08,top+h+.08);
+      }
+      // Rear scaffolding fabric against the existing facade, not across the passage.
+      for(const px of [53.2,58.1,63,67.8]){
+        box('tarp',px,-44.48,4.45,.16,top+.1,top+2.6);
+        box('beam',px-2.25,-44.42,.14,.22,top,top+3.1);
       }
       // A slim timber fascia and joists beneath the open gallery.
       box('beam',59.9,-40.27,20.9,.18,top-.65,top-.38);
