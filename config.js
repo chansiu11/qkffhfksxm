@@ -10,7 +10,6 @@ if (typeof window !== "undefined") window.GAME_SERVER_URL = 'https://qkffhfksxm-
     ascent: [
       ['generator',54,-31,2.6,6.3,3.7], ['crate',62.2,-32.3,1.9,1.9,2.4], ['crate',64.1,-31.7,1.9,1.9,2.4],
       ['crate',-32,-36.5,2.1,2.1,2.2],['crate',-32,-38.6,2.1,2.1,2.2],['wood',-27,-45.5,2.2,2,1.6],
-      ['deck',60.7,-42.6,17,4.6,3.05],['stairs',54,-37.3,3.5,6,3.05],
       ['roof',53,-7.6,8,7,5.5],['roof',-21,-19,8,8,5.2],['roof',10,-34,8,7,4.7],
       ['roof',-45,-38,5,13,4.2],['wood',-19,-16,2,1.7,1.6]
     ],
@@ -145,6 +144,24 @@ if (typeof window !== "undefined") window.GAME_SERVER_URL = 'https://qkffhfksxm-
         }
       }else box(kind,x,z,w,d,bottom,y+h);
     }
+    if(id==='ascent'){
+      // Rafters: a continuous raised timber gallery with the lower recess left open.
+      // The rear approach rises from the defender-side corridor, not from the site.
+      const top=height(id,60.7,-42.6)+3.05;
+      box('deck',59.9,-42.55,20.9,4.5,top-.38,top);
+      box('deck',47.35,-42.2,4.35,4.4,top-.38,top);
+      const x=46.85,z=-48.35,w=3.65,d=8.1;
+      const entry=height(id,x,z-d/2);
+      map.stairs.push({x,z,w,d,near:entry,far:top});
+      for(let i=0;i<24;i++){
+        const f=(i+1)/24;
+        box('step',x,z-d/2+(i+.5)*d/24,w,d/24+.012,entry-.35,entry+(top-entry)*f);
+      }
+      // A slim timber fascia and joists beneath the open gallery.
+      box('beam',59.9,-40.27,20.9,.18,top-.65,top-.38);
+      for(const px of [51.2,54.7,58.2,61.7,65.2,68.7])
+        box('beam',px,-42.55,.22,4.5,top-.62,top-.38);
+    }
     if(id==='haven'){
       // Close the break between Sewer's west bank and the southeast corner of B hall.
       // Both ends overlap the existing masonry; A Link enters B farther north.
@@ -210,7 +227,7 @@ if (typeof window !== "undefined") window.GAME_SERVER_URL = 'https://qkffhfksxm-
         arch(10+side*3.5,-34,6.5,.5,2.7,1.15,true,'plaster',4.3);
       }
       // Transverse beams visible from underneath rafters and the boathouse.
-      for(const [x,z,w,d,h,count] of [[60.7,-42.6,17,4.6,3.05,7],[-45,-38,5,13,4.2,6]]){
+      for(const [x,z,w,d,h,count] of [[-45,-38,5,13,4.2,6]]){
         const y=height(id,x,z)+h-.4,alongX=w>d;
         for(let i=0;i<count;i++){
           const t=(i+.5)/count-.5;
