@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=Rajdhani:wght@600;700&family=Teko:wght@600;700&display=swap" rel="stylesheet">
   <script src="match-plans.js?v=map-barrier-layout5"></script>
-  <script src="config.js?v=ascent-rafters7"></script>
+  <script src="config.js?v=ascent-garden8"></script>
   <script src="multiplayer-client.js?v=buy-gates-slide4"></script>
   <link rel="stylesheet" href="menu.css" />
   <!-- Three.js r128 -->
@@ -1607,7 +1607,7 @@
           lattice,havenPlaster,foundation,redwood,strap,limestone,plaster,doorfront:ascentDoor,gardenWall:masonry,salmon:ascentSalmon,clay:ascentClay,steel:matDarkMetal,generatorCap:matDarkMetal,
           shingles:matDarkMetal,tiles:matTerracottaRoof,eave:matDarkMetal,beam:matWoodFloor,wall:masonry,stonecap:parapet,
           generator:id==='ascent'?ascentGenerator:havenCover,crate:matRadianite,wood:matWoodFloor,tarp:cloth,step:matUpperFloor,
-          deck:matWoodFloor,roof:id==='haven'?matWoodFloor:matCeiling};
+          deck:matWoodFloor,gardenPlinth:limestone,roof:id==='haven'?matWoodFloor:matCeiling};
         // Batch static faces by material while preserving metre-based facade UVs.
         const batches=new Map(),cube=new THREE.BoxGeometry().toNonIndexed(),vertex=new THREE.Vector3();
         for(const part of map.parts){
@@ -1622,7 +1622,7 @@
             batch.uvs.push(cube.attributes.uv.getX(i)*(facade?(i<12?d:w)/10:1),
               facade?vy/7:cube.attributes.uv.getY(i));
           }
-          if(['deck','crate','wood','generator','generatorCap','tarp'].includes(kind))
+          if(['deck','gardenPlinth','crate','wood','generator','generatorCap','tarp'].includes(kind))
             addWalkableSlab(x-w/2,x+w/2,z-d/2,z+d/2,t,t-b,kind.toUpperCase(),null,false);
         }
         cube.dispose();

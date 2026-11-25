@@ -96,7 +96,7 @@ const server = http.createServer((req, res) => {
     'access-control-allow-origin': 'https://chansiu11.github.io', 'cache-control': 'no-store' };
   if (req.url === '/health' || req.url === '/') {
     res.writeHead(200, headers);
-    res.end(JSON.stringify({ ok: true, service: 'qkffhfksxm-realtime', buyGateRevision: 'ascent-rafters7', rooms: rooms.size, players: clients.size }));
+    res.end(JSON.stringify({ ok: true, service: 'qkffhfksxm-realtime', buyGateRevision: 'ascent-garden8', rooms: rooms.size, players: clients.size }));
   } else { res.writeHead(404, headers); res.end('{}'); }
 });
 server.on('upgrade', (req, socket, head) => {

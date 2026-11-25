@@ -152,7 +152,8 @@ if (typeof window !== "undefined") window.GAME_SERVER_URL = 'https://qkffhfksxm-
       box('deck',47.35,-42.2,4.35,4.4,top-.38,top);
       // In-game screenshots show a narrow flight next to a timber ramp,
       // approached through a stone arch. Dimensions fitted to our existing world.
-      const x=46.55,z=-47.9,w=3.9,d=7.2;
+      // Approximate stair placement: preserve the upper landing and extend the flight toward the rear entrance.
+      const x=47.05,z=-48.5,w=3.65,d=8.4;
       const entry=height(id,x,z-d/2),rise=top-entry;
       const stairW=1.58,rampW=w-stairW;
       const stairX=x+(w-stairW)/2,rampX=x-(w-rampW)/2;
@@ -163,7 +164,7 @@ if (typeof window !== "undefined") window.GAME_SERVER_URL = 'https://qkffhfksxm-
       }
       box('step',rampX,z,rampW,d,(entry+top)/2-.24,(entry+top)/2,0,rise/d);
       // Entry jambs and curved stone lintel; leave the full walking width clear.
-      const archZ=-52.05,base=height(id,x,archZ),half=w/2;
+      const archZ=-53.25,base=height(id,x,archZ),half=w/2;
       for(const side of [-1,1]){
         box('limestone',x+side*(half+.21),archZ,.42,.72,base-.3,base+3.1);
       }
@@ -183,6 +184,32 @@ if (typeof window !== "undefined") window.GAME_SERVER_URL = 'https://qkffhfksxm-
         box('tarp',px,-44.48,4.45,.16,top+.1,top+2.6);
         box('beam',px-2.25,-44.42,.14,.22,top,top+3.1);
       }
+      // Garden window: the raised carved stone base and inset wooden frame
+      // follow the first-person Garden screenshot, not the overhead minimap.
+      const wx=39.6,wz=-42.3,gy=height(id,wx,wz),sill=gy+1.42,head=sill+2.2;
+      const wallTop=gy+4.95;
+      box('gardenWall',37.8,wz,.8,.58,-5,wallTop);
+      box('gardenWall',42.68,wz,3.36,.58,-5,wallTop);
+      box('gardenWall',wx,wz,2.8,.58,head,wallTop);
+      box('gardenPlinth',39.95,-41.88,4.45,1.48,gy-.2,sill-.12);
+      box('gardenPlinth',39.95,-41.88,4.64,1.62,sill-.12,sill);
+      // Decorative limestone bands and recessed timber opening.
+      for(const px of [38.08,41.12])box('beam',px,wz,.25,.74,sill,head+.18);
+      box('beam',wx,wz,3.18,.74,head,head+.2);
+      box('limestone',wx,wz,3.2,.82,head+.2,head+.4);
+      for(const px of [38.55,39.95,41.35]){
+        box('limestone',px,-41.11,1.02,.13,gy+.18,sill-.23);
+      }
+      box('wood',41.85,-40.88,.95,.87,gy-.1,gy+.47);
+      box('wood',41.85,-41.35,.9,.83,gy+.47,gy+.92);
+      // Keep the window opening and landing connected, with small level changes.
+      box('gardenPlinth',39.95,-43.18,4.45,1.76,sill-.28,sill);
+      box('gardenPlinth',42.72,-43.18,1.12,1.76,sill-.24,sill+.23);
+      box('gardenPlinth',43.68,-43.18,.98,1.76,sill-.15,sill+.46);
+      box('gardenPlinth',44.78,-43.18,1.25,1.76,sill-.06,top);
+      box('roof',40.5,-40.65,7.15,4.05,wallTop-.22,wallTop);
+      for(const px of [37.25,39.45,41.65,43.85])
+        box('beam',px,-40.65,.18,4.05,wallTop-.42,wallTop-.22);
       // A slim timber fascia and joists beneath the open gallery.
       box('beam',59.9,-40.27,20.9,.18,top-.65,top-.38);
       for(const px of [51.2,54.7,58.2,61.7,65.2,68.7])
@@ -318,14 +345,14 @@ if (typeof window !== "undefined") window.GAME_SERVER_URL = 'https://qkffhfksxm-
       const alongX=w>d, half=(alongX?w:d)/2;
       for(const side of [-1,1]){
         const px=x+(alongX?side*(half+.12):0),pz=z+(alongX?0:side*(half+.12));
-        box('beam',px,pz,.25,.25,height(id,px,pz)-.2,y+h+(extras.lift||0));
+        box('beam',px,pz,.25,.25,extras.raisedFrame?y:height(id,px,pz)-.2,y+h+(extras.lift||0));
       }
       return {box:[x-w/2,x+w/2,y,y+h,z-d/2,z+d/2],...extras};
     }
     interactives[id]=id==='ascent'?{
       A_DOOR:panel(40.835,-25,3.95,.64,0,3.6,{switchAt:[43.6,-27.08],switchHeight:1.15,lift:3.6,hp:500}),
       B_DOOR:panel(3,-34,.44,4.5,0,3.6,{switchAt:[-10.8,-35.2],switchHeight:1.09,lift:4.2,hp:500}),
-      GARDEN_GLASS:panel(39.6,-42.3,2.8,.15,.7,2.2,{hp:1})
+      GARDEN_GLASS:panel(39.6,-42.3,2.8,.15,1.42,2.2,{hp:1,raisedFrame:true})
     }:{
       GARAGE_LEFT:panel(-18.05,3.05,.22,1.65,0,2.95,{hp:400}),GARAGE_RIGHT:panel(-13.95,3.05,.22,1.65,0,2.95,{hp:400})
     };
