@@ -286,3 +286,107 @@
   window.WeaponViewmodels={create,styles,makeSvg,referenceImages,referencePlacement,
     viewEndpoints,paperProjection,quadToMatrix,muzzleEdgeY,equipPose};
 })();
+(function () {
+  const createSprite = WeaponViewmodels.create;
+  const files = {
+    classic: 'Black_Semi_Automatic_Pistol', shorty: 'Shadowbreaker',
+    frenzy: 'Tactical_Shadow_SMG', ghost: 'Shadow_Sentinel',
+    bandit: 'Shadowline_Pistol', sheriff: 'Shadowhawk_Revolver'
+  };
+  let dependencies;
+  function script(src) {
+    return new Promise((resolve, reject) => {
+      const tag = document.createElement('script');
+      tag.src = src; tag.onload = resolve; tag.onerror = reject;
+      document.head.appendChild(tag);
+    });
+  }
+  async function loadModel(id, T) {
+    dependencies ||= script('https://cdn.jsdelivr.net/npm/fflate@0.8.2/umd/index.js')
+      .then(() => script('https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/FBXLoader.js'));
+    await dependencies;
+    const archive = 'refs/classic/Meshy_AI_' + files[id] + '_20261125_texture_fbx' + (id === 'classic' ? ' (1)' : '') + '.zip';
+    const response = await fetch(archive);
+    if (!response.ok) throw Error(archive);
+    const entries = fflate.unzipSync(new Uint8Array(await response.arrayBuffer()));
+    const names = Object.keys(entries);
+    const mesh = new T.FBXLoader(new T.LoadingManager()).parse(entries[names.find(n => /\.fbx$/i.test(n))].buffer, '');
+    const textureName = names.find(n => /_texture\.png$/i.test(n));
+    const url = URL.createObjectURL(new Blob([entries[textureName]], {type:'image/png'}));
+    let texture;
+    try { texture = await new T.TextureLoader().loadAsync(url); }
+    finally { URL.revokeObjectURL(url); }
+    texture.encoding = T.sRGBEncoding;
+    const material = new T.MeshStandardMaterial({map:texture, roughness:.57, metalness:.18});
+    mesh.traverse(node => { if (node.isMesh) node.material = material; });
+    const body = new T.Group();
+    body.add(mesh);
+    const box = new T.Box3().setFromObject(body), size = box.getSize(new T.Vector3());
+    mesh.position.sub(box.getCenter(new T.Vector3()));
+    if (size.x > size.z) body.rotation.y = Math.PI / 2;
+    body.scale.setScalar(.52 / Math.max(size.x,size.y,size.z));
+    // Orient the grip toward the camera using the lower silhouette.
+    body.updateMatrixWorld(true);
+    let sum=0, count=0;
+    const p=new T.Vector3();
+    mesh.traverse(node => {
+      if (!node.isMesh) return;
+      const pos=node.geometry.attributes.position;
+      for(let i=0;i<pos.count;i+=5){
+        p.fromBufferAttribute(pos,i).applyMatrix4(node.matrixWorld);
+        if(p.y < -.06){sum+=p.z; count++;}
+      }
+    });
+    if(count && sum<0) body.rotation.y+=Math.PI;
+    return body;
+  }
+  WeaponViewmodels.create = function(T,catalog) {
+    const api=createSprite(T,catalog), cache=new Map();
+    const scene=new T.Scene(), camera=new T.PerspectiveCamera(55,1,.01,5);
+    const pivot=new T.Group();
+    scene.add(pivot,new T.HemisphereLight(0xffffff,0x89909d,1.35));
+    const light=new T.DirectionalLight(0xffffff,1.4);
+    light.position.set(-1,2,1); scene.add(light);
+    let selected, model, visible=false, equipped=0, inspected=-Infinity, fired=-Infinity;
+    let duration=750;
+    function select(id) {
+      if(selected===id)return;
+      selected=id; equipped=performance.now(); inspected=fired=-Infinity;
+      pivot.clear(); model=null; visible=false;
+      if(!files[id])return;
+      if(!cache.has(id))cache.set(id,loadModel(id,T).catch(err=>{cache.delete(id);console.warn('Pistol model',id,err);return null;}));
+      cache.get(id).then(asset=>{if(asset && selected===id){model=asset;pivot.add(asset);}});
+    }
+    const set=api.setWeapon, update=api.update, fire=api.fire, inspect=api.inspect, reload=api.beginReload;
+    api.setWeapon=(id,time)=>{set(id,time);duration=(time??catalog[id]?.equipTime??.75)*1000;select(api.current);};
+    api.inspect=()=>{inspect();if(model&&!api.isReloading && performance.now()-equipped>=duration)inspected=performance.now();};
+    api.fire=(mode)=>{inspected=-Infinity;fired=performance.now();fire(mode);};
+    api.beginReload=()=>{inspected=-Infinity;reload();};
+    api.update=(dt,player,state)=>{
+      update(dt,player,state);
+      visible=!!(model&&player?.alive&&state?.inMatch);
+      if(!visible)return;
+      const now=performance.now(), age=(now-inspected)/1000;
+      const smooth=x=>{x=Math.max(0,Math.min(1,x));return x*x*(3-2*x);};
+      const lift=smooth(age/.32)*(1-smooth((age-1.65)/.4));
+      const turn=smooth((age-.35)/.5)*(1-smooth((age-1.35)/.45));
+      const draw=1-smooth((now-equipped)/duration);
+      const shot=(now-fired)/1000, kick=shot<.25?Math.sin(Math.PI*Math.min(1,shot/.055)/2)*Math.exp(-shot*18):0;
+      const move=Math.min(1,Math.hypot(player.vel?.x||0,player.vel?.z||0)/7.6);
+      camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();
+      pivot.position.set(.19*Math.min(camera.aspect,1.8)/1.78-.14*lift,-.16+.09*lift-.32*draw+(api.isReloading?-.12:0)+.003*move*Math.sin(now*.01),-.52+.045*kick);
+      pivot.rotation.set(.08+.25*kick+.34*lift-.55*draw,.27+.96*lift-.55*turn,-.04-.38*lift+.27*draw);
+      const photo=document.querySelector('#fps-weapon-sprite-layer .fps-paper-weapon');
+      if(photo)photo.style.opacity='0';
+    };
+    api.renderModel=renderer=>{
+      if(!visible)return;
+      const clear=renderer.autoClear;
+      renderer.autoClear=false;
+      try {renderer.clearDepth();renderer.render(scene,camera);}
+      finally {renderer.autoClear=clear;}
+    };
+    select(api.current);
+    return api;
+  };
+})();
