@@ -72,6 +72,7 @@ if (typeof window !== "undefined") window.GAME_SERVER_URL = 'https://qkffhfksxm-
       map.parts.push({kind,x,z,w,d,b,t,angle,slope});
     }
     for(const loop of map.outlines){
+      const wallSegments=[];
       for(let i=0;i<loop.length;i++){
         const [ax,az]=loop[i],[bx,bz]=loop[(i+1)%loop.length];
         const dx=bx-ax,dz=bz-az,len=Math.hypot(dx,dz);
@@ -87,7 +88,9 @@ if (typeof window !== "undefined") window.GAME_SERVER_URL = 'https://qkffhfksxm-
         const h=Math.max(height(id,ax,az),height(id,bx,bz))+(low?(id==='ascent'&&len>20?1.1:3.1):id==='haven'?7.6:9.2);
         const cx=x+nx*thick/2,cz=z+nz*thick/2;
         const streetWall=id==='haven'&&!low&&(z>0||x>35||x< -32);
-        box(streetWall?'havenPlaster':style,cx,cz,len+.04,thick,-5,h,angle);
+        const wallKind=streetWall?'havenPlaster':style;
+        box(wallKind,cx,cz,len+.04,thick,-5,h,angle);
+        wallSegments[i]={dx:dx/len,dz:dz/len,nx,nz,thick,h,kind:wallKind};
         if(streetWall){
           const base=Math.min(height(id,ax,az),height(id,bx,bz));
           box('foundation',cx,cz,len+.05,thick+.12,-5,base+.62,angle);
@@ -119,6 +122,24 @@ if (typeof window !== "undefined") window.GAME_SERVER_URL = 'https://qkffhfksxm-
           }
         }
         if(!low)box(id==='haven'?'beam':'stonecap',cx,cz,len+.08,thick+.12,h-.95,h-.68,angle);
+      }
+      // Seal gaps at outward-facing bends in the Ascent outline. Fill only
+      // the wedge between adjacent wall ends, not the playable corridor.
+      if(id==='ascent')for(let i=0;i<loop.length;i++){
+        const a=wallSegments[(i+loop.length-1)%loop.length],b=wallSegments[i];
+        if(!a||!b||a.dx*b.dz-a.dz*b.dx<=.015)continue;
+        const [x,z]=loop[i];
+        const ax=a.nx*a.thick,az=a.nz*a.thick,bx=b.nx*b.thick,bz=b.nz*b.thick;
+        const dx=bx-ax,dz=bz-az,len=Math.hypot(dx,dz);
+        if(len<.04)continue;
+        const mx=(ax+bx)/2,mz=(az+bz)/2;
+        const depth=Math.abs(mx*dz-mz*dx)/len;
+        if(depth<.025)continue;
+        const angle=-Math.atan2(dz,dx),h=Math.min(a.h,b.h),slices=8;
+        for(let j=0;j<slices;j++){
+          const t=(j+.5)/slices,outer=(j+1)/slices;
+          box(a.kind,x+mx*t,z+mz*t,len*outer+.035,depth/slices+.035,-5,h,angle);
+        }
       }
     }
     for(const [kind,x,z,w,d,h] of fixtures[id]){
@@ -165,7 +186,7 @@ if (typeof window !== "undefined") window.GAME_SERVER_URL = 'https://qkffhfksxm-
       }
       box('step',x,rampZ,rampD,w,(entry+top)/2-.24,(entry+top)/2,Math.PI/2,rise/w);
       box('deck',46.18,-53,4.76,3.25,top-.38,top);
-      box('deck',46.8,-48.75,3.65,8.52,top-.38,top);
+      box('deck',46.8,-48.64,3.65,8.74,top-.38,top);
       // The entrance arch follows the relocated stair, clear of the tread.
       const archX=x-w/2-.5,base=height(id,archX,z),half=d/2;
       for(const side of [-1,1])
@@ -183,19 +204,19 @@ if (typeof window !== "undefined") window.GAME_SERVER_URL = 'https://qkffhfksxm-
       }
       // Rear scaffolding fabric against the existing facade, not across the passage.
       for(const px of [53.2,58.1,63,67.8]){
-        box('tarp',px,-44.48,4.45,.16,top+.1,top+2.6);
+        box('tarp',px,-44.48,4.94,.16,top,top+2.6);
         box('beam',px-2.25,-44.42,.14,.22,top,top+3.1);
       }
       // Garden window: the raised carved stone base and inset wooden frame
       // follow the first-person Garden screenshot, not the overhead minimap.
       const wx=39.6,wz=-42.3,gy=height(id,wx,wz),sill=gy+1.42,head=sill+2.2;
       const wallTop=gy+4.95;
-      box('gardenWall',37.8,wz,.8,.58,-5,wallTop);
+      box('gardenWall',37.68,wz,1.04,.58,-5,wallTop);
       box('gardenWall',42.68,wz,3.36,.58,-5,wallTop);
       // Close the missing Garden side-wall segment reported at (44,-40).
       // Join the window facade to the existing masonry return under the roof.
-      box('gardenWall',43.88,-40.25,.64,4.16,-5,wallTop);
-      box('limestone',43.88,-40.25,.76,4.16,-5,gy+.54);
+      box('gardenWall',43.88,-40.12,.64,4.42,-5,wallTop);
+      box('limestone',43.88,-40.12,.76,4.42,-5,gy+.54);
       box('gardenWall',wx,wz,2.8,.58,head,wallTop);
       box('gardenPlinth',39.95,-41.88,4.45,1.48,gy-.2,sill-.12);
       box('gardenPlinth',39.95,-41.88,4.64,1.62,sill-.12,sill);
