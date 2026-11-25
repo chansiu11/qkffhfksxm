@@ -1492,6 +1492,45 @@
       const havenPaving=new THREE.MeshStandardMaterial({map:makeCobbleTexture('#968b78','#807965'),vertexColors:true,roughness:1});
       const templeFacade=templeMaterial();
       const cloth=new THREE.MeshStandardMaterial({color:0x78857d,roughness:1});
+      // First-person reference: pale canvas, muted stone steps,
+      // warm wooden boards and darker ramp panels.
+      function raftersFinish(type){
+        const c=document.createElement('canvas');c.width=c.height=256;
+        const ctx=c.getContext('2d');
+        const palettes={
+          plank:['#81634b','#92745b','#896c54','#9a7c62'],
+          plywood:['#987451','#a4825e','#a08060','#95734f'],
+          ramp:['#806e61','#8b7767','#927d6c','#867366'],
+          stair:['#81817b','#96958e','#8a8982','#909087'],
+          fabric:['#bcb1a4','#c7bdb1','#b8aea2','#c4b7a9']
+        };
+        const colors=palettes[type];
+        ctx.fillStyle=colors[0];ctx.fillRect(0,0,256,256);
+        if(type==='fabric'){
+          const shade=ctx.createLinearGradient(0,0,256,0);
+          for(let i=0;i<=8;i++)shade.addColorStop(i/8,colors[i%4]);
+          ctx.fillStyle=shade;ctx.fillRect(0,0,256,256);
+          ctx.strokeStyle='#9c9288';ctx.lineWidth=2;ctx.strokeRect(5,5,246,246);
+          ctx.strokeStyle='#d8cfc4';ctx.lineWidth=1;ctx.strokeRect(8,8,240,240);
+        }else{
+          const rows=type==='plank'?8:type==='plywood'?2:type==='ramp'?4:2;
+          for(let i=0;i<rows;i++){
+            const y=i*256/rows;
+            ctx.fillStyle=colors[i%colors.length];ctx.fillRect(0,y,256,256/rows-1);
+            ctx.fillStyle=type==='stair'?'#696963':'#675345';ctx.fillRect(0,y,256,1.5);
+          }
+          for(let i=0;i<350;i++){
+            const x=(i*73)%256,y=(i*113)%256;
+            ctx.fillStyle=i%2?'rgba(255,255,255,.045)':'rgba(32,25,19,.045)';
+            ctx.fillRect(x,y,type==='stair'?3:10+(i%13),1);
+          }
+        }
+        const tex=new THREE.CanvasTexture(c);
+        tex.colorSpace=THREE.SRGBColorSpace;tex.wrapS=tex.wrapT=THREE.RepeatWrapping;
+        return new THREE.MeshStandardMaterial({map:tex,roughness:.94});
+      }
+      const raftersPlank=raftersFinish('plank'),raftersPlywood=raftersFinish('plywood'),
+        raftersRamp=raftersFinish('ramp'),raftersStair=raftersFinish('stair'),raftersFabric=raftersFinish('fabric');
       const ascentSalmon=new THREE.MeshStandardMaterial({color:0xc39183,roughness:1});
       function ascentDoorMaterial(){
         const c=document.createElement('canvas');c.width=256;c.height=256;
@@ -1611,7 +1650,15 @@
         // Batch static faces by material while preserving metre-based facade UVs.
         const batches=new Map(),cube=new THREE.BoxGeometry().toNonIndexed(),vertex=new THREE.Vector3();
         for(const part of map.parts){
-          const {x,z,w,d,b,t,angle,slope,kind}=part,mat=materials[kind];
+          const {x,z,w,d,b,t,angle,slope,kind}=part;
+          const rearGallery=id==='ascent'&&x>35&&x<71&&z<-38&&z>-57;
+          let mat=materials[kind];
+          if(rearGallery){
+            if(kind==='deck')mat=raftersPlank;
+            else if(kind==='step')mat=slope?raftersRamp:raftersStair;
+            else if(kind==='tarp')mat=raftersFabric;
+            else if(kind==='gardenWall'&&x===49.88&&z===-40.30)mat=raftersPlywood;
+          }
           if(!batches.has(mat))batches.set(mat,{positions:[],uvs:[]});
           const batch=batches.get(mat),cs=Math.cos(angle),sn=Math.sin(angle);
           for(let i=0;i<cube.attributes.position.count;i++){
@@ -1619,8 +1666,9 @@
             const vx=vertex.x*w,vz=vertex.z*d,vy=(vertex.y+.5)*(t-b)+b+slope*vz;
             batch.positions.push(x+cs*vx+sn*vz,vy,z-sn*vx+cs*vz);
             const facade=['ochre','pink','brick','temple'].includes(kind);
-            batch.uvs.push(cube.attributes.uv.getX(i)*(facade?(i<12?d:w)/10:1),
-              facade?vy/7:cube.attributes.uv.getY(i));
+            const galleryFloor=rearGallery&&(kind==='deck'||kind==='step'&&slope!==0);
+            batch.uvs.push(cube.attributes.uv.getX(i)*(facade?(i<12?d:w)/10:galleryFloor?Math.max(1,(i<12?d:w)/2.5):1),
+              facade?vy/7:galleryFloor&&i>=12&&i<24?cube.attributes.uv.getY(i)*Math.max(1,d/2.5):cube.attributes.uv.getY(i));
           }
           if(['deck','gardenPlinth','crate','wood','generator','generatorCap','tarp'].includes(kind))
             addWalkableSlab(x-w/2,x+w/2,z-d/2,z+d/2,t,t-b,kind.toUpperCase(),null,false);
