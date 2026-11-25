@@ -12,8 +12,8 @@
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=Rajdhani:wght@600;700&family=Teko:wght@600;700&display=swap" rel="stylesheet">
   <script src="match-plans.js?v=map-barrier-layout5"></script>
   <script src="config.js?v=perf19"></script>
-  <script src="host-transport.js?v=host21"></script>
-  <script src="multiplayer-client.js?v=host21"></script>
+  <script src="host-transport.js?v=audio22"></script>
+  <script src="multiplayer-client.js?v=audio22"></script>
   <link rel="stylesheet" href="menu.css" />
   <!-- Three.js r128 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -1092,7 +1092,7 @@
             osc.type = 'sawtooth';
             osc.frequency.setValueAtTime(freq, now);
             osc.frequency.exponentialRampToValueAtTime(40, now + dur);
-            gain.gain.setValueAtTime(0.36, now);
+            gain.gain.setValueAtTime(0.48, now);
             gain.gain.exponentialRampToValueAtTime(0.001, now + dur);
             osc.connect(gain);
             gain.connect(this.effectsBus || this.ctx.destination);
@@ -2016,6 +2016,7 @@
         player.pos.set(x,player.footY+EYE_HEIGHT,z);
         player.yaw=isAtk?0:Math.PI;player.pitch=0;player.taggedAt=undefined;
         player.vel.set(0, 0, 0);
+        player.onGround=true;resetMovementAudio(player);
         player.hp = 100;
         player.alive = true;
         resetADS();
@@ -2263,6 +2264,7 @@
       }
 
       function startNewRound() {
+        resetMovementAudio(player);
         player.reloadId = (player.reloadId || 0) + 1;
         player.reloading = false;
         player.pendingReloadWeapon = null;
@@ -2811,6 +2813,7 @@
         player.hp = 100;
         player.footY = footY;
         player.pos.set(x, footY + EYE_HEIGHT, z);
+        resetMovementAudio(player);
         player.vel.set(0, 0, 0);
         document.getElementById('cheat-modal').classList.add('hidden');
         showRoundBanner('ASCENT TELEPORT', label);
@@ -3319,6 +3322,7 @@
           return;
         }
         if (player.onGround) {
+          player.audioJumped=true;player.audioPeak=player.footY;player.audioAirTime=0;
           player.vel.y = 7.6;
           player.onGround = false;
         }
@@ -3704,6 +3708,32 @@
       const rCtx = radarCanvas.getContext('2d');
 
       let soundCircleUntil=0,soundRadius=0,stepDistance=0,lastAction='';
+      function resetMovementAudio(p){
+        p.audioAirTime=0;p.audioPeak=p.footY;p.audioJumped=false;
+        p.audioRunning=false;p.audioGrounded=true;p.audioLandingSeq=0;stepDistance=0;
+      }
+      // Audio contact tolerates small downward steps without modifying physics.
+      function movementAudio(p,oldY,surfaceY,dt,canRun,distance){
+        if(!Number.isFinite(p.audioAirTime)){p.audioAirTime=0;p.audioPeak=oldY;}
+        let landed=false;
+        if(!p.onGround){
+          p.audioAirTime+=dt;p.audioPeak=Math.max(p.audioPeak??oldY,oldY,p.footY);
+        }else{
+          landed=!!p.audioJumped||(p.audioAirTime>=.12&&Math.max(p.audioPeak??oldY,oldY)-p.footY>=.30);
+          p.audioAirTime=0;p.audioPeak=p.footY;p.audioJumped=false;
+        }
+        const closeToSurface=!p.audioJumped&&p.vel.y<=0&&p.footY-surfaceY<=.26;
+        p.audioGrounded=!!p.onGround||closeToSurface;
+        p.audioRunning=canRun&&p.audioGrounded;
+        if(landed){
+          p.audioLandingSeq=(p.audioLandingSeq||0)+1;
+          gameSound('land',p.pos.x,p.pos.z,true,p.footY+.12);
+          stepDistance=0;
+        }else if(p.audioRunning){
+          stepDistance+=distance;
+          if(stepDistance>=1.9){stepDistance%=1.9;gameSound('step',p.pos.x,p.pos.z,true,p.footY+.12);}
+        }else if(!canRun||p.audioAirTime>.20)stepDistance=0;
+      }
       function orientAudio(){
         const listener=sfx.ctx?.listener;if(!listener)return;
         const forward=camera.getWorldDirection(audioForward);
@@ -3713,20 +3743,20 @@
       }
       const audioForward=new THREE.Vector3(),audioUp=new THREE.Vector3();
       function gameSound(kind,x,z,own=false,y=AscentGround.height(activeMap,x,z)+.8){
-        const step=kind==='step',radius=step?40:kind==='shot'?100:60;
+        const land=kind==='land',step=kind==='step'||land,radius=step?40:kind==='shot'?100:60;
         const d=own?0:Math.hypot(x-camera.position.x,y-camera.position.y,z-camera.position.z);
         if(own){soundCircleUntil=performance.now()+550;soundRadius=radius;}
         if(d>=radius)return;
         sfx.init();const ctx=sfx.ctx;if(!ctx)return;
         const t=ctx.currentTime,osc=ctx.createOscillator(),gain=ctx.createGain(),pan=ctx.createPanner();
         osc.type=kind==='shot'?'sawtooth':step?'triangle':'square';
-        const freq=kind==='shot'?180:step?130:kind==='plant'?680:kind==='half'?1400:970;
-        osc.frequency.setValueAtTime(freq,t);osc.frequency.exponentialRampToValueAtTime(step?48:freq*1.45,t+.14);
+        const freq=kind==='shot'?180:land?100:step?130:kind==='plant'?680:kind==='half'?1400:970;
+        osc.frequency.setValueAtTime(freq,t);osc.frequency.exponentialRampToValueAtTime(land?35:step?48:freq*1.45,t+(land?.19:.14));
         const attenuation = 1-d/radius;
-        const volume = step ? .12 : kind==='shot' ? .195 : .13;
+        const volume = land ? .09 : step ? .06 : kind==='shot' ? .26 : .13;
         gain.gain.setValueAtTime(volume*attenuation,t);
-        if(step)sfx.balanceEffects(attenuation);
-        gain.gain.exponentialRampToValueAtTime(.00001,t+(step?.14:.32));
+        if(step)sfx.balanceEffects(attenuation*.5);
+        gain.gain.exponentialRampToValueAtTime(.00001,t+(land?.22:step?.14:.32));
         pan.panningModel='HRTF';pan.rolloffFactor=0;
         pan.setPosition(x,y,z);orientAudio();
         osc.connect(gain);
@@ -3734,7 +3764,7 @@
         if(own)gain.connect(output);
         else {gain.connect(pan);pan.connect(output);}
         if(step||kind==='shot'){
-          const length=Math.ceil(ctx.sampleRate*(step?.085:.12)),buffer=ctx.createBuffer(1,length,ctx.sampleRate);
+          const length=Math.ceil(ctx.sampleRate*(land?.13:step?.085:.12)),buffer=ctx.createBuffer(1,length,ctx.sampleRate);
           const samples=buffer.getChannelData(0);
           for(let i=0;i<length;i++)samples[i]=(Math.random()*2-1)*Math.exp(-5*i/length);
           const noise=ctx.createBufferSource();noise.buffer=buffer;noise.connect(gain);noise.start(t);
@@ -3872,6 +3902,7 @@
             if (keys['Space']) player.pos.y += 14 * dt;
             if (keys['ControlLeft'] || keys['ShiftLeft']) player.pos.y -= 14 * dt;
             player.footY = player.pos.y - EYE_HEIGHT;
+            player.audioRunning=false;player.audioAirTime=0;player.audioJumped=false;player.audioPeak=player.footY;stepDistance=0;
           } else {
             const isCrouching = planting() || keys['ControlLeft'] || player.crouchToggle;
             const isWalkingSlow = keys['ShiftLeft'] || player.walkToggle || (joyState.active && joyState.distRatio < 0.52);
@@ -3891,6 +3922,7 @@
             const sup = getSurfaceSupport(player.pos.x, player.pos.z, player.footY);
             player.callout = sup.callout;
 
+            const oldFootY=player.footY;
             player.vel.y -= 21.0 * dt;
             player.footY += player.vel.y * dt;
             if (player.footY <= sup.y) {
@@ -3900,10 +3932,8 @@
               player.onGround = false;
             }
             player.running=player.onGround&&!isCrouching&&!isWalkingSlow&&wishDir.lengthSq()>.01;
-            if(player.running){
-              stepDistance+=Math.hypot(player.pos.x-oldX,player.pos.z-oldZ);
-              if(stepDistance>=1.9){stepDistance%=1.9;gameSound('step',player.pos.x,player.pos.z,true);}
-            }else stepDistance=0;
+            movementAudio(player,oldFootY,sup.y,dt,!isCrouching&&!isWalkingSlow&&wishDir.lengthSq()>.01,
+              Math.hypot(player.pos.x-oldX,player.pos.z-oldZ));
             const crouchOffset = isCrouching ? -0.45 : 0;
             player.pos.y = player.footY + EYE_HEIGHT + crouchOffset;
           }

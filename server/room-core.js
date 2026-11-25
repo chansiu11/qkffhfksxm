@@ -43,6 +43,7 @@ function spawn(p, idx, map, keepWeapons = false) {
   p.actionFrom = 0;
   p.actionBase = 0;
   p.lastPosAt = 0;
+  p.stepDistance=0;p.lastLandSeq=0;p.lastLandAt=0;
   p.bulldogCount=0;p.lastShot = 0;p.lastInterval=0;p.equipUntil=0;
   p.spreadState = {};
   p.movementSpeed = 0;
@@ -167,10 +168,11 @@ function mapImpact(r,ox,oy,oz,dx,dy,dz,range){
     return {impactDistance,struck};
 }
 function worldSound(r,p,kind){
+  const movement=kind==='step'||kind==='land';
   for(const q of r.players.values()){
-    if(kind==='step'&&q===p)continue;
-    if(Math.hypot(q.x-p.x,q.z-p.z)<(kind==='step'?40:60))
-      send(q.client,{type:'world_sound',source:p.id,kind,x:p.x,z:p.z,y:kind==='step'?p.footY+.12:p.footY+.8});
+    if(movement&&q===p)continue;
+    if(Math.hypot(q.x-p.x,q.z-p.z)<(movement?40:60))
+      send(q.client,{type:'world_sound',source:p.id,kind,x:p.x,z:p.z,y:movement?p.footY+.12:p.footY+.8});
   }
 }
 function planting(r,p){return p.heldSpike&&r.phase==='combat'&&p.team==='attack'&&spikeSite(p.x,p.z,p.footY,r.map);}
@@ -398,11 +400,24 @@ function receive(c,m) {
           next.x=p.x;next.z=p.z;break;
         }
       }
-      if(m.running&&Math.abs(footY-p.footY)<.58){
-        p.stepDistance=(p.stepDistance||0)+Math.hypot(next.x-p.x,next.z-p.z);
-        if(p.stepDistance>=1.9){p.stepDistance%=1.9;worldSound(r,p,'step');}
-      }else p.stepDistance=0;
+      const distance=Math.hypot(next.x-p.x,next.z-p.z),dy=footY-p.footY;
       p.x=next.x;p.z=next.z;p.y=y;p.footY=footY;
+      if(typeof m.audioRunning==='boolean'){
+        const landing=Number.isSafeInteger(m.landSeq)&&m.landSeq>=0&&m.landSeq!==p.lastLandSeq&&m.audioGrounded===true;
+        if(landing){
+          p.lastLandSeq=m.landSeq;
+          if(m.landSeq>0&&now-(p.lastLandAt||0)>=300){p.lastLandAt=now;p.stepDistance=0;worldSound(r,p,'land');}
+        }
+        if(m.audioRunning&&!landing){
+          p.stepDistance=(p.stepDistance||0)+distance;
+          if(p.stepDistance>=1.9){p.stepDistance%=1.9;worldSound(r,p,'step');}
+        }else if(m.audioGrounded!==false||landing)p.stepDistance=0;
+      }else if(typeof m.running==='boolean'){
+        if(m.running&&Math.abs(dy)<.58){
+          p.stepDistance=(p.stepDistance||0)+distance;
+          if(p.stepDistance>=1.9){p.stepDistance%=1.9;worldSound(r,p,'step');}
+        }else p.stepDistance=0;
+      }
       if(gateCorrected)send(c,{type:'buy_gate_correction',x:p.x,z:p.z,attemptX:x,attemptZ:z,round:r.round});
       p.yaw=finite(m.yaw,-1e6,1e6,p.yaw);
       p.pitch=finite(m.pitch,-1.48,1.48,p.pitch);
