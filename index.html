@@ -18,14 +18,14 @@
   <link rel="stylesheet" href="menu.css" />
   <!-- Three.js r128 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <script src="match-samples.js?v=ui-transient2"></script>
+  <script src="match-samples.js?v=asset-ready1"></script>
   <script src="melee-rules.js?v=equipment2"></script>
   <script src="shotgun-pellets.js"></script>
   <script src="shooting-spread.js?v=alt22"></script>
   <script src="crosshair-profile.js"></script>
   <script src="crosshair-ui.js" defer></script>
   <script src="ads-system.js?v=armory20"></script>
-  <script src="weapon-viewmodels.js?v=sidearm-poses7"></script>
+  <script src="weapon-viewmodels.js?v=asset-ready1"></script>
 
   <style>
     :root {
@@ -289,6 +289,21 @@
       </style>
 </head>
 <body>
+  <div id="asset-loading" style="position:fixed;inset:0;z-index:2147483647;background:#101921;color:white;display:grid;place-content:center;text-align:center;gap:12px;font:600 18px system-ui">
+    <span id="asset-status" role="status">모델과 소리 불러오는 중 · 0%</span>
+    <progress id="asset-progress" aria-label="로딩 진행률" value="0" max="100" style="width:min(300px,80vw);accent-color:#38e2c7"></progress>
+    <button id="asset-retry" hidden>다시 시도</button>
+  </div>
+  <script>
+    function blockLoadingKeys(event){
+      if(document.getElementById('asset-loading') && event.target.id!=='asset-retry'){
+        event.stopImmediatePropagation();
+        if(event.key!=='Tab')event.preventDefault();
+      }
+    }
+    window.addEventListener('keydown',blockLoadingKeys,true);
+    window.addEventListener('keyup',blockLoadingKeys,true);
+  </script>
 
   <!-- 3D WebGL Canvas -->
   <canvas id="game-canvas"></canvas>
@@ -1092,7 +1107,7 @@
               effects.connect(limiter); steps.connect(limiter);
               limiter.connect(ctx.destination);
               this.effectsBus = effects;
-              MatchSamples.preload(ctx);
+
               this.stepsBus = steps;
             }
             if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
@@ -4553,11 +4568,45 @@
         updateHUD,flashDamage,showHitmarker,showRoundBanner,addKillFeed,syncCheatPermissionUI,
         launchAscentMatchImmediate,openWaitingLobby:window.openWaitingLobby,openEntryScreen:window.openEntryScreen,
         switchWeaponSlot:window.switchWeaponSlot,getSpikeHeld:()=>isSpikeKeyHeld&&(roomState.playerSide!=='attack'||!!planting())});
-      window.onload = function () {
+      async function prepareAssets(){
+        const overlay=document.getElementById('asset-loading'),status=document.getElementById('asset-status');
+        const progress=document.getElementById('asset-progress'),retry=document.getElementById('asset-retry');
+        retry.hidden=true;
+        for(const element of document.body.children)if(element!==overlay && element.tagName!=='SCRIPT')element.inert=true;
+        try{
+          sfx.init();
+          if(!sfx.ctx)throw Error('audio');
+          const sounds=MatchSamples.preloadJobs(sfx.ctx);
+          const spikeNames=['planting','planted','defuse_start_1','defuse_start_2','defused','boom'];
+          const jobs=[...sounds,...spikeNames.map(name=>()=>loadSpikeClip(name)),...viewmodel.preloadJobs()];
+          let next=0, done=0, failed=false;
+          function showProgress(){
+            progress.value=Math.floor(done*100/jobs.length);
+            status.textContent='모델과 소리 불러오는 중 · '+progress.value+'%';
+          }
+          showProgress();
+          async function worker(){
+            while(next<jobs.length&&!failed){
+              const job=jobs[next++];
+              try{if(!await job())throw Error('asset');done++;showProgress();}
+              catch(error){failed=true;console.warn('Asset loading',error);}
+            }
+          }
+          await Promise.all(Array.from({length:4},worker));
+          if(failed)throw Error('asset');
+        }catch(error){
+          status.textContent='불러오기 실패 · '+progress.value+'%';
+          retry.hidden=false;retry.onclick=prepareAssets;return;
+        }
+        for(const element of document.body.children)if(element!==overlay && element.tagName!=='SCRIPT')element.inert=false;
+        overlay.remove();
+        window.removeEventListener('keydown',blockLoadingKeys,true);
+        window.removeEventListener('keyup',blockLoadingKeys,true);
         refreshInputUI();
         syncCheatPermissionUI();
         requestAnimationFrame(animate);
-      };
+      }
+      window.addEventListener('load',prepareAssets,{once:true});
     })();
   </script>
 </body>
