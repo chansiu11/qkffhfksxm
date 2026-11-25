@@ -1041,7 +1041,11 @@
         if (inputSystem.touchModeEnabled && document.pointerLockElement) {
           try { document.exitPointerLock(); } catch (err) {}
         }
+        clearJoyState();lookPointerId=null;
+        isMouseFiring=isLeftTouchFiring=isRightTouchFiring=false;
+        rFireBtn.classList.remove('active-hold');lFireBtn.classList.remove('active-hold');
         refreshInputUI();
+        if(!inputSystem.touchModeEnabled){tryLockPointerSafe();updateMouseLockUI();}
       };
 
       /* =========================================================================
@@ -2310,14 +2314,33 @@
       /* =========================================================================
        * 7B. LOBBY, ROOM CODE, SHOP, CHEAT & INSTANT MATCH LAUNCH CONTROLLERS
        * ========================================================================= */
-      function tryLockPointerSafe() {
-        try {
-          const isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
-          if (!isTouch && !inputSystem.touchModeEnabled && canvas.requestPointerLock) {
-            canvas.requestPointerLock();
-          }
-        } catch (err) {}
+      function mouseGameplayAllowed() {
+        return matchState.inMatch&&!inputSystem.touchModeEnabled&&
+          document.getElementById('buy-shop-overlay').classList.contains('hidden')&&
+          document.getElementById('cheat-modal').classList.contains('hidden')&&
+          !window.isCrosshairSettingsOpen?.()&&!rangeOptions.open&&chatInput.hidden;
       }
+      function updateMouseLockUI() {
+        const btn=document.getElementById('hud-touch-toggle-btn');
+        if(!btn||inputSystem.touchModeEnabled)return;
+        btn.textContent=document.pointerLockElement===canvas?'TOUCH UI: OFF':'TOUCH UI: OFF · 화면 클릭';
+        btn.title=document.pointerLockElement===canvas?'ESC: 마우스 잠금 해제':'게임 화면을 클릭하면 마우스 잠금';
+      }
+      function tryLockPointerSafe() {
+        if(!mouseGameplayAllowed()||document.pointerLockElement===canvas||!canvas.requestPointerLock)return;
+        try {
+          const result=canvas.requestPointerLock();
+          result?.catch?.(()=>updateMouseLockUI());
+        } catch (_) {updateMouseLockUI();}
+      }
+      document.addEventListener('pointerlockchange',()=>{
+        if(document.pointerLockElement!==canvas){
+          isMouseFiring=false;
+          for(const key of Object.keys(keys))keys[key]=false;
+        }else if(!mouseGameplayAllowed())document.exitPointerLock?.();
+        updateMouseLockUI();
+      });
+      document.addEventListener('pointerlockerror',updateMouseLockUI);
 
       function syncCheatPermissionUI() {
         const allowed = activeMap!=='range' && roomState.allowCheats;
@@ -2690,7 +2713,7 @@
       }
       setting('settings').onclick=rangeSettings;
       setting('start').onclick=()=>{startRangeDrill();rangeOptions.close();};
-      rangeOptions.onclose=()=>{if(activeMap==='range' && matchState.inMatch)tryLockPointerSafe();};
+      rangeOptions.onclose=()=>{if(activeMap==='range' && matchState.inMatch){tryLockPointerSafe();updateMouseLockUI();}};
       window.addEventListener('keydown',e=>{
         if(activeMap!=='range'||!matchState.inMatch)return;
         if(e.code==='F3'){e.preventDefault();e.stopImmediatePropagation();rangeSettings();}
@@ -3479,6 +3502,7 @@
           return;
         }
         if (e.code === 'Escape') {
+          isMouseFiring=false;
           document.getElementById('buy-shop-overlay').classList.add('hidden');
           document.getElementById('cheat-modal').classList.add('hidden');
           return;
@@ -3527,7 +3551,7 @@
       });
 
       window.addEventListener('pointermove', (e) => {
-        if (document.pointerLockElement === canvas && matchState.inMatch && player.alive) {
+        if (document.pointerLockElement === canvas && mouseGameplayAllowed() && player.alive) {
           const sens = (player.isScoped ? 0.0011 : 0.0022) * sensitivityControl.valueAsNumber;
           player.yaw -= e.movementX * sens;
           player.lookPitch = Math.max(-1.48, Math.min(1.48, player.lookPitch - e.movementY * sens));
@@ -3536,29 +3560,26 @@
 
       canvas.addEventListener('mousedown', (e) => {
         if (!chatInput.hidden) { e.preventDefault(); chatInput.focus(); return; }
-        if (!matchState.inMatch) return;
-        const isTouchEnv = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
-        if (!isTouchEnv && !inputSystem.touchModeEnabled && document.pointerLockElement !== canvas) {
-          tryLockPointerSafe();
-        }
+        if (!mouseGameplayAllowed()||![0,2].includes(e.button))return;
+        e.preventDefault();
+        // First click after Escape or a rejected lock captures the pointer only.
+        if(document.pointerLockElement!==canvas){tryLockPointerSafe();return;}
         if (!player.alive) {
           window.cycleSpectator(e.button === 2 ? -1 : 1);
           return;
         }
-        if (e.button === 0) {
-          isMouseFiring = true;
-          if (getActiveWeapon().auto) attemptFire();
-        } else if (e.button === 2) {
+        if(e.button===0){
+          if(isMouseFiring)return;
+          isMouseFiring=true;
+          attemptFire();
+        }else if(e.button===2){
           if(getActiveWeapon().slot==='knife')attemptFire('heavy');else window.toggleScope();
         }
       });
-
-      window.addEventListener('mouseup', (e) => {
-        if (e.button !== 0 || !isMouseFiring) return;
-        isMouseFiring = false;
-        if (!getActiveWeapon().auto) attemptFire();
+      window.addEventListener('mouseup', e=>{
+        if(e.button===0)isMouseFiring=false;
       });
-      window.addEventListener('contextmenu', (e) => e.preventDefault());
+      canvas.addEventListener('contextmenu', e=>e.preventDefault());
 
       /* --- FLOATING LEFT-HALF JOYSTICK + INDEPENDENT RIGHT-HALF AIM --- */
       const joyState = { active: false, pointerId: null, dx: 0, dy: 0, distRatio: 0, cx: 0, cy: 0 };
