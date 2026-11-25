@@ -190,7 +190,17 @@
         case 'buy_gate_correction':
           if(this.started && a.matchState.phase==='buy' && data.round===a.matchState.round &&
              Number.isFinite(data.x) && Number.isFinite(data.z)){
-            a.player.pos.x=data.x; a.player.pos.z=data.z;
+            // A delayed correction may only remove the blocked component.
+            // Never rewind movement parallel to the barrier or away from it.
+            for(const axis of ['x','z']){
+              const attempted=data[axis==='x'?'attemptX':'attemptZ'];
+              const corrected=data[axis];
+              if(!Number.isFinite(attempted))continue;
+              const delta=attempted-corrected;
+              if(Math.abs(delta)>.001 && (a.player.pos[axis]-corrected)*delta>0){
+                a.player.pos[axis]=corrected;
+              }
+            }
           }
           break;
         case 'error': this.status(data.message || '서버 요청 실패', true); break;
@@ -402,7 +412,8 @@
       const a = this.api;
       const me = state.players.find(p => p.id === this.myId);
       if (!me) return;
-      if (this.lastRound !== state.round) {
+      const newRound = this.lastRound !== state.round;
+      if (newRound) {
         this.lastRound = state.round;
         this.lastSpike = false;
         a.startNewRound();
@@ -471,7 +482,7 @@
         a.viewmodel.stopReload();
       }
       // Honor server spawn on round start and server corrections for abnormal movement.
-      if (state.phase === 'buy' && state.timer > 15.5) {
+      if (newRound) {
         a.player.pos.set(me.x, me.y, me.z);
         a.player.footY = me.footY;
         a.player.yaw = me.yaw;

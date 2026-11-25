@@ -96,7 +96,7 @@ const server = http.createServer((req, res) => {
     'access-control-allow-origin': 'https://chansiu11.github.io', 'cache-control': 'no-store' };
   if (req.url === '/health' || req.url === '/') {
     res.writeHead(200, headers);
-    res.end(JSON.stringify({ ok: true, service: 'qkffhfksxm-realtime', buyGateRevision: 'buy-gates-sync3', rooms: rooms.size, players: clients.size }));
+    res.end(JSON.stringify({ ok: true, service: 'qkffhfksxm-realtime', buyGateRevision: 'buy-gates-slide4', rooms: rooms.size, players: clients.size }));
   } else { res.writeHead(404, headers); res.end('{}'); }
 });
 server.on('upgrade', (req, socket, head) => {
@@ -500,7 +500,7 @@ function receive(c,m) {
         gateCorrected ||= Math.hypot(next.x-beforeX,next.z-beforeZ)>.001;
       };
       if(r.phase==='buy')applyGate();
-      ground.resolve(r.map,next,footY,.38);
+      ground.resolve(r.map,next,footY,r.phase==='buy'?.62:.38);
       if(r.phase==='buy')applyGate();
       for(const [id,state] of Object.entries(r.objects||{})){
         const door=ground.interactives[r.map][id];
@@ -516,7 +516,7 @@ function receive(c,m) {
         if(p.stepDistance>=1.9){p.stepDistance%=1.9;worldSound(r,p,'step');}
       }else p.stepDistance=0;
       p.x=next.x;p.z=next.z;p.y=y;p.footY=footY;
-      if(gateCorrected)send(c,{type:'buy_gate_correction',x:p.x,z:p.z,round:r.round});
+      if(gateCorrected)send(c,{type:'buy_gate_correction',x:p.x,z:p.z,attemptX:x,attemptZ:z,round:r.round});
       p.yaw=finite(m.yaw,-1e6,1e6,p.yaw);
       p.pitch=finite(m.pitch,-1.48,1.48,p.pitch);
       recordPosition(p,now);
