@@ -25,7 +25,8 @@
   <script src="crosshair-profile.js"></script>
   <script src="crosshair-ui.js" defer></script>
   <script src="ads-system.js?v=armory20"></script>
-  <script src="weapon-viewmodels.js?v=armory20"></script>
+  <script src="pistol-view.js?v=1"></script>
+  <script src="weapon-viewmodels.js?v=pistols3d"></script>
 
   <style>
     :root {
@@ -659,6 +660,7 @@
             <div id="slot-secondary-name" class="text-[11px] sm:text-xs font-bold text-white truncate mt-0.5">CLASSIC</div>
           </button>
 
+          <button type="button" id="inspect-sidearm-btn" onclick="window.inspectSidearm()" class="hidden px-2 py-1 bg-[#142230] border-b-2 border-transparent text-xs text-[#ece8e1]">[Y] 자세히 보기</button>
           <button type="button" id="slot-knife-btn" onclick="window.switchWeaponSlot('knife')"
                   class="px-2.5 sm:px-3 py-1 bg-[#142230] border-b-2 border-transparent text-left min-w-[62px] sm:min-w-[82px] transition cursor-pointer">
             <div class="flex justify-between items-center text-[8px] font-num text-white/50">
@@ -2271,6 +2273,7 @@
         document.getElementById('hud-weapon-title').textContent = w.name;
         document.getElementById('hud-ammo-mag').textContent = w.slot === 'knife' ? 'INF' : (((activeMap==='range' && setting('ammo').checked || roomState.allowCheats && cheats.infiniteAmmo) && !specTarget) ? 'INF' : w.mag);
         document.getElementById('hud-ammo-res').textContent = w.slot === 'knife' ? '-' : w.reserve;
+        document.getElementById('inspect-sidearm-btn').classList.toggle('hidden',w.slot!=='secondary');
         viewmodel.setWeapon(w.id,w.equipTime);
         document.querySelector('#mob-ads-btn span').textContent=w.slot==='knife'?'강공격':'ADS';
 
@@ -3279,6 +3282,9 @@
         }, (w.reloadTime || 1.1) * 1000);
       };
 
+      window.inspectSidearm = function () {
+        if (matchState.inMatch && player.alive && getActiveWeapon().slot==='secondary') viewmodel.inspect();
+      };
       window.switchWeaponSlot = function (slot) {
         if (slot === 'primary' && !player.primary) return;
         if (slot !== player.activeSlot || (player.reloading && player.pendingReloadWeapon !== player[slot]?.id)) {
@@ -3364,7 +3370,8 @@
         if(performance.now()/1000<player.equipUntil || performance.now()<player.scopeReadyAt)return;
         if(!player.alive){window.cycleSpectator(-1);return;}
         const gun=getActiveWeapon();
-        if(!GameADS.isEligible(gun))return; // pistols, shotguns, knife
+        if(gun.slot==='secondary'){viewmodel.togglePistolAim();return;}
+        if(!GameADS.isEligible(gun))return;
         if(gun.id==='operator' && player.adsRequested && player.operatorZoom!==2){player.operatorZoom=2;return;}
         player.operatorZoom=1;
         GameADS.request(player,performance.now(),!player.adsRequested);
@@ -3559,6 +3566,7 @@
 
         if (e.code === 'KeyV' && roomState.allowCheats) window.toggleCheatOption('ghost');
         if (e.code === 'Space' && !e.repeat) {e.preventDefault();window.triggerJump();}
+        if (e.code === 'KeyY' && !e.repeat) window.inspectSidearm();
         if (e.code === 'KeyR' && !e.repeat) window.triggerReload();
         if (e.code === 'Digit1') window.switchWeaponSlot('primary');
         if (e.code === 'Digit2') window.switchWeaponSlot('secondary');
@@ -4519,6 +4527,7 @@
 
         updateHitBursts(dt);
         renderer.render(scene, camera);
+        viewmodel.render(renderer);
       }
 
       window.MP.install({spikeRoundResult,stopSpikeClip,gameSound,afterScopedShot,syncMapObjects,selectMap,resetChat,appendChat,roomState,matchState,player,bots,scene,spikeMesh,barrierGroup,gunGroup,muzzleFlashMesh,viewmodel,gameSpikeSiteAt,sfx,

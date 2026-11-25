@@ -21,7 +21,7 @@ jobs:
       - name: Prepare public files
         run: |
           mkdir -p public/server
-          cp index.html menu.css match-plans.js config.js multiplayer-client.js weapon-viewmodels.js ads-system.js \
+          cp index.html menu.css match-plans.js config.js multiplayer-client.js pistol-view.js weapon-viewmodels.js ads-system.js \
             host-runtime.js host-transport.js movement-physics.js match-samples.js shotgun-pellets.js shooting-spread.js melee-rules.js crosshair-profile.js crosshair-ui.js public/
           mkdir -p public/assets
           cp -r assets/weapons public/assets/weapons
