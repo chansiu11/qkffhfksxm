@@ -5,7 +5,7 @@
   if(root)root.GameMovement=api;
 })(typeof globalThis!=='undefined'?globalThis:this,function(){
   'use strict';
-  const settings=Object.freeze({groundAccel:45,groundBrake:60,airAccel:7.5,airCap:1.04,landingKeep:.65,hopLandingKeep:.90,jumpBufferMs:120,jumpSpeed:7.6});
+  const settings=Object.freeze({groundAccel:45,groundBrake:60,airAccel:7.5,airSteerAccel:15,airCap:1.04,landingKeep:.65,hopLandingKeep:.90,jumpBufferMs:120,jumpSpeed:7.6});
   function clampSpeed(v,max){
     const speed=Math.hypot(v.x,v.z);
     if(speed>max&&speed>0){const scale=max/speed;v.x*=scale;v.z*=scale;}
@@ -25,8 +25,15 @@
       approach(v,wx*max,wz*max,(slowing?settings.groundBrake:settings.groundAccel)*dt);
       clampSpeed(v,max);
     }else{
-      // Preserve horizontal momentum when input is released; air steering is weaker.
-      if(magnitude>.001)approach(v,wx*max,wz*max,settings.airAccel*dt);
+      // Keep momentum on neutral input. Direction changes are more responsive
+      // than straight-line acceleration, with a bounded horizontal speed.
+      if(magnitude>.001){
+        const speed=Math.hypot(v.x,v.z);
+        const alignment=speed>.001?Math.max(-1,Math.min(1,(v.x*wx+v.z*wz)/(speed*magnitude))):1;
+        const turnWeight=Math.min(1,1-alignment);
+        const acceleration=settings.airAccel+(settings.airSteerAccel-settings.airAccel)*turnWeight;
+        approach(v,wx*max,wz*max,acceleration*dt);
+      }
       clampSpeed(v,max*settings.airCap);
     }
   }
