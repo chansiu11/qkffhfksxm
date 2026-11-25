@@ -2597,12 +2597,37 @@
         for(const mark of drill.marks) {mark.parent?.remove(mark);mark.geometry.dispose();mark.material.dispose();}
         drill.marks.length=0;
       }
+      // Random 2D placement inside the existing open practice floor.
+      function pickRangeSpawn(occupied,previous,random=Math.random) {
+        const fits=(x,z)=>occupied.every(p=>
+          Math.hypot(x-p.x,z-p.z)>=2.4 &&
+          (Math.abs(z-p.z)>=1.5||Math.abs(x-p.x)>=4.8));
+        const fresh=(x,z)=>!previous||Math.hypot(x-previous.x,z-previous.z)>=2.5;
+        for(let i=0;i<128;i++){
+          const x=-13+26*random(),z=-18+15*random();
+          if(fits(x,z)&&fresh(x,z))return {x,z};
+        }
+        // Bounded fallback with randomized selection, never a fixed row.
+        const candidates=[];
+        for(let z=-18;z<=-3;z+=2.5)for(let x=-13;x<=13;x+=2.5)
+          if(fits(x,z))candidates.push({x,z});
+        const alternatives=candidates.filter(p=>fresh(p.x,p.z));
+        const pool=alternatives.length?alternatives:candidates;
+        if(pool.length)return pool[Math.floor(random()*pool.length)];
+        return null;
+      }
       function placeRangeBot(b,i,count) {
+        const occupied=bots.filter(p=>p!==b&&p.inDrill&&p.alive).map(p=>({
+          x:p.baseX??p.group.position.x,z:p.group.position.z
+        }));
+        const spawn=pickRangeSpawn(occupied,b.rangeSpawn);
+        if(!spawn){b.alive=b.group.visible=false;return false;}
+        b.rangeSpawn=spawn;b.baseX=spawn.x;b.footY=0;
         b.alive=b.group.visible=true;b.hp=100;b.armor=setting('armor').checked?50:0;
-        b.baseX=count===1?(Math.random()-.5)*23:-13+26*(i+.5)/count;
-        b.group.position.set(b.baseX,0,-3-Math.random()*15);
+        b.group.position.set(spawn.x,0,spawn.z);
         b.deadline=performance.now()+({easy:2000,medium:1000,hard:500}[drill.mode]||Infinity);
         drill.shown++;
+        return true;
       }
       function startRangeDrill() {
         drill.mode=setting('mode').value;drill.kills=drill.shown=drill.damage=0;
@@ -2615,10 +2640,10 @@
         drill.checkpoint=-1;
         if(drill.mode==='parkour'){player.pos.set(18,EYE_HEIGHT,18);player.footY=0;}
         const count=drill.mode==='parkour'?0:drill.mode==='practice'?Number(setting('count').value):1;
-        for(let i=0;i<bots.length;i++) {
-          const b=bots[i];b.inDrill=b.alive=b.group.visible=i<count;
-          if(b.alive) placeRangeBot(b,i,count);
+        for(let i=0;i<bots.length;i++){
+          const b=bots[i];b.inDrill=i<count;b.alive=b.group.visible=false;b.rangeSpawn=null;
         }
+        for(let i=0;i<count;i++)placeRangeBot(bots[i],i,count);
         if(board){bots[0].baseX=2.5;bots[0].group.position.set(2.5,0,drill.board.position.z);}
         // Three.js raycasting also visits invisible objects. Only expose the board in target mode.
         const index=mapTargetMeshes.indexOf(drill.board);
