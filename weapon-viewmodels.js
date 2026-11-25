@@ -44,7 +44,11 @@
     operator: [[180,310,16],[48,75,-4],[-7,-12,1]]
   });
   function equipPose(id,progress,scale=1){
-    const frames=equipMotion[id]||equipMotion.classic;
+    if(id!=='knife'){
+      const t=Math.max(0,Math.min(1,progress));
+      return {x:0,y:220*scale*(1-t*t*(3-2*t)),roll:0};
+    }
+    const frames=equipMotion.knife;
     const t=Math.max(0,Math.min(1,progress));
     const times=[0,.48,.82,1],points=[...frames,[0,0,0]];
     let i=0;while(i<2&&t>times[i+1])i++;
@@ -348,10 +352,10 @@
     const light=new T.DirectionalLight(0xffffff,1.4);
     light.position.set(-1,2,1); scene.add(light);
     let selected, model, visible=false, equipped=0, inspected=-Infinity, fired=-Infinity;
-    let duration=750, reloadStarted=0, startClassicDraw=false;
+    let duration=750, reloadStarted=0, startModelDraw=false;
     function select(id) {
       if(selected===id)return;
-      startClassicDraw=id==='classic';
+      startModelDraw=!!files[id];
       selected=id; equipped=performance.now(); inspected=fired=-Infinity;
       pivot.clear(); model=null; visible=false;
       if(!files[id])return;
@@ -361,35 +365,40 @@
     const set=api.setWeapon, update=api.update, fire=api.fire, inspect=api.inspect, reload=api.beginReload;
     api.setWeapon=(id,time)=>{set(id,time);duration=(time??catalog[id]?.equipTime??.75)*1000;select(api.current);};
     api.inspect=()=>{inspect();if(model&&!api.isReloading && performance.now()-equipped>=duration)inspected=performance.now();};
-    api.fire=(mode)=>{startClassicDraw=false;inspected=-Infinity;fired=performance.now();fire(mode);};
-    api.beginReload=()=>{startClassicDraw=false;inspected=-Infinity;reloadStarted=performance.now();reload();};
+    api.fire=(mode)=>{startModelDraw=false;inspected=-Infinity;fired=performance.now();fire(mode);};
+    api.beginReload=()=>{startModelDraw=false;inspected=-Infinity;reloadStarted=performance.now();reload();};
     api.update=(dt,player,state)=>{
       update(dt,player,state);
       visible=!!(model&&player?.alive&&state?.inMatch);
       if(!visible)return;
       const now=performance.now(), age=(now-inspected)/1000;
-      if(startClassicDraw){equipped=now;startClassicDraw=false;}
+      if(startModelDraw){equipped=now;startModelDraw=false;}
       const smooth=x=>{x=Math.max(0,Math.min(1,x));return x*x*(3-2*x);};
       const lift=smooth(age/.34)*(1-smooth((age-2.54)/.38));
       const turn=smooth((age-1.12)/.42)*(1-smooth((age-2.48)/.40));
       const equip=Math.min(1,(now-equipped)/duration);
       const draw=1-smooth(equip);
       const reloadT=api.isReloading?Math.min(1,(now-reloadStarted)/(1000*(catalog[selected]?.reloadTime||1.1))):1;
-      const liftProgress = selected === 'classic' ? equip : reloadT;
+      const liftProgress = reloadT;
       const liftBarrel = Math.sin(Math.PI * liftProgress) * (1 - liftProgress);
       const dip=smooth(reloadT/.28)*(1-smooth((reloadT-.39)/.28));
       const seat=smooth((reloadT-.34)/.29)*(1-smooth((reloadT-.73)/.27));
+      const shorty=selected==='shorty';
+      // Hold the broad side in view, then turn back upright for the second pose.
+      const shortyInspect=shorty?lift:0;
+      const shortyTurn=shorty?turn:0;
+      const shortyReload=shorty?smooth(reloadT/.22)*(1-smooth((reloadT-.72)/.28)):0;
       const shot=(now-fired)/1000, kick=shot<.25?Math.sin(Math.PI*Math.min(1,shot/.055)/2)*Math.exp(-shot*18):0;
       const move=Math.min(1,Math.hypot(player.vel?.x||0,player.vel?.z||0)/7.6);
       camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();
       // Reference at 23.5–24.5 s: Classic grip sits below and right of the crosshair.
-      const scale=({classic:.40,shorty:.82,ghost:.74,sheriff:.64,bandit:.59,frenzy:.65})[selected];
+      const scale=({classic:.40,shorty:.73,ghost:.74,sheriff:.64,bandit:.59,frenzy:.65})[selected];
       pivot.scale.setScalar(scale);
-      pivot.position.set((selected==='classic'?.168:.146)*Math.min(camera.aspect,2.1)/1.78-.013*lift-.087*turn,
-        -.143+.048*lift-.08*turn-.26*draw-.25*dip+.015*seat+.003*move*Math.sin(now*.01),
+      pivot.position.set((selected==='classic'?.168:.146)*Math.min(camera.aspect,2.1)/1.78-.013*lift-.087*turn-.033*shortyInspect,
+        -.143+.048*lift-.08*turn-.26*draw-(shorty?.12:.25)*dip+.015*seat+.003*move*Math.sin(now*.01),
         -.54+.05*lift+.045*kick);
-      pivot.rotation.set(.12+.30*kick+.20*lift+.73*liftBarrel+(selected==='classic'?0:.48*seat),
-        .30+.95*lift-.45*turn+.16*dip,-.06-.24*lift-1.04*turn+.31*draw-.54*dip-.22*seat);
+      pivot.rotation.set(.12+.30*kick+.20*lift+(selected==='classic'?0:.73*liftBarrel+.48*seat),
+        .30+.95*lift-.45*turn+.16*dip+.25*shortyInspect-.56*shortyTurn,-.06-.24*lift-1.04*turn-.54*dip-.22*seat-.47*shortyReload);
       const photo=document.querySelector('#fps-weapon-sprite-layer .fps-paper-weapon');
       if(photo)photo.style.opacity='0';
     };
