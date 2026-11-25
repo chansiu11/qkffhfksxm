@@ -170,7 +170,8 @@ if (typeof window !== "undefined") window.GAME_SERVER_URL = 'https://qkffhfksxm-
       // The rear approach rises from the defender-side corridor, not from the site.
       const top=height(id,60.7,-42.6)+3.05;
       box('deck',59.9,-42.55,20.9,4.5,top-.38,top);
-      box('deck',47.35,-42.2,4.35,4.4,top-.38,top);
+      // Continue the upper landing to the existing front wall near (47,-40).
+      box('deck',47.35,-41.55,4.35,5.7,top-.38,top);
       // In-game screenshots show a narrow flight next to a timber ramp,
       // approached through a stone arch. Dimensions fitted to our existing world.
       // User-reported stair center (40,-53); ascend along the rear
@@ -184,9 +185,17 @@ if (typeof window !== "undefined") window.GAME_SERVER_URL = 'https://qkffhfksxm-
         const f=(i+1)/22;
         box('step',x-w/2+(i+.5)*w/22,stairZ,w/22+.012,stairD,entry-.35,entry+rise*f);
       }
-      box('step',x,rampZ,rampD,w,(entry+top)/2-.24,(entry+top)/2,Math.PI/2,rise/w);
-      box('deck',46.16,-53,4.84,3.25,top-.38,top);
-      box('deck',46.8,-48.64,3.65,8.74,top-.38,top);
+      // Extend the ramp to the rear masonry at z=-56.47, not just to
+      // the old narrow stair footprint. Both pieces share the same slope.
+      const rearEdge=-56.50,innerEdge=rampZ+rampD/2;
+      const fullRampD=innerEdge-rearEdge,fullRampZ=(innerEdge+rearEdge)/2;
+      box('step',x,fullRampZ,fullRampD,w,(entry+top)/2-.38,(entry+top)/2,Math.PI/2,rise/w);
+      const stripEdge=z-d/2;
+      map.stairs.push({x,z:(rearEdge+stripEdge)/2,w,d:stripEdge-rearEdge+.02,axis:'x',near:entry,far:top});
+      // Join the extended ramp to the upper landing and the rear wall.
+      box('deck',46.16,-53.94,4.84,5.12,top-.38,top);
+      // Widen the passage floor westward to the masonry face at x=44.25.
+      box('deck',46.39,-48.64,4.47,8.74,top-.38,top);
       // The entrance arch follows the relocated stair, clear of the tread.
       const archX=x-w/2-.5,base=height(id,archX,z),half=d/2;
       for(const side of [-1,1])
