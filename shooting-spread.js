@@ -124,6 +124,14 @@
   }
   function directions(w,options,pellets){
     const shot=sample(w,options);
+    if (options.alt && (w.id === 'classic' || w.id === 'bucky')) {
+      const classic = w.id === 'classic';
+      const count = classic ? Math.min(3, options.ammo) : 5;
+      const movement = options.airborne ? 2.25 : Math.min(1, options.speed / 5.73) * 1.5;
+      const cone = Math.tan((classic ? 1.9 + movement : 2) * Math.PI / 180);
+      const vectors = pellets.directions(shot.yaw, shot.pitch, count, cone, options.scatter);
+      return {shot, vectors, splitDistance: classic ? 0 : 8};
+    }
     const vectors=pellets.directions(shot.yaw,shot.pitch,w?.pellets||1,shot.pelletCone,options.scatter||0);
     return {shot,vectors};
   }

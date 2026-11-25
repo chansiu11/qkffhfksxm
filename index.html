@@ -14,14 +14,14 @@
   <script src="config.js?v=perf19"></script>
   <script src="host-transport.js?v=armory20"></script>
   <script src="movement-physics.js?v=move25"></script>
-  <script src="multiplayer-client.js?v=knife21"></script>
+  <script src="multiplayer-client.js?v=alt22"></script>
   <link rel="stylesheet" href="menu.css" />
   <!-- Three.js r128 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="match-samples.js?v=knife21"></script>
   <script src="melee-rules.js?v=equipment2"></script>
   <script src="shotgun-pellets.js"></script>
-  <script src="shooting-spread.js?v=armory20"></script>
+  <script src="shooting-spread.js?v=alt22"></script>
   <script src="crosshair-profile.js"></script>
   <script src="crosshair-ui.js" defer></script>
   <script src="ads-system.js?v=armory20"></script>
@@ -3083,6 +3083,13 @@
         }
       }
 
+      function secondaryInput() {
+        const weapon = getActiveWeapon();
+        if (weapon.slot === 'knife') attemptFire('heavy');
+        else if (weapon.id === 'classic' || weapon.id === 'bucky') attemptFire('alt');
+        else window.toggleScope();
+      }
+
       function attemptFire(knifeMode='light') {
         if(planting())return;
         if (!matchState.inMatch || (activeMap==='range' && rangeOptions.open)) return;
@@ -3104,11 +3111,13 @@
         }
         player.lastShotTime = now;
         window.markCrosshairFiring?.();
-        if (!infAmmo) w.mag--;
+        const alt = knifeMode === 'alt';
+        const ammo = infAmmo ? Infinity : w.mag;
+        if (!infAmmo) w.mag -= alt && w.id === 'classic' ? Math.min(3, ammo) : 1;
 
         if(now-(player.lastBulldogTime||0)>.5)player.bulldogCount=0;
         player.lastBulldogTime=now;
-        player.lastInterval=w.slot==='knife'?MeleeRules.MODES[knifeMode].cooldown:
+        player.lastInterval=alt && w.id === 'classic' ? .45 : w.slot==='knife'?MeleeRules.MODES[knifeMode].cooldown:
           (player.isScoped && w.id==='bulldog' ? (((player.bulldogCount||0)%3===2)?.325:.075) : ShootingSpread.fireInterval(w,player.isScoped,w._spreadState,now*1000));
         player.bulldogCount=player.isScoped&&w.id==='bulldog'?((player.bulldogCount||0)+1)%3:0;
         viewmodel.fire(knifeMode);
@@ -3150,13 +3159,13 @@
         const burstState = w._spreadState || (w._spreadState = {});
         const burst = ShootingSpread.burstIndex(burstState, w, shotAtMs);
         const spreadResult = ShootingSpread.directions(w, {
-          yaw: player.yaw, pitch: player.pitch, ...ShootingSpread.motion(player),
+          alt, ammo, yaw: player.yaw, pitch: player.pitch, ...ShootingSpread.motion(player),
           shotIndex: burst, seed: (Math.random() * 4294967296) >>> 0,
           scatter: pelletRotation
         }, ShotgunPellets);
         ShootingSpread.confirmShot(burstState, w, shotAtMs, burst);
         afterScopedShot(w);
-        const pelletDirections = spreadResult.vectors;
+        let pelletDirections = spreadResult.vectors;
         // Update mesh world transforms so ray collision matches the visible geometry.
         scene.updateMatrixWorld(true);
 
@@ -3172,14 +3181,26 @@
         const allTargets = enemyMeshes.concat(mapTargetMeshes);
         const maxDist = w.range || 110;
 
+        const origin = player.pos.clone();
+        let travel = 0;
+        if (spreadResult.splitDistance) {
+          const axis = new THREE.Vector3(...pelletDirections[0]);
+          const probe = new THREE.Raycaster(origin, axis, 0, spreadResult.splitDistance);
+          if (probe.intersectObjects(allTargets, false).length) pelletDirections = [pelletDirections[0]];
+          else {
+            travel = spreadResult.splitDistance;
+            origin.addScaledVector(axis, travel);
+            spawnBulletTracer(localTracerVisualStart(player.pos, axis), origin);
+          }
+        }
         for (let p = 0; p < pelletDirections.length; p++) {
           const bulletDirection = new THREE.Vector3(...pelletDirections[p]);
-          raycaster.set(player.pos.clone(), bulletDirection);
+          raycaster.set(origin, bulletDirection);
           raycaster.near = 0;
-          raycaster.far = maxDist;
+          raycaster.far = maxDist - travel;
           const hits = raycaster.intersectObjects(allTargets, false);
 
-          let endPt = player.pos.clone().addScaledVector(bulletDirection, maxDist);
+          let endPt = origin.clone().addScaledVector(bulletDirection, maxDist - travel);
 
           if (hits.length > 0) {
             const firstHit = hits[0];
@@ -3207,7 +3228,7 @@
               const before=targetBot.hp+targetBot.armor;
               {
                 const zone=isHead?'head':endPt.y-targetBot.footY<.62?'leg':'body';
-                ShootingSpread.applyGunDamage(targetBot,w.id,firstHit.distance,zone);
+                ShootingSpread.applyGunDamage(targetBot,w.id,travel + firstHit.distance,zone);
                 targetBot.taggedAt=performance.now();
               }
               if(activeMap==='range' && drill.mode==='target'){
@@ -3230,7 +3251,7 @@
           }
           if (w.slot !== 'knife') {
             // Each shotgun pellet has its own tracer; rifle shots still emit exactly one.
-            spawnBulletTracer(localTracerVisualStart(player.pos, bulletDirection), endPt);
+            spawnBulletTracer(travel ? origin : localTracerVisualStart(player.pos, bulletDirection), endPt);
           }
         }
 
@@ -3597,7 +3618,7 @@
           isMouseFiring=true;
           attemptFire();
         }else if(e.button===2){
-          if(getActiveWeapon().slot==='knife')attemptFire('heavy');else window.toggleScope();
+          secondaryInput();
         }
       });
       window.addEventListener('mouseup', e=>{
@@ -3728,7 +3749,7 @@
         el.addEventListener('pointerdown', trigger);
       }
 
-      bindInstantTouchButton('mob-ads-btn', () => getActiveWeapon().slot==='knife'?attemptFire('heavy'):window.toggleScope());
+      bindInstantTouchButton('mob-ads-btn', secondaryInput);
       bindInstantTouchButton('mob-jump-btn', () => window.triggerJump());
       bindInstantTouchButton('mob-crouch-btn', () => window.toggleCrouchMobile());
       bindInstantTouchButton('mob-reload-btn', () => window.triggerReload());

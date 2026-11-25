@@ -312,18 +312,20 @@
           }
           break;
         case 'shot': {
-          if (data.shooter === this.myId || !this.started || !this.api.matchState.inMatch) break;
+          if ((data.shooter === this.myId && !data.altBucky) || !this.started || !this.api.matchState.inMatch) break;
           const xyz = v => Array.isArray(v) && v.length === 3 && v.every(Number.isFinite);
           if (xyz(data.from) && xyz(data.to)) {
             const start = new THREE.Vector3(...data.from);
-            a.gameSound?.('shot',start.x,start.z,false,start.y,data.weapon);
+            if (data.shooter !== this.myId) a.gameSound?.('shot',start.x,start.z,false,start.y,data.weapon);
             const gun = a.WEAPON_CATALOG[data.weapon];
             const lines = Array.isArray(data.pellets) && data.pellets.length <= 16
               ? data.pellets.filter(xyz) : [data.to];
             // Render all shotgun pellets, but keep one WS event per trigger pull.
+            const split = xyz(data.split) ? new THREE.Vector3(...data.split) : null;
+            if (split) a.spawnBulletTracer(start, split, gun?.color);
             for (const coords of lines) {
               const end = new THREE.Vector3(...coords);
-              a.spawnBulletTracer(start, end, gun?.color || 0xffd567);
+              a.spawnBulletTracer(split || start, end, gun?.color || 0xffd567);
             }
           }
           break;
@@ -569,7 +571,8 @@
       const w=a.getActiveWeapon();
       const now=performance.now()/1000;
       if(now-p.lastShotTime>.5)p.bulldogCount=0;
-      const rate = w.slot === 'knife' ? MeleeRules.MODES[MeleeRules.modeFor(knifeMode)].cooldown : (p.isScoped && w.id==='bulldog' ? (((p.bulldogCount||0)%3===2)?.325:.075) : ShootingSpread.fireInterval(w,p.isScoped,w._spreadState,now*1000));
+      const alt = knifeMode === 'alt' && (w.id === 'classic' || w.id === 'bucky');
+      const rate = alt && w.id === 'classic' ? .45 : w.slot === 'knife' ? MeleeRules.MODES[MeleeRules.modeFor(knifeMode)].cooldown : (p.isScoped && w.id==='bulldog' ? (((p.bulldogCount||0)%3===2)?.325:.075) : ShootingSpread.fireInterval(w,p.isScoped,w._spreadState,now*1000));
       if(now<p.equipUntil || now-p.lastShotTime < (p.lastInterval??rate)) return;
       if(w.slot !== 'knife' && w.mag<=0){window.triggerReload?.();return;}
       const pelletRotation=Math.random()*Math.PI*2;
@@ -578,7 +581,7 @@
       const burst=ShootingSpread.burstIndex(burstState,w,nowMs);
       const seed=(Math.random()*4294967296)>>>0;
       const locomotion=ShootingSpread.motion(p);
-      const shotParams={yaw:p.yaw,pitch:p.pitch,...locomotion,shotIndex:burst,seed,scatter:pelletRotation};
+      const shotParams={alt,ammo:w.mag,yaw:p.yaw,pitch:p.pitch,...locomotion,shotIndex:burst,seed,scatter:pelletRotation};
       const spreadResult=w.slot==='knife'?null:ShootingSpread.directions(w,shotParams,ShotgunPellets);
       // Clients render opponent positions slightly behind the latest server
       // state to smooth 10 Hz snapshots. Send that visual timestamp so the
@@ -605,13 +608,13 @@
       if(!this.send({type:'shoot',yaw:p.yaw,pitch:p.pitch,scatter:pelletRotation,
         burst,seed,speed:Math.min(8.5,locomotion.speed),airborne:locomotion.airborne,
         crouched:locomotion.crouched,ads:locomotion.ads,
-        mode:w.slot === 'knife' ? MeleeRules.modeFor(knifeMode) : undefined,
+        alt,mode:w.slot === 'knife' ? MeleeRules.modeFor(knifeMode) : undefined,
         seenAt:Math.round(seenAt),from}))return;
       p.lastShotTime=now;
       p.bulldogCount=p.isScoped&&w.id==='bulldog'?((p.bulldogCount||0)+1)%3:0;p.lastInterval=rate;
       a.afterScopedShot?.(w);
       if(w.slot!=='knife')ShootingSpread.confirmShot(burstState,w,nowMs,burst);
-      if(w.slot!=='knife')w.mag--;
+      if(w.slot!=='knife')w.mag -= alt && w.id === 'classic' ? Math.min(3,w.mag) : 1;
       a.viewmodel.fire(knifeMode);
       window.markCrosshairFiring?.();
       if(w.slot==='knife') {
@@ -621,7 +624,7 @@
         a.muzzleFlashMesh.material.opacity=1;
         setTimeout(()=>{a.muzzleFlashMesh.material.opacity=0;},45);
         a.gunGroup.position.z=-0.32;
-        a.drawLocalShot(w,pelletRotation,spreadResult);
+        if (!spreadResult.splitDistance) a.drawLocalShot(w,pelletRotation,spreadResult);
       }
       a.updateHUD();
     },

@@ -184,12 +184,14 @@ function fire(r, p, msg) {
   const now = Date.now();
   const meleeMode = MeleeRules.modeFor(msg.mode);
   if(now-p.lastShot>500)p.bulldogCount=0;
-  const cooldown = w.id === 'knife' ? MeleeRules.MODES[meleeMode].cooldown : (msg.ads && w.id==='bulldog' ? (((p.bulldogCount||0)%3===2)?.325:.075) : ShootingSpread.fireInterval(w,msg.ads,p.spreadState,now));
+  const alt = msg.alt === true && (w.id === 'classic' || w.id === 'bucky');
+  const ammo = p.mag;
+  const cooldown = alt && w.id === 'classic' ? .45 : w.id === 'knife' ? MeleeRules.MODES[meleeMode].cooldown : (msg.ads && w.id==='bulldog' ? (((p.bulldogCount||0)%3===2)?.325:.075) : ShootingSpread.fireInterval(w,msg.ads,p.spreadState,now));
   if (now < p.equipUntil || now - p.lastShot < ((p.lastInterval??cooldown) * 1000 - 8)) return;
   if (w.id !== 'knife' && p.mag <= 0) {send(p.client,{type:'ammo_sync',weapon:p.weapon,mag:p.mag,reserve:p.reserve});return;}
   p.lastShot = now;
       p.bulldogCount=msg.ads&&w.id==='bulldog'?((p.bulldogCount||0)+1)%3:0;p.lastInterval=cooldown;
-  if (w.id !== 'knife') p.mag--;
+  if (w.id !== 'knife') p.mag -= alt && w.id === 'classic' ? Math.min(3,ammo) : 1;
   if (p.ammo?.[p.weapon]) p.ammo[p.weapon].mag = p.mag;
   const yaw = finite(msg.yaw, -100000, 100000, p.yaw);
   const pitch = finite(msg.pitch, -1.48, 1.48, p.pitch);
@@ -209,7 +211,7 @@ function fire(r, p, msg) {
     const clientMove=finite(msg.speed,0,8.5,recentMove);
     const speed=Math.max(clientMove,recentMove*.70);
     const roll=ShootingSpread.directions(w, {
-      yaw,pitch,shotIndex:burst,seed:finite(msg.seed,0,4294967295,0),
+      alt,ammo,yaw,pitch,shotIndex:burst,seed:finite(msg.seed,0,4294967295,0),
       speed,airborne:msg.airborne===true,crouched:msg.crouched===true,
       ads:msg.ads===true,scatter:spreadRotation
     }, ShotgunPellets);
@@ -220,7 +222,7 @@ function fire(r, p, msg) {
   const from=Array.isArray(msg.from)&&msg.from.length===3&&msg.from.every(Number.isFinite)?msg.from:null;
   const useFrom=from && Math.hypot(from[0]-p.x,from[2]-p.z)<1.05 && Math.abs(from[1]-p.y)<.65 &&
     !blockers.some(box => rayBox(p.x,p.y,p.z,from[0]-p.x,from[1]-p.y,from[2]-p.z,box)<=1);
-  const ox=useFrom?from[0]:p.x,oy=useFrom?from[1]:p.y,oz=useFrom?from[2]:p.z;
+  let ox=useFrom?from[0]:p.x,oy=useFrom?from[1]:p.y,oz=useFrom?from[2]:p.z;
   // Clients aim at the interpolated previous snapshot; rewind ONLY character
   // positions, never walls, by a strictly bounded amount of server time.
   const shotAt=finite(msg.seenAt,now-MAX_REWIND_MS,now,now);
@@ -268,8 +270,22 @@ function fire(r, p, msg) {
   let totalDamage = 0, anyHeadshot = false, hitCount = 0;
   const taggedPlayers = new Set();
   const ends = [], effects = [];
+  const muzzle=[ox,oy,oz];
+  const altBucky=alt && w.id==='bucky';
+  let travel=0;
+  if (altBucky) {
+    const [dx,dy,dz]=directions[0];
+    const wall=mapImpact(r,ox,oy,oz,dx,dy,dz,w.range);
+    const near=wall.impactDistance<=8 || [...r.players.values()].some(target=>{
+      if (!target.alive || target.team===p.team) return false;
+      const hit=rayCharacter(ox,oy,oz,dx,dy,dz,target,shotAt);
+      return hit && hit.distance<=8;
+    });
+    if (near) directions=[directions[0]];
+    else {travel=8; ox+=dx*travel; oy+=dy*travel; oz+=dz*travel;}
+  }
   for (const [dx, dy, dz] of directions) {
-    let {impactDistance,struck}=mapImpact(r,ox,oy,oz,dx,dy,dz,w.range);
+    let {impactDistance,struck}=mapImpact(r,ox,oy,oz,dx,dy,dz,w.range-travel);
     let best = impactDistance, hit = null, headshot = false, legshot = false;
     for (const target of r.players.values()) {
       if (!target.alive || target.team === p.team) continue;
@@ -280,7 +296,7 @@ function fire(r, p, msg) {
     }
     if (hit) {
       impactDistance = best;
-      const damage=ShootingSpread.applyGunDamage(hit,w.id,best,headshot?'head':legshot?'leg':'body');
+      const damage=ShootingSpread.applyGunDamage(hit,w.id,travel+best,headshot?'head':legshot?'leg':'body');
       taggedPlayers.add(hit);
       totalDamage += damage; hitCount++; anyHeadshot ||= headshot;
       effects.push({point:[ox+dx*best,oy+dy*best,oz+dz*best],head:!!headshot});
@@ -300,10 +316,11 @@ function fire(r, p, msg) {
     // One compact event per trigger pull, even with eight or ten visible pellets.
     const first = directions[0];
     const shot = {type:'shot', shooter:p.id, weapon:p.weapon,
-      from:[ox + first[0] * .28, oy + first[1] * .28, oz + first[2] * .28],
+      altBucky,split:travel?[ox,oy,oz]:undefined,
+      from:[muzzle[0] + first[0] * .28, muzzle[1] + first[1] * .28, muzzle[2] + first[2] * .28],
       to:ends[0], pellets:directions.length > 1 ? ends : undefined};
     for (const receiver of r.players.values())
-      if (receiver.id !== p.id) send(receiver.client, shot);
+      if (receiver.id !== p.id || altBucky) send(receiver.client, shot);
   }
   for (const target of taggedPlayers) if(target.alive) send(target.client,{type:'bullet_tag'});
   if (hitCount) send(p.client, {type:'hit', headshot:anyHeadshot,
