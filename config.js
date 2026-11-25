@@ -152,25 +152,27 @@ if (typeof window !== "undefined") window.GAME_SERVER_URL = 'https://qkffhfksxm-
       box('deck',47.35,-42.2,4.35,4.4,top-.38,top);
       // In-game screenshots show a narrow flight next to a timber ramp,
       // approached through a stone arch. Dimensions fitted to our existing world.
-      // Approximate stair placement: preserve the upper landing and extend the flight toward the rear entrance.
-      const x=47.05,z=-48.5,w=3.65,d=8.4;
-      const entry=height(id,x,z-d/2),rise=top-entry;
-      const stairW=1.58,rampW=w-stairW;
-      const stairX=x+(w-stairW)/2,rampX=x-(w-rampW)/2;
-      map.stairs.push({x,z,w,d,near:entry,far:top});
+      // User-reported stair center (40,-53); ascend along the rear
+      // corridor, then turn toward the existing gallery on a level landing.
+      const x=40,z=-53,w=7.6,d=3.25;
+      const entry=height(id,x-w/2,z),rise=top-entry;
+      const stairD=1.5,rampD=d-stairD;
+      const stairZ=z+(d-stairD)/2,rampZ=z-(d-rampD)/2;
+      map.stairs.push({x,z,w,d,axis:'x',near:entry,far:top});
       for(let i=0;i<22;i++){
         const f=(i+1)/22;
-        box('step',stairX,z-d/2+(i+.5)*d/22,stairW,d/22+.012,entry-.35,entry+rise*f);
+        box('step',x-w/2+(i+.5)*w/22,stairZ,w/22+.012,stairD,entry-.35,entry+rise*f);
       }
-      box('step',rampX,z,rampW,d,(entry+top)/2-.24,(entry+top)/2,0,rise/d);
-      // Entry jambs and curved stone lintel; leave the full walking width clear.
-      const archZ=-53.25,base=height(id,x,archZ),half=w/2;
-      for(const side of [-1,1]){
-        box('limestone',x+side*(half+.21),archZ,.42,.72,base-.3,base+3.1);
-      }
+      box('step',x,rampZ,rampD,w,(entry+top)/2-.24,(entry+top)/2,Math.PI/2,rise/w);
+      box('deck',46.18,-53,4.76,3.25,top-.38,top);
+      box('deck',46.8,-48.75,3.65,8.52,top-.38,top);
+      // The entrance arch follows the relocated stair, clear of the tread.
+      const archX=x-w/2-.5,base=height(id,archX,z),half=d/2;
+      for(const side of [-1,1])
+        box('limestone',archX,z+side*(half+.21),.72,.42,base-.3,base+3.1);
       for(let i=0;i<18;i++){
-        const u=(i+.5)*w/18-half,b=base+2.85+.9*Math.sqrt(1-(u/half)**2);
-        box('limestone',x+u,archZ,w/18+.014,.72,b,b+.3);
+        const u=(i+.5)*d/18-half,b=base+2.85+.9*Math.sqrt(1-(u/half)**2);
+        box('limestone',archX,z+u,.72,d/18+.014,b,b+.3);
       }
       // Cloth-covered scaffold sections at the ends, with an open central span.
       // Keep the underside open and the floor continuous.
@@ -387,8 +389,9 @@ if (typeof window !== "undefined") window.GAME_SERVER_URL = 'https://qkffhfksxm-
   }
   function stairHeight(map,x,z,y){
     for(const stair of maps[map]?.stairs||[]){
-      if(Math.abs(x-stair.x)>stair.w/2 || Math.abs(z-stair.z)>stair.d/2+.02)continue;
-      const t=Math.max(0,Math.min(1,(z-stair.z)/stair.d+.5));
+      if(Math.abs(x-stair.x)>stair.w/2+.00001 || Math.abs(z-stair.z)>stair.d/2+.02)continue;
+      const along=stair.axis==='x'?(x-stair.x)/stair.w:(z-stair.z)/stair.d;
+      const t=Math.max(0,Math.min(1,along+.5));
       const surface=stair.near+(stair.far-stair.near)*t;
       if(surface<=y+.58)return surface;
     }
