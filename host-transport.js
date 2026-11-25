@@ -1,9 +1,9 @@
 /* Optional trusted-room host transport; no credentials or IPs are persisted. */
 (function(){
 'use strict';
-const CONTROL=new Set(['create','join','resume','leave','host_opt','host_signal','host_input','host_output','host_abort','host_finish']);
+const CONTROL=new Set(['create','join','resume','leave','host_opt','host_signal','host_input','host_output','host_abort','host_finish','host_alive']);
 function make(mp){
-  let room=null,worker=null,workerReady=false,mode=false,enabled=false,epoch=0;
+  let room=null,worker=null,workerReady=false,mode=false,enabled=false,epoch=0,lastWorkerAt=0;
   const links=new Map(),early=[];
   const raw=m=>mp.rawSend(m);
   function clearLink(id){const l=links.get(id);if(!l)return;links.delete(id);try{l.pc.close();}catch(_){}}
@@ -18,9 +18,9 @@ function make(mp){
   }
   function getWorker(){
     if(worker)return;
-    try{worker=new Worker('host-runtime.js?v=host20');}catch(_){return;}
+    try{worker=new Worker('host-runtime.js?v=host21');}catch(_){return;}
     worker.onmessage=e=>{
-      const m=e.data;
+      const m=e.data;lastWorkerAt=performance.now();
       if(m.type==='ready'){workerReady=true;report();}
       else if(m.type==='failed'){stopWorker();if(mode)raw({type:'host_abort'});}
       else if(m.type==='output'&&mode){if(m.to===mp.myId)mp.receive(m.data);else route(m.to,{kind:'output',data:m.data});}
@@ -31,14 +31,16 @@ function make(mp){
   function isHost(){return room?.host===mp.myId;}
   function route(to,packet){
     const link=links.get(to),dc=link?.dc;
+    packet={...packet,run:room?.hostRun};
     const encoded=JSON.stringify(packet);
     if(dc?.readyState==='open'&&dc.bufferedAmount<32768){try{dc.send(encoded);return true;}catch(_){}}
-    if(packet.kind==='input')return raw({type:'host_input',data:packet.data});
-    return raw({type:'host_output',to,data:packet.data});
+    if(packet.kind==='input')return raw({type:'host_input',run:packet.run,data:packet.data});
+    return raw({type:'host_output',run:packet.run,to,data:packet.data});
   }
   function deliver(from,packet){
     if(!packet||!packet.data||typeof packet.data.type!=='string')return;
     if(!mode){if(packet.kind==='output'&&early.length<64)early.push([from,packet]);return;}
+    if(packet.run!==room?.hostRun)return;
     if(packet.kind==='input'&&isHost()&&room.players.some(p=>p.id===from)&&!CONTROL.has(packet.data.type)){
       worker?.postMessage({type:'input',from,data:packet.data});
     }else if(packet.kind==='output'&&!isHost()&&from===room.host&&!CONTROL.has(packet.data.type)&&!['host_begin','host_fallback','hello','joined','resumed','resume_failed'].includes(packet.data.type))mp.receive(packet.data);
@@ -65,6 +67,7 @@ function make(mp){
     if(room&&room.code!==lobby.code)reset();
     const oldHost=room?.host;
     room=lobby;
+    if(mode&&!room.hostMode)fallback();
     if(oldHost&&oldHost!==room.host&&!mode){for(const id of [...links.keys()])clearLink(id);stopWorker();}
     const me=room.players.find(p=>p.id===mp.myId);
     enabled=!!me?.direct;
@@ -104,12 +107,12 @@ function make(mp){
       return raw({...m,hostReady:enabled&&workerReady,ready});
     }
     if(!mode||CONTROL.has(m.type))return raw(m);
-    if(isHost()){if(!worker)return false;worker.postMessage({type:'input',from:mp.myId,data:m});return true;}
+    if(isHost()){if(!worker)return false;if(m.type==='ping'&&performance.now()-lastWorkerAt<3000)raw({type:'host_alive',run:room.hostRun});worker.postMessage({type:'input',from:mp.myId,data:m});return true;}
     return route(room.host,{kind:'input',data:m});
   }
   return {reset,update,signal,begin,fallback,send,setEnabled,
-    relayInput:m=>deliver(m.from,{kind:'input',data:m.data}),
-    relayOutput:m=>deliver(room?.host,{kind:'output',data:m.data}),
+    relayInput:m=>deliver(m.from,{kind:'input',run:m.run,data:m.data}),
+    relayOutput:m=>deliver(room?.host,{kind:'output',run:m.run,data:m.data}),
     left:id=>{clearLink(id);worker?.postMessage({type:'left',id});},
     get active(){return mode;},get label(){return mode?(isHost()?'HOST':links.get(room?.host)?.dc?.readyState==='open'?'P2P':'RELAY'):'RENDER';}};
 }

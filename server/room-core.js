@@ -11,7 +11,7 @@ function finite(v, lo, hi, fallback) { return typeof v === 'number' && Number.is
 function otherTeam(t) { return t === 'attack' ? 'defense' : 'attack'; }
 function roomUsers(r) { return [...r.players.values()]; }
 function emitRoom(r, m) { for (const p of r.players.values()) send(p.client, m); }
-function lobbyInfo(r) { return { map:r.map, code: r.code, host: r.host, winRounds: r.winRounds, started: r.started, phase: r.phase, hostMode:!!r.hostMode,
+function lobbyInfo(r) { return { map:r.map, code: r.code, host: r.host, winRounds: r.winRounds, started: r.started, phase: r.phase, hostMode:!!r.hostMode, hostRun:r.hostMode?r.hostRun:null,
   players: roomUsers(r).map(p => ({ id: p.id, name: p.name, team: p.team, online: !!p.client, direct:!!p.direct })) }; }
 function broadcastLobby(r) { emitRoom(r, { type: 'lobby', room: lobbyInfo(r) }); }
 function notify(c, message) { send(c, { type: 'error', message }); }

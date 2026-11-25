@@ -153,6 +153,8 @@
         case 'host_begin': this.hostTransport?.begin(data.room);break;
         case 'host_input': this.hostTransport?.relayInput(data);break;
         case 'host_output': this.hostTransport?.relayOutput(data);break;
+        case 'host_complete':
+          this.hostTransport?.fallback();if(this.started)this.receive({type:'match_end'});break;
         case 'host_peer_left': this.hostTransport?.left(data.id);break;
         case 'host_fallback':
           this.hostTransport?.fallback();this.started=false;this.lastRound=0;this.removePeers();

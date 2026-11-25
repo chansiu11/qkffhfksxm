@@ -46,7 +46,7 @@ function removePlayer(r, id) {
   if (p.rejoinTimer) clearTimeout(p.rejoinTimer);
   if (r.host === id) r.host = r.players.keys().next().value || null;
   if (!r.players.size) rooms.delete(r.code);
-  else { broadcastLobby(r); broadcastState(r); }
+  else { broadcastLobby(r); if(!r.hostMode)broadcastState(r); }
 }
 function close(c, immediate = false) {
   if (c.closed) return;
@@ -102,7 +102,7 @@ const server = http.createServer((req, res) => {
     'access-control-allow-origin': 'https://chansiu11.github.io', 'cache-control': 'no-store' };
   if (req.url === '/health' || req.url === '/') {
     res.writeHead(200, headers);
-    res.end(JSON.stringify({ ok: true, service: 'qkffhfksxm-realtime', buyGateRevision: 'ascent-joins18', performanceRevision: 'perf19', transportRevision:'host20', rooms: rooms.size, players: clients.size }));
+    res.end(JSON.stringify({ ok: true, service: 'qkffhfksxm-realtime', buyGateRevision: 'ascent-joins18', performanceRevision: 'perf19', transportRevision:'host21', rooms: rooms.size, players: clients.size }));
   } else { res.writeHead(404, headers); res.end('{}'); }
 });
 server.on('upgrade', (req, socket, head) => {
@@ -137,7 +137,7 @@ const engine = require('./room-core.js')({
   }
 });
 const {start,step,broadcastLobby,broadcastState,lobbyInfo,emitRoom}=engine;
-const CONTROL=new Set(['host_opt','host_signal','host_input','host_output','host_abort','host_finish']);
+const CONTROL=new Set(['host_opt','host_signal','host_input','host_output','host_abort','host_finish','host_alive']);
 function fallbackRoom(r,reason){
   if(!r.hostMode)return;
   r.hostMode=false;r.started=false;
@@ -167,32 +167,33 @@ function receive(c,m){
   if(m.type==='start'&&r.host===p.id&&!r.started&&m.hostReady===true){
     const members=[...r.players.values()];
     if(members.every(u=>u.direct&&u.client&&!u.client.closed)&&members.every(u=>u.id===p.id||Array.isArray(m.ready)&&m.ready.includes(u.id))){
-      r.hostMode=true;r.started=true;r.phase='buy';
+      r.hostMode=true;r.hostRun=crypto.randomUUID();r.hostAliveAt=Date.now();r.started=true;r.phase='buy';
       emitRoom(r,{type:'host_begin',room:lobbyInfo(r)});
       broadcastLobby(r);return;
     }
   }
   if(m.type==='host_input'){
-    if(r.hostMode&&p.id!==r.host&&m.data&&typeof m.data.type==='string'&&!CONTROL.has(m.data.type)&&!['create','join','resume','leave','start'].includes(m.data.type)){
-      send(r.players.get(r.host)?.client,{type:'host_input',from:p.id,data:m.data});
+    if(r.hostMode&&m.run===r.hostRun&&p.id!==r.host&&m.data&&typeof m.data.type==='string'&&!CONTROL.has(m.data.type)&&!['create','join','resume','leave','start'].includes(m.data.type)){
+      send(r.players.get(r.host)?.client,{type:'host_input',run:r.hostRun,from:p.id,data:m.data});
     }
     return;
   }
   if(m.type==='host_output'){
     const to=r.players.get(m.to);
-    if(r.hostMode&&p.id===r.host&&to&&to!==p&&m.data&&typeof m.data.type==='string'&&!CONTROL.has(m.data.type)&&!['host_begin','host_fallback','hello','joined','resumed','resume_failed'].includes(m.data.type)){
-      send(to.client,{type:'host_output',data:m.data});
+    if(r.hostMode&&m.run===r.hostRun&&p.id===r.host&&to&&to!==p&&m.data&&typeof m.data.type==='string'&&!CONTROL.has(m.data.type)&&!['host_begin','host_fallback','hello','joined','resumed','resume_failed'].includes(m.data.type)){
+      send(to.client,{type:'host_output',run:r.hostRun,data:m.data});
     }
     return;
   }
+  if(m.type==='host_alive'){if(r.hostMode&&p.id===r.host&&m.run===r.hostRun)r.hostAliveAt=Date.now();return;}
   if(m.type==='host_abort'){if(r.hostMode&&p.id===r.host)fallbackRoom(r,'방장 연결 문제');return;}
   if(m.type==='host_finish'){
-    if(r.hostMode&&p.id===r.host){r.hostMode=false;r.started=false;r.phase='waiting';broadcastLobby(r);}
+    if(r.hostMode&&p.id===r.host){emitRoom(r,{type:'host_complete'});r.hostMode=false;r.started=false;r.phase='waiting';broadcastLobby(r);}
     return;
   }
   if(r.hostMode&&!['ping','leave','resume'].includes(m.type))return;
   engine.receive(c,m);
 }
-setInterval(()=>{const now=Date.now();for(const room of rooms.values())if(!room.hostMode)step(room,now);},TICK_MS).unref();
+setInterval(()=>{const now=Date.now();for(const room of rooms.values()){if(room.hostMode){if(now-room.hostAliveAt>10000)fallbackRoom(room,'방장 응답 없음');}else step(room,now);}},TICK_MS).unref();
 server.listen(PORT,process.env.BIND_HOST || '0.0.0.0',()=>console.log(`Realtime game server ready on :${PORT}`));
 module.exports={server,rooms};
