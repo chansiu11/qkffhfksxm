@@ -9,9 +9,9 @@ const MatchSamples = (() => {
   function preload(ctx) {
     if (loading) return;
     loading = true;
-    for (const name of [...weapons, ...footsteps, 'land-01']) {
+    for (const name of [...weapons, ...footsteps, 'land-01', 'knife-light', 'knife-heavy']) {
       const folder = weapons.includes(name) ? 'guns' : 'movement';
-      fetch('audio/' + folder + '/' + name + '.ogg')
+      fetch(name.startsWith('knife-') ? 'audio/melee/' + name + '.wav' : 'audio/' + folder + '/' + name + '.ogg')
         .then(response => {
           if (!response.ok) throw new Error(String(response.status));
           return response.arrayBuffer();
@@ -23,7 +23,7 @@ const MatchSamples = (() => {
   }
 
   function play(ctx, output, kind, weapon, position, volume) {
-    let name = weapon;
+    let name = weapon === 'knife' ? 'knife-light' : weapon;
     if (kind === 'land') name = 'land-01';
     if (kind === 'step') {
       previousStep = (previousStep + 1 + Math.floor(Math.random() * 6)) % footsteps.length;

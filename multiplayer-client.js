@@ -609,7 +609,7 @@
       a.viewmodel.fire(knifeMode);
       window.markCrosshairFiring?.();
       if(w.slot==='knife') {
-        a.sfx.playKnifeSlash();
+        a.sfx.playKnifeSlash(knifeMode);
       } else {
         a.sfx.playGunshot(w.id==='operator'?92:165,0.11,w.id);
         a.muzzleFlashMesh.material.opacity=1;
