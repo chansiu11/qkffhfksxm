@@ -38,22 +38,6 @@ window.PistolView = (() => {
       geo.translate(0,0,-width/2);geo.rotateY(Math.PI/2);
       return mesh(p,geo,color,0,0,0,true);
     }
-    function oval(p,x,y,z,w,h,l,color){
-      const obj=mesh(p,new T.SphereGeometry(1,12,9),color,x,y,z);obj.scale.set(w,h,l);return obj;
-    }
-    function hand(left){
-      const g=new T.Group(), side=left?-1:1,skin=0x875344;
-      oval(g,side*.025,-.10,.055,.105,.155,.102,skin);
-      for(let i=0;i<4;i++){
-        const finger=oval(g,-side*.055,-.04-i*.053,-.025,.086,.032,.042,skin);
-        finger.rotation.z=side*.13;
-      }
-      const thumb=oval(g,side*.006,.005,.004,.048,.042,.116,skin);thumb.rotation.z=side*.44;
-      const arm=oval(g,side*.10,-.26,.30,.128,.128,.32,0xe1dfd8); arm.rotation.x=.43;arm.rotation.y=side*.30;
-      const cuff=oval(g,side*.055,-.19,.155,.129,.122,.105,0x343338);cuff.rotation.x=.45;
-      if(!left)oval(g,-.057,-.091,-.067,.065,.012,.029,0xc99c51);
-      return g;
-    }
     function build(id){
       const s=specs[id],g=new T.Group(),body=new T.Group();g.add(body);
       const steel=s.finish,dark=0x25282d,trim=0x63696e,L=s.length,W=s.width,H=s.top;
@@ -93,10 +77,8 @@ window.PistolView = (() => {
         box(upper,0,H+.02,-L*.86,.022,.039,.040,trim);
         for(const x of [-.047,.047])box(upper,x,H+.016,.035,.026,.039,.049,dark);
       }
-      const right=hand(false),left=hand(true);g.add(right,left);
-      right.position.set(.055,-.105,.065); left.position.set(-.093,-.17,-.10);
       const muzzle=new T.Object3D();muzzle.position.set(0,.112,-L-(id==='ghost'?.48:0));body.add(muzzle);
-      return {g,upper,right,left,muzzle};
+      return {g,upper,muzzle};
     }
     let current=null,id='',inspectAt=-1e6;
     function select(key){
@@ -145,8 +127,6 @@ window.PistolView = (() => {
       rig.rotation.y*=1-aim;rig.rotation.z*=1-aim;
       rig.rotation.x+=(.066-rig.rotation.x)*aim;
       current.upper.position.z=fire*.045;
-      current.left.position.set(-.093-lift*.15-dip*.10,-.17-lift*.23-dip*.23,-.10+dip*.20);
-      current.left.rotation.z=dip*.65+lift*.35;
     }
     function render(renderer){
       if(!visible)return;
