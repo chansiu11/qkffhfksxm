@@ -190,22 +190,12 @@
     let shown='',photo=null,flashNode=null,fireAt=-100000,reloadAt=-100000,
       switchAt=-100000,reloading=false,fireMode='light',lastVisible=false,
       lastTransform='',lastViewport='',muzzleScreen=null;
-    const pistols=window.PistolView?.create(THREE);
-    let pistolActive=false;
     let equipMs=750,combo=0;
     function setWeapon(id,equipTime){
       id=Object.hasOwn(styles,id)?id:'classic';
       if(id===shown)return;
       equipMs=Math.max(1,(equipTime??catalog[id]?.equipTime??(id==='knife'?.6:1))*1000);fireAt=-100000;combo=0;
       shown=id;switchAt=performance.now();reloading=false;
-      pistolActive=!!pistols?.select(id);
-      if(pistolActive){
-        layer.innerHTML='<span class="weapon-shot-flash" aria-hidden="true"></span>';
-        photo=null;flashNode=layer.querySelector('.weapon-shot-flash');muzzleScreen=null;
-        layer.classList.toggle('weapon-knife',false);layer.classList.toggle('weapon-sniper-full',false);
-        layer.classList.toggle('weapon-aiming',false);
-        return;
-      }
       const [w,h]=sourceSize[id];
       layer.innerHTML=`<img class="fps-paper-weapon" src="assets/weapons/${referenceImages[id]}.webp" width="${w}" height="${h}" alt="" draggable="false" aria-hidden="true">`+
         `<span class="weapon-shot-flash" aria-hidden="true"></span>`;
@@ -215,28 +205,15 @@
       layer.classList.toggle('weapon-knife',shown==='knife');
     }
     function fire(mode='light'){
-      pistols?.cancel();
       const now=performance.now();
       combo=mode==='heavy'||now-fireAt>850?0:(combo+1)%3;
       fireMode=mode==='heavy'?'heavy':'light';fireAt=now;
     }
-    function beginReload(){pistols?.cancel();if(shown!=='knife'){reloadAt=performance.now();reloading=true;}}
+    function beginReload(){if(shown!=='knife'){reloadAt=performance.now();reloading=true;}}
     function stopReload(){reloading=false;}
     function update(dt,player,state){
       const visible=!!(player?.alive&&state?.inMatch);
       if(visible!==lastVisible){layer.classList.toggle('weapon-visible',visible);lastVisible=visible;}
-      if(pistolActive){
-        const now=performance.now(),w=window.innerWidth,h=window.innerHeight;
-        const firing=Math.max(0,1-(now-fireAt)/140);
-        const reload=reloading?Math.min(1,(now-reloadAt)/((catalog[shown]?.reloadTime||1.1)*1000)):0;
-        pistols.update(now,w,h,visible,(now-switchAt)/equipMs,firing,reload,Math.min(1,Math.hypot(player?.vel?.x||0,player?.vel?.z||0)/7.6));
-        muzzleScreen=pistols.muzzleScreen(w,h);
-        if(flashNode&&muzzleScreen){
-          flashNode.style.left=muzzleScreen.x+'px';flashNode.style.top=muzzleScreen.y+'px';
-          flashNode.style.opacity=String(firing>.55?(firing-.55)*2:0);
-        }
-        return;
-      }
       if(!visible||!photo)return;
       const now=performance.now(),w=window.innerWidth||1440,h=window.innerHeight||900;
       const moving=Math.min(1,Math.hypot(player.vel?.x||0,player.vel?.z||0)/7.6);
@@ -286,9 +263,6 @@
     }
     setWeapon('classic');
     return {group,flash,setWeapon,fire,beginReload,stopReload,update,
-      togglePistolAim(){if(pistolActive&&!reloading)pistols.toggleAim();},
-      inspect(){if(pistolActive&&!reloading&&performance.now()-switchAt>=equipMs)pistols.inspect();},
-      render(renderer){if(pistolActive)pistols.render(renderer);},
       getMuzzleScreenPosition,getMuzzleWorldPosition,
       get isReloading(){return reloading;},get current(){return shown;},styles};
   }
