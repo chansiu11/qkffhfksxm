@@ -297,6 +297,14 @@
     frenzy: 'Tactical_Shadow_SMG', ghost: 'Shadow_Sentinel',
     bandit: 'Shadowline_Pistol', sheriff: 'Shadowhawk_Revolver'
   };
+  const poses = {
+    classic: {scale:.40, right:.168, height:-.143, inspectYaw:.95, turnRoll:1.04, reloadDrop:.25, reloadRoll:.54},
+    shorty:  {scale:.73, right:.146, height:-.143, inspectYaw:.95, turnRoll:1.04, reloadDrop:.12, reloadRoll:.54},
+    frenzy:  {scale:.55, right:.156, height:-.157, inspectYaw:.84, turnRoll:.73, reloadDrop:.17, reloadRoll:.38},
+    ghost:   {scale:.66, right:.151, height:-.148, inspectYaw:1.12, turnRoll:.82, reloadDrop:.18, reloadRoll:.51},
+    bandit:  {scale:.52, right:.163, height:-.145, inspectYaw:1.02, turnRoll:.94, reloadDrop:.16, reloadRoll:.46},
+    sheriff: {scale:.61, right:.154, height:-.155, inspectYaw:1.21, turnRoll:.62, reloadDrop:.12, reloadRoll:.86}
+  };
   let dependencies;
   function script(src) {
     return new Promise((resolve, reject) => {
@@ -392,13 +400,13 @@
       const move=Math.min(1,Math.hypot(player.vel?.x||0,player.vel?.z||0)/7.6);
       camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();
       // Reference at 23.5–24.5 s: Classic grip sits below and right of the crosshair.
-      const scale=({classic:.40,shorty:.73,ghost:.74,sheriff:.64,bandit:.59,frenzy:.65})[selected];
-      pivot.scale.setScalar(scale);
-      pivot.position.set((selected==='classic'?.168:.146)*Math.min(camera.aspect,2.1)/1.78-.013*lift-.087*turn-.033*shortyInspect,
-        -.143+.048*lift-.08*turn-.26*draw-(shorty?.12:.25)*dip+.015*seat+.003*move*Math.sin(now*.01),
+      const pose=poses[selected];
+      pivot.scale.setScalar(pose.scale);
+      pivot.position.set(pose.right*Math.min(camera.aspect,2.1)/1.78-.013*lift-.087*turn-.033*shortyInspect,
+        pose.height+.048*lift-.08*turn-.26*draw-pose.reloadDrop*dip+.015*seat+.003*move*Math.sin(now*.01),
         -.54+.05*lift+.045*kick);
       pivot.rotation.set(.12+.30*kick+.20*lift+(selected==='classic'?0:.73*liftBarrel+.48*seat),
-        .30+.95*lift-.45*turn+.16*dip+.25*shortyInspect-.56*shortyTurn,-.06-.24*lift-1.04*turn-.54*dip-.22*seat-.47*shortyReload);
+        .30+pose.inspectYaw*lift-.45*turn+.16*dip+.25*shortyInspect-.56*shortyTurn,-.06-.24*lift-pose.turnRoll*turn-pose.reloadRoll*dip-.22*seat-.47*shortyReload);
       const photo=document.querySelector('#fps-weapon-sprite-layer .fps-paper-weapon');
       if(photo)photo.style.opacity='0';
     };
