@@ -2336,12 +2336,13 @@
       /* =========================================================================
        * 7B. LOBBY, ROOM CODE, SHOP, CHEAT & INSTANT MATCH LAUNCH CONTROLLERS
        * ========================================================================= */
-      function mouseGameplayAllowed() {
-        return matchState.inMatch&&!inputSystem.touchModeEnabled&&
+      function gameplayInputAllowed() {
+        return matchState.inMatch&&
           document.getElementById('buy-shop-overlay').classList.contains('hidden')&&
           document.getElementById('cheat-modal').classList.contains('hidden')&&
           !window.isCrosshairSettingsOpen?.()&&!rangeOptions.open&&chatInput.hidden;
       }
+      function mouseGameplayAllowed() { return !inputSystem.touchModeEnabled && gameplayInputAllowed(); }
       function updateMouseLockUI() {
         const btn=document.getElementById('hud-touch-toggle-btn');
         if(!btn||inputSystem.touchModeEnabled)return;
@@ -3533,7 +3534,7 @@
           e.preventDefault(); window.openCrosshairSettings(); return;
         }
         if (editing) return;
-        if(e.code==='KeyY' && !e.repeat && matchState.inMatch && player.alive && document.pointerLockElement){viewmodel.inspect();return;}
+        if(e.code==='KeyY' && !e.repeat && player.alive && gameplayInputAllowed()){viewmodel.inspect();return;}
         keys[e.code] = true;
 
         if (e.code === 'F1' && activeMap!=='range') {
