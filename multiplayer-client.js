@@ -187,6 +187,12 @@
           this.status('다시 연결되었습니다 · ROOM #' + data.room.code);
           break;
         }
+        case 'buy_gate_correction':
+          if(this.started && a.matchState.phase==='buy' && data.round===a.matchState.round &&
+             Number.isFinite(data.x) && Number.isFinite(data.z)){
+            a.player.pos.x=data.x; a.player.pos.z=data.z;
+          }
+          break;
         case 'error': this.status(data.message || '서버 요청 실패', true); break;
         case 'joined':
           a.selectMap?.(data.room.map);
