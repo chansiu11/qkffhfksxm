@@ -1,0 +1,21 @@
+name: Multiplayer armory checks
+on:
+  push:
+    paths:
+      - 'tests/armory-online.test.js'
+      - 'server/weapons.json'
+      - 'server/room-core.js'
+      - '.github/workflows/armory-check.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  armory:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: node --test tests/armory-online.test.js
