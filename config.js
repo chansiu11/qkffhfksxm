@@ -190,6 +190,10 @@ if (typeof window !== "undefined") window.GAME_SERVER_URL = 'https://qkffhfksxm-
       const wallTop=gy+4.95;
       box('gardenWall',37.8,wz,.8,.58,-5,wallTop);
       box('gardenWall',42.68,wz,3.36,.58,-5,wallTop);
+      // Close the missing Garden side-wall segment reported at (44,-40).
+      // Join the window facade to the existing masonry return under the roof.
+      box('gardenWall',43.88,-40.25,.64,4.16,-5,wallTop);
+      box('limestone',43.88,-40.25,.76,4.16,-5,gy+.54);
       box('gardenWall',wx,wz,2.8,.58,head,wallTop);
       box('gardenPlinth',39.95,-41.88,4.45,1.48,gy-.2,sill-.12);
       box('gardenPlinth',39.95,-41.88,4.64,1.62,sill-.12,sill);
