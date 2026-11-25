@@ -310,7 +310,7 @@
           const xyz = v => Array.isArray(v) && v.length === 3 && v.every(Number.isFinite);
           if (xyz(data.from) && xyz(data.to)) {
             const start = new THREE.Vector3(...data.from);
-            a.gameSound?.('shot',start.x,start.z,false,start.y);
+            a.gameSound?.('shot',start.x,start.z,false,start.y,data.weapon);
             const gun = a.WEAPON_CATALOG[data.weapon];
             const lines = Array.isArray(data.pellets) && data.pellets.length <= 16
               ? data.pellets.filter(xyz) : [data.to];
@@ -611,7 +611,7 @@
       if(w.slot==='knife') {
         a.sfx.playKnifeSlash();
       } else {
-        a.sfx.playGunshot(w.id==='operator'?92:165,0.11);
+        a.sfx.playGunshot(w.id==='operator'?92:165,0.11,w.id);
         a.muzzleFlashMesh.material.opacity=1;
         setTimeout(()=>{a.muzzleFlashMesh.material.opacity=0;},45);
         a.gunGroup.position.z=-0.32;

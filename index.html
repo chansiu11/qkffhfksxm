@@ -14,10 +14,11 @@
   <script src="config.js?v=perf19"></script>
   <script src="host-transport.js?v=audio22"></script>
   <script src="movement-physics.js?v=move25"></script>
-  <script src="multiplayer-client.js?v=spike-mp3"></script>
+  <script src="multiplayer-client.js?v=match-samples"></script>
   <link rel="stylesheet" href="menu.css" />
   <!-- Three.js r128 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="match-samples.js?v=1"></script>
   <script src="melee-rules.js?v=equipment2"></script>
   <script src="shotgun-pellets.js"></script>
   <script src="shooting-spread.js?v=spray16"></script>
@@ -1073,6 +1074,7 @@
               effects.connect(limiter); steps.connect(limiter);
               limiter.connect(ctx.destination);
               this.effectsBus = effects;
+              MatchSamples.preload(ctx);
               this.stepsBus = steps;
             }
             if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
@@ -1087,10 +1089,11 @@
           gain.linearRampToValueAtTime(1 - 0.18 * Math.max(0, Math.min(1, strength)), now + 0.008);
           gain.linearRampToValueAtTime(1, now + 0.15);
         },
-        playGunshot(freq = 160, dur = 0.11) {
+        playGunshot(freq = 160, dur = 0.11, weapon) {
           try {
             this.init();
             if (!this.ctx) return;
+            if (MatchSamples.play(this.ctx, this.effectsBus, 'shot', weapon, null, 0.55)) return;
             const now = this.ctx.currentTime;
             const osc = this.ctx.createOscillator();
             const gain = this.ctx.createGain();
@@ -3113,7 +3116,7 @@
           return;
         } else {
           soundRadius=100;soundCircleUntil=performance.now()+550;
-          sfx.playGunshot(w.id === 'operator' ? 92 : w.id === 'vandal' ? 145 : 190, 0.11);
+          sfx.playGunshot(w.id === 'operator' ? 92 : w.id === 'vandal' ? 145 : 190, 0.11, w.id);
           muzzleFlashMesh.material.opacity = 1;
           setTimeout(() => { muzzleFlashMesh.material.opacity = 0; }, 45);
           gunGroup.position.z = -0.32;
@@ -3871,7 +3874,7 @@
         if (/defused|해체/i.test(reason)) playSpikeClip('defused', 'result', p.x, p.y, p.z, false);
         else if (/detonat|explod|explosion|폭발/i.test(reason)) playSpikeClip('boom', 'result', p.x, p.y, p.z, false);
       }
-      function gameSound(kind,x,z,own=false,y=AscentGround.height(activeMap,x,z)+.8){
+      function gameSound(kind,x,z,own=false,y=AscentGround.height(activeMap,x,z)+.8,weapon){
         if (kind === 'half') { spikeHalf = true; return; }
         if (kind === 'plant' || kind === 'defuse') {
           const clip = kind === 'plant' ? 'planting' : (spikeHalf || matchState.halfDefuseReached ? 'defuse_start_2' : 'defuse_start_1');
@@ -3884,6 +3887,13 @@
         if(own){soundCircleUntil=performance.now()+550;soundRadius=radius;}
         if(d>=radius)return;
         sfx.init();const ctx=sfx.ctx;if(!ctx)return;
+        if (step || kind === 'shot') {
+          const level = (1 - d / radius) * (step ? (land ? 0.32 : 0.22) : 0.55);
+          if (MatchSamples.play(ctx, step ? sfx.stepsBus : sfx.effectsBus, kind, weapon, own ? null : {x,y,z}, level)) {
+            if (step) sfx.balanceEffects((1 - d / radius) * 0.5);
+            return;
+          }
+        }
         const t=ctx.currentTime,osc=ctx.createOscillator(),gain=ctx.createGain(),pan=ctx.createPanner();
         osc.type=kind==='shot'?'sawtooth':step?'triangle':'square';
         const freq=kind==='shot'?180:land?100:step?130:kind==='plant'?680:kind==='half'?1400:970;
@@ -4197,12 +4207,11 @@
                   b.yaw = Math.atan2(-dx, -dz);
                   const startP = b.group.position.clone().add(new THREE.Vector3(0, 1.45, 0));
                   const endP = nearestEnemy.group.position.clone().add(new THREE.Vector3(0, 1.35, 0));
-                  gameSound('shot',startP.x,startP.z,false,startP.y);
+                  gameSound('shot',startP.x,startP.z,false,startP.y,b.weapon.id);
                   spawnBulletTracer(startP, endP, 0x38e2c7);
 
                   if (!player.alive && getCurrentSpectatedAlly() === b) {
                     gunGroup.position.z = -0.33;
-                    sfx.playGunshot(150, 0.10);
                   }
 
                   nearestEnemy.taggedAt = performance.now();
@@ -4239,7 +4248,7 @@
 
                 if (targetIsPlayer && player.alive) {
                   const startP = b.group.position.clone().add(new THREE.Vector3(0, 1.45, 0));
-                  gameSound('shot',startP.x,startP.z,false,startP.y);
+                  gameSound('shot',startP.x,startP.z,false,startP.y,b.weapon.id);
                   spawnBulletTracer(startP, player.pos.clone().add(new THREE.Vector3(0, -0.2, 0)), 0xff4655);
 
                   if (!(roomState.allowCheats && cheats.invincible)) {
@@ -4265,7 +4274,7 @@
                 } else if (nearestAllyBot) {
                   const startP = b.group.position.clone().add(new THREE.Vector3(0, 1.45, 0));
                   const endP = nearestAllyBot.group.position.clone().add(new THREE.Vector3(0, 1.35, 0));
-                  gameSound('shot',startP.x,startP.z,false,startP.y);
+                  gameSound('shot',startP.x,startP.z,false,startP.y,b.weapon.id);
                   spawnBulletTracer(startP, endP, 0xff4655);
                   nearestAllyBot.taggedAt = performance.now();
                   ShootingSpread.applyGunDamage(nearestAllyBot,b.weapon.id,bestD,'body');
