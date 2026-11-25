@@ -18,4 +18,4 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-      - run: node --test tests/armory-online.test.js
+      - run: node --test tests/armory-online.test.js tests/spread-online.test.js tests/hitscan-reload-online.test.js

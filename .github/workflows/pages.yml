@@ -1,7 +1,6 @@
 name: Deploy FPS client to GitHub Pages
 on:
-  push:
-    branches: [main]
+  # Automatic publication is handled by the configured Pages branch build.
   workflow_dispatch:
 permissions:
   contents: read
