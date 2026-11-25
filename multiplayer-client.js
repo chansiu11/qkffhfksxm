@@ -34,7 +34,7 @@
     send(value) {
       if (this.socket?.readyState === WebSocket.OPEN) {
         // Position packets are replaceable. Never overload a clogged connection.
-        if (value.type === 'move' && this.socket.bufferedAmount > 16000) return false;
+        if (value.type === 'move' && this.socket.bufferedAmount > 8192) return false;
         try { this.socket.send(JSON.stringify(value)); return true; } catch (_) { return false; }
       }
       return false;
@@ -626,7 +626,8 @@
       if(held!==this.lastSpike) {
         if (this.send({type:'spike',held})) this.lastSpike=held;
       }
-      if(now-this.lastSent < (this.rtt != null && this.rtt>140 ? 80 : 65))return;
+      const interval=this.socket?.bufferedAmount>4096?130:(this.rtt!=null&&this.rtt>140?80:65);
+      if(now-this.lastSent < interval)return;
       // Do not flood the room with identical stationary/aim-still packets.
       // A periodic 600ms refresh keeps server presence and hold state alive.
       const q=n=>Math.round(n*1000)/1000;

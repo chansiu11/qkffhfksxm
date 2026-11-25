@@ -487,11 +487,26 @@ if (typeof window !== "undefined") window.GAME_SERVER_URL = 'https://qkffhfksxm-
       if((pos[axis]-edge)*direction>0) pos[axis]=edge;
     }
   }
+  const CELL=8, INDEX_MARGIN=1.5;
+  const cellKey=(x,z)=>Math.floor(x/CELL)+','+Math.floor(z/CELL);
   for(const map of Object.values(maps)){
     map.blockers=map.parts.map(({x,z,w,d,b,t,angle,slope,kind})=>{
       const box=[-w/2,w/2,b,t,-d/2,d/2];
       box.frame={x,z,kind,c:Math.cos(angle),s:Math.sin(angle),slope,radius:Math.hypot(w,d)/2};
       return box;
+    });
+    // Conservative broad-phase index. Keep the original ordering of colliders
+    // and include the same bounding-circle margin as the narrow-phase scan.
+    map.blockerCells=new Map();
+    map.blockers.forEach((box,i)=>{
+      const {x,z,radius}=box.frame,m=radius+INDEX_MARGIN;
+      for(let cx=Math.floor((x-m)/CELL);cx<=Math.floor((x+m)/CELL);cx++)
+        for(let cz=Math.floor((z-m)/CELL);cz<=Math.floor((z+m)/CELL);cz++){
+          const key=cx+','+cz;
+          let list=map.blockerCells.get(key);
+          if(!list)map.blockerCells.set(key,list=[]);
+          list.push(i);
+        }
     });
   }
   function stairHeight(map,x,z,y){
@@ -507,7 +522,20 @@ if (typeof window !== "undefined") window.GAME_SERVER_URL = 'https://qkffhfksxm-
   function resolve(map,pos,y,r){
     const support=stairHeight(map,pos.x,pos.z,y);
     y=Math.max(y,support);
-    for(const box of maps[map]?.blockers||[]){
+    const data=maps[map];if(!data)return;
+    const indexed=r<=INDEX_MARGIN;
+    let key='',list=[],cursor=0,last=-1;
+    for(;;){
+      if(indexed){
+        const next=cellKey(pos.x,pos.z);
+        if(key!==next){
+          key=next;list=data.blockerCells.get(key)||[];cursor=0;
+          while(cursor<list.length&&list[cursor]<=last)cursor++;
+        }
+        if(cursor>=list.length)break;
+        last=list[cursor++];
+      }else if(++last>=data.blockers.length)break;
+      const box=data.blockers[last];
       const {x,z,c,s,radius}=box.frame,dx=pos.x-x,dz=pos.z-z;
       if(Math.abs(dx)>radius+r||Math.abs(dz)>radius+r)continue;
       if(box.frame.kind==="step" && Number.isFinite(support))continue;

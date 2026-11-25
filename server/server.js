@@ -18,13 +18,17 @@ const MAX_MSG = 8192;
 const LIMIT = ground.limit;
 
 // A small RFC6455 JSON/WebSocket transport: no third-party packages or builds.
-function writeFrame(socket, opcode, data = Buffer.alloc(0)) {
-  if (!socket.writable) return;
-  const payload = Buffer.isBuffer(data) ? data : Buffer.from(data);
-  const head = payload.length < 126 ? Buffer.from([0x80 | opcode, payload.length]) :
-    Buffer.from([0x80 | opcode, 126, (payload.length >>> 8) & 255, payload.length & 255]);
-  // Never let a slow peer queue unlimited traffic and stall the whole room.
-  if (!socket.destroyed && socket.writableLength < MAX_BACKLOG_BYTES) socket.write(Buffer.concat([head, payload]));
+function encodeFrame(opcode,data=Buffer.alloc(0)){
+  const payload=Buffer.isBuffer(data)?data:Buffer.from(data);
+  let head;
+  if(payload.length<126)head=Buffer.from([0x80|opcode,payload.length]);
+  else if(payload.length<=65535){head=Buffer.alloc(4);head[0]=0x80|opcode;head[1]=126;head.writeUInt16BE(payload.length,2);}
+  else {head=Buffer.alloc(10);head[0]=0x80|opcode;head[1]=127;head.writeBigUInt64BE(BigInt(payload.length),2);}
+  return Buffer.concat([head,payload]);
+}
+function writeFrame(socket,opcode,data){
+  if(!socket.writable||socket.destroyed||socket.writableLength>=MAX_BACKLOG_BYTES)return false;
+  socket.write(encodeFrame(opcode,data));return true;
 }
 function send(c, msg) {
   if (!c || c.closed || !c.socket.writable || c.socket.destroyed) return false;
@@ -96,7 +100,7 @@ const server = http.createServer((req, res) => {
     'access-control-allow-origin': 'https://chansiu11.github.io', 'cache-control': 'no-store' };
   if (req.url === '/health' || req.url === '/') {
     res.writeHead(200, headers);
-    res.end(JSON.stringify({ ok: true, service: 'qkffhfksxm-realtime', buyGateRevision: 'ascent-joins18', rooms: rooms.size, players: clients.size }));
+    res.end(JSON.stringify({ ok: true, service: 'qkffhfksxm-realtime', buyGateRevision: 'ascent-joins18', performanceRevision: 'perf19', rooms: rooms.size, players: clients.size }));
   } else { res.writeHead(404, headers); res.end('{}'); }
 });
 server.on('upgrade', (req, socket, head) => {
@@ -610,11 +614,11 @@ function snapshot(r) {
 function broadcastState(r) {
   if (!r.started) return;
   // Serialize one frame per room, not once for each participant.
-  const frame = Buffer.from(JSON.stringify(snapshot(r)));
+  const frame = encodeFrame(1,JSON.stringify(snapshot(r)));
   for (const p of r.players.values()) {
     const c = p.client;
     if (c && !c.closed && c.socket.writable && !c.socket.destroyed &&
-        c.socket.writableLength < 24 * 1024) writeFrame(c.socket, 1, frame);
+        c.socket.writableLength < 8 * 1024) c.socket.write(frame);
   }
 }
 function step(r,now){

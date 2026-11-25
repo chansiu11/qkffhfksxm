@@ -11,8 +11,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=Rajdhani:wght@600;700&family=Teko:wght@600;700&display=swap" rel="stylesheet">
   <script src="match-plans.js?v=map-barrier-layout5"></script>
-  <script src="config.js?v=ascent-joins18"></script>
-  <script src="multiplayer-client.js?v=buy-gates-slide4"></script>
+  <script src="config.js?v=perf19"></script>
+  <script src="multiplayer-client.js?v=perf19"></script>
   <link rel="stylesheet" href="menu.css" />
   <!-- Three.js r128 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -1160,7 +1160,7 @@
       const renderQuality = {
         dpr: Math.min(window.devicePixelRatio || 1, coarseDevice ? 1.0 : 1.25),
         max: Math.min(window.devicePixelRatio || 1, coarseDevice ? 1.2 : 1.5),
-        min: coarseDevice ? 0.65 : 0.75,
+        min: coarseDevice ? 0.55 : 0.75,
         frames: 0, lastAt: performance.now(), fastestFrame: 100, warmup: 0, goodPeriods: 0
       };
       renderer.setSize(window.innerWidth, window.innerHeight);
@@ -3743,6 +3743,7 @@
       function planting(){
         return matchState.inMatch&&player.alive&&player.onGround&&isSpikeKeyHeld&&matchState.phase==='combat'&&roomState.playerSide==='attack'&&gameSpikeSiteAt(player.pos.x,player.pos.z,player.footY);
       }
+      const radarStaticCache=new Map();
       function drawAscentRadar() {
         const w = radarCanvas.width, h = radarCanvas.height;
         rCtx.clearRect(0, 0, w, h);
@@ -3760,14 +3761,23 @@
         rCtx.fillStyle = 'rgba(255, 70, 85, 0.24)';
         const plan=AscentGround.maps[activeMap];
         if(plan){
-          for(const [rings,color] of [[plan.outlines,'#47555b'],[Object.values(plan.plant),'#917653']]){
-            rCtx.fillStyle=color;rCtx.beginPath();
-            for(const ring of rings){
-              ring.forEach(([x,z],i)=>i?rCtx.lineTo(toRx(x),toRz(z)):rCtx.moveTo(toRx(x),toRz(z)));
-              rCtx.closePath();
+          const key=activeMap+':'+w+':'+h;
+          let layer=radarStaticCache.get(key);
+          if(!layer){
+            layer=document.createElement('canvas');layer.width=w;layer.height=h;
+            const ctx=layer.getContext('2d');
+            for(const [rings,color] of [[plan.outlines,'#47555b'],[Object.values(plan.plant),'#917653']]){
+              ctx.fillStyle=color;ctx.beginPath();
+              for(const ring of rings){
+                ring.forEach(([x,z],i)=>i?ctx.lineTo(toRx(x),toRz(z)):ctx.moveTo(toRx(x),toRz(z)));
+                ctx.closePath();
+              }
+              ctx.fill('evenodd');
             }
-            rCtx.fill('evenodd');
+            if(radarStaticCache.size>=6)radarStaticCache.clear();
+            radarStaticCache.set(key,layer);
           }
+          rCtx.drawImage(layer,0,0);
         }
         if(performance.now()<soundCircleUntil){
           rCtx.strokeStyle='rgba(255,255,255,.8)';rCtx.beginPath();
@@ -4224,7 +4234,7 @@
         }
         // The fastest recent rAF interval is a rough indication of panel refresh.
         const highRefresh = renderQuality.fastestFrame < 11.0;
-        const target = highRefresh ? 120 : 60;
+        const target = highRefresh ? (coarseDevice ? 90 : 120) : 60;
         if (matchState.inMatch && renderQuality.warmup > 2) {
           const before = renderQuality.dpr;
           if (fps < target * 0.79) {
