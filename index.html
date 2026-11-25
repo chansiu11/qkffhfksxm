@@ -25,7 +25,7 @@
   <script src="crosshair-profile.js"></script>
   <script src="crosshair-ui.js" defer></script>
   <script src="ads-system.js?v=armory20"></script>
-  <script src="weapon-viewmodels.js?v=knifeinspect"></script>
+  <script src="weapon-viewmodels.js?v=meshy-sidearms1"></script>
 
   <style>
     :root {
@@ -4540,6 +4540,7 @@
 
         updateHitBursts(dt);
         renderer.render(scene, camera);
+        viewmodel.renderModel(renderer);
       }
 
       window.MP.install({spikeRoundResult,stopSpikeClip,gameSound,afterScopedShot,syncMapObjects,selectMap,resetChat,appendChat,roomState,matchState,player,bots,scene,spikeMesh,barrierGroup,gunGroup,muzzleFlashMesh,viewmodel,gameSpikeSiteAt,sfx,
