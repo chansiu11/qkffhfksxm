@@ -316,7 +316,7 @@
   async function loadModel(id, T) {
     dependencies ||= script('https://cdn.jsdelivr.net/npm/fflate@0.8.2/umd/index.js')
       .then(() => script('https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/FBXLoader.js'));
-    await dependencies;
+    try { await dependencies; } catch(error){ dependencies=null; throw error; }
     const archive = 'refs/classic/Meshy_AI_' + files[id] + '_20261125_texture_fbx' + (id === 'classic' ? ' (1)' : '') + '.zip';
     const response = await fetch(archive);
     if (!response.ok) throw Error(archive);
@@ -361,14 +361,18 @@
     light.position.set(-1,2,1); scene.add(light);
     let selected, model, visible=false, equipped=0, inspected=-Infinity, fired=-Infinity;
     let duration=750, reloadStarted=0, startModelDraw=false;
+    function getModel(id){
+      if(!cache.has(id))cache.set(id,loadModel(id,T).catch(err=>{cache.delete(id);throw err;}));
+      return cache.get(id);
+    }
+    api.preloadJobs=()=>Object.keys(files).map(id=>()=>getModel(id));
     function select(id) {
       if(selected===id)return;
       startModelDraw=!!files[id];
       selected=id; equipped=performance.now(); inspected=fired=-Infinity;
       pivot.clear(); model=null; visible=false;
       if(!files[id])return;
-      if(!cache.has(id))cache.set(id,loadModel(id,T).catch(err=>{cache.delete(id);console.warn('Pistol model',id,err);return null;}));
-      cache.get(id).then(asset=>{if(asset && selected===id){model=asset;pivot.add(asset);}});
+      getModel(id).then(asset=>{if(asset && selected===id){model=asset;pivot.add(asset).catch(err=>console.warn('Pistol model',id,err));}});
     }
     const set=api.setWeapon, update=api.update, fire=api.fire, inspect=api.inspect, reload=api.beginReload;
     api.setWeapon=(id,time)=>{set(id,time);duration=(time??catalog[id]?.equipTime??.75)*1000;select(api.current);};
