@@ -348,9 +348,10 @@
     const light=new T.DirectionalLight(0xffffff,1.4);
     light.position.set(-1,2,1); scene.add(light);
     let selected, model, visible=false, equipped=0, inspected=-Infinity, fired=-Infinity;
-    let duration=750, reloadStarted=0;
+    let duration=750, reloadStarted=0, startClassicDraw=false;
     function select(id) {
       if(selected===id)return;
+      startClassicDraw=id==='classic';
       selected=id; equipped=performance.now(); inspected=fired=-Infinity;
       pivot.clear(); model=null; visible=false;
       if(!files[id])return;
@@ -360,13 +361,14 @@
     const set=api.setWeapon, update=api.update, fire=api.fire, inspect=api.inspect, reload=api.beginReload;
     api.setWeapon=(id,time)=>{set(id,time);duration=(time??catalog[id]?.equipTime??.75)*1000;select(api.current);};
     api.inspect=()=>{inspect();if(model&&!api.isReloading && performance.now()-equipped>=duration)inspected=performance.now();};
-    api.fire=(mode)=>{inspected=-Infinity;fired=performance.now();fire(mode);};
-    api.beginReload=()=>{inspected=-Infinity;reloadStarted=performance.now();reload();};
+    api.fire=(mode)=>{startClassicDraw=false;inspected=-Infinity;fired=performance.now();fire(mode);};
+    api.beginReload=()=>{startClassicDraw=false;inspected=-Infinity;reloadStarted=performance.now();reload();};
     api.update=(dt,player,state)=>{
       update(dt,player,state);
       visible=!!(model&&player?.alive&&state?.inMatch);
       if(!visible)return;
       const now=performance.now(), age=(now-inspected)/1000;
+      if(startClassicDraw){equipped=now;startClassicDraw=false;}
       const smooth=x=>{x=Math.max(0,Math.min(1,x));return x*x*(3-2*x);};
       const lift=smooth(age/.34)*(1-smooth((age-2.54)/.38));
       const turn=smooth((age-1.12)/.42)*(1-smooth((age-2.48)/.40));
@@ -386,7 +388,7 @@
       pivot.position.set((selected==='classic'?.168:.146)*Math.min(camera.aspect,2.1)/1.78-.013*lift-.087*turn,
         -.143+.048*lift-.08*turn-.26*draw-.25*dip+.015*seat+.003*move*Math.sin(now*.01),
         -.54+.05*lift+.045*kick);
-      pivot.rotation.set(.12+.30*kick+.20*lift+.73*liftBarrel+.48*seat,
+      pivot.rotation.set(.12+.30*kick+.20*lift+.73*liftBarrel+(selected==='classic'?0:.48*seat),
         .30+.95*lift-.45*turn+.16*dip,-.06-.24*lift-1.04*turn+.31*draw-.54*dip-.22*seat);
       const photo=document.querySelector('#fps-weapon-sprite-layer .fps-paper-weapon');
       if(photo)photo.style.opacity='0';
