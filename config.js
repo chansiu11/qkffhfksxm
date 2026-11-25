@@ -207,6 +207,10 @@ if (typeof window !== "undefined") window.GAME_SERVER_URL = 'https://qkffhfksxm-
       // The connector runs along the existing Garden partition on its west side.
       box('deck',44.50,-43.38,1.18,2.25,top-.38,top);
       box('deck',44.52,-40.54,1.20,3.68,top-.38,top);
+      // Bridge the actual 0.055-0.085 m discontinuity between the
+      // west connector and the east landing visible in photo 2.
+      // The slab union below removes all coincident top faces.
+      box('deck',45.08,-41.60,.34,5.80,top-.38,top);
       // The entrance arch follows the relocated stair, clear of the tread.
       const archX=x-w/2-.5,base=height(id,archX,z),half=d/2;
       for(const side of [-1,1])
@@ -282,6 +286,9 @@ if (typeof window !== "undefined") window.GAME_SERVER_URL = 'https://qkffhfksxm-
       }
       // Continue the lower return to the existing wall corner (photo 4).
       box('gardenWall',49.73,-41.64,.60,5.98,-5,soffit+.03);
+      // Continue the site-facing portion of the lower side wall above
+      // the gallery floor (photo 4). Leave the rear gallery entry open.
+      box('gardenWall',49.73,-39.54,.60,1.92,soffit,top+2.55);
       box('gardenWall',70.24,-42.42,.44,4.42,-5,soffit+.03);
       // Union flat upper landing slabs before mesh generation. Identical
       // top faces previously overlapped and produced z-fighting (photos 1/2).
