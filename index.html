@@ -13,7 +13,7 @@
   <script src="match-plans.js?v=map-barrier-layout5"></script>
   <script src="config.js?v=perf19"></script>
   <script src="host-transport.js?v=audio22"></script>
-  <script src="movement-physics.js?v=move23"></script>
+  <script src="movement-physics.js?v=move24"></script>
   <script src="multiplayer-client.js?v=move23"></script>
   <link rel="stylesheet" href="menu.css" />
   <!-- Three.js r128 -->
@@ -3956,7 +3956,8 @@
               * ShootingSpread.tagMultiplier(player,performance.now());
 
             // Buffered manual jumps consume on contact; no automatic held-key jumping.
-            GameMovement.consumeJump(player,performance.now(),!locked);
+            const moveNow=performance.now();
+            GameMovement.consumeJump(player,moveNow,!locked);
             const wasGrounded=player.onGround;
             const groundContact=wasGrounded||(!player.audioJumped&&player.audioGrounded&&player.vel.y<=0);
             GameMovement.advance(player.vel,wishDir.x,wishDir.z,walkSpeed,groundContact,dt,locked);
@@ -3973,6 +3974,7 @@
             const sup = getSurfaceSupport(player.pos.x, player.pos.z, player.footY);
             player.callout = sup.callout;
 
+            let bufferedLandingHop=false;
             const oldFootY=player.footY;
             player.vel.y -= 21.0 * dt;
             player.footY += player.vel.y * dt;
@@ -3980,7 +3982,10 @@
               const actualLanding=!wasGrounded&&(player.audioJumped||(player.audioAirTime>=.12&&Math.max(player.audioPeak??oldFootY,oldFootY)-sup.y>=.30));
               player.footY = sup.y;
               player.vel.y = 0;player.onGround = true;
-              if(actualLanding)GameMovement.land(player.vel);
+              if(actualLanding){
+                bufferedLandingHop=!locked&&GameMovement.hasBufferedJump(player,moveNow);
+                GameMovement.land(player.vel,bufferedLandingHop);
+              }
             } else {
               player.onGround = false;
             }
@@ -3989,6 +3994,8 @@
             player.running=player.onGround&&running;
             movementAudio(player,oldFootY,sup.y,dt,running,
               Math.hypot(player.pos.x-oldX,player.pos.z-oldZ));
+            // Emit the landing audio before launching the queued hop, without a ground-friction frame.
+            if(bufferedLandingHop)GameMovement.consumeJump(player,moveNow,!locked);
             const crouchOffset = isCrouching ? -0.45 : 0;
             player.pos.y = player.footY + EYE_HEIGHT + crouchOffset;
           }

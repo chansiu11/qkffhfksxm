@@ -5,7 +5,7 @@
   if(root)root.GameMovement=api;
 })(typeof globalThis!=='undefined'?globalThis:this,function(){
   'use strict';
-  const settings=Object.freeze({groundAccel:45,groundBrake:60,airAccel:7.5,airCap:1.04,landingKeep:.76,jumpBufferMs:120,jumpSpeed:7.6});
+  const settings=Object.freeze({groundAccel:45,groundBrake:60,airAccel:7.5,airCap:1.04,landingKeep:.65,hopLandingKeep:.90,jumpBufferMs:120,jumpSpeed:7.6});
   function clampSpeed(v,max){
     const speed=Math.hypot(v.x,v.z);
     if(speed>max&&speed>0){const scale=max/speed;v.x*=scale;v.z*=scale;}
@@ -30,7 +30,8 @@
       clampSpeed(v,max*settings.airCap);
     }
   }
-  function land(v){v.x*=settings.landingKeep;v.z*=settings.landingKeep;}
+  function land(v,bufferedHop=false){const keep=bufferedHop?settings.hopLandingKeep:settings.landingKeep;v.x*=keep;v.z*=keep;}
+  function hasBufferedJump(p,now){return Number.isFinite(p.jumpQueuedUntil)&&p.jumpQueuedUntil>0&&now<=p.jumpQueuedUntil;}
   function collision(v,dx,dz,actualX,actualZ){
     const cx=actualX-dx,cz=actualZ-dz,d=Math.hypot(cx,cz);
     if(d<.0001)return;
@@ -40,7 +41,7 @@
   function queueJump(p,now){p.jumpQueuedUntil=now+settings.jumpBufferMs;}
   function consumeJump(p,now,allowed=true){
     if(!allowed){p.jumpQueuedUntil=0;return false;}
-    if(!p.jumpQueuedUntil||now>p.jumpQueuedUntil){p.jumpQueuedUntil=0;return false;}
+    if(!hasBufferedJump(p,now)){p.jumpQueuedUntil=0;return false;}
     if(!p.onGround)return false;
     p.jumpQueuedUntil=0;p.vel.y=settings.jumpSpeed;p.onGround=false;
     p.audioJumped=true;p.audioPeak=p.footY;p.audioAirTime=0;
@@ -49,5 +50,5 @@
   function reset(p){
     p.vel.x=p.vel.y=p.vel.z=0;p.onGround=true;p.jumpQueuedUntil=0;
   }
-  return {settings,advance,land,collision,queueJump,consumeJump,reset};
+  return {settings,advance,land,collision,queueJump,hasBufferedJump,consumeJump,reset};
 });
