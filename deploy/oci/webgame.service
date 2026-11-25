@@ -1,0 +1,24 @@
+[Unit]
+Description=Realtime web game server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=webgame
+Group=webgame
+WorkingDirectory=/opt/webgame
+Environment=NODE_ENV=production
+Environment=PORT=10000
+Environment=BIND_HOST=127.0.0.1
+Environment=ALLOWED_ORIGINS=https://chansiu11.github.io
+ExecStart=/usr/bin/node /opt/webgame/server/server.js
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

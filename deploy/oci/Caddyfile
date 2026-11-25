@@ -1,0 +1,5 @@
+# Replace GAME_DOMAIN with the verified public DNS name in the
+# Caddy service environment before enabling this configuration.
+{$GAME_DOMAIN} {
+    reverse_proxy 127.0.0.1:10000
+}

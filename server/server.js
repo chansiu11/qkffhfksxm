@@ -675,5 +675,5 @@ function step(r,now){
   broadcastState(r);
 }
 setInterval(()=>{const now=Date.now();for(const room of rooms.values())step(room,now);},TICK_MS).unref();
-server.listen(PORT,'0.0.0.0',()=>console.log(`Realtime game server ready on :${PORT}`));
+server.listen(PORT,process.env.BIND_HOST || '0.0.0.0',()=>console.log(`Realtime game server ready on :${PORT}`));
 module.exports={server,rooms};
