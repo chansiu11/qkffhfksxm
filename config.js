@@ -178,8 +178,12 @@ if (typeof window !== "undefined") window.GAME_SERVER_URL = 'https://qkffhfksxm-
       // corridor, then turn toward the existing gallery on a level landing.
       const x=40,z=-53,w=7.6,d=3.25;
       const entry=height(id,x-w/2,z),rise=top-entry;
-      const stairD=1.5,rampD=d-stairD;
-      const stairZ=z+(d-stairD)/2,rampZ=z-(d-rampD)/2;
+      const rampD=d-1.5,rampZ=z-(d-rampD)/2;
+      // Extend treads into the adjoining south masonry, rather than
+      // leaving a narrow drop beside the stair (photo 1).
+      const treadNear=rampZ+rampD/2,treadFar=-50.95;
+      const stairD=treadFar-treadNear,stairZ=(treadNear+treadFar)/2;
+      map.stairs.push({x,z:(z+d/2+treadFar)/2,w,d:treadFar-(z+d/2)+.02,axis:'x',near:entry,far:top});
       map.stairs.push({x,z,w,d,axis:'x',near:entry,far:top});
       for(let i=0;i<22;i++){
         const f=(i+1)/22;
@@ -195,11 +199,11 @@ if (typeof window !== "undefined") window.GAME_SERVER_URL = 'https://qkffhfksxm-
       // Join the extended ramp to the upper landing and the rear wall.
       box('deck',46.57,-53.94,5.70,5.12,top-.38,top);
       // Widen the passage floor westward to the masonry face at x=44.25.
-      box('deck',46.75,-48.64,5.55,8.74,top-.38,top);
+      box('deck',46.68,-48.64,5.69,8.74,top-.38,top);
       // Close the small notches where the adjoining masonry turns diagonally.
       // These slabs continue the same floor elevation, rather than blocking the walkway.
-      box('deck',44.02,-50.99,.50,.77,top-.38,top);
-      box('deck',44.03,-44.54,.52,.62,top-.38,top);
+      box('deck',44.02,-51.09,.64,.97,top-.38,top);
+      box('deck',44.03,-44.54,.72,.82,top-.38,top);
       // The connector runs along the existing Garden partition on its west side.
       box('deck',44.50,-43.38,1.18,2.25,top-.38,top);
       box('deck',44.52,-40.54,1.20,3.68,top-.38,top);
@@ -258,10 +262,13 @@ if (typeof window !== "undefined") window.GAME_SERVER_URL = 'https://qkffhfksxm-
       box('wood',41.85,-40.88,.95,.87,gy-.1,gy+.47);
       box('wood',41.85,-41.35,.9,.83,gy+.47,gy+.92);
       // Keep the window opening and landing connected, with small level changes.
-      box('gardenPlinth',39.95,-43.18,4.45,1.76,sill-.28,sill);
-      box('gardenPlinth',42.72,-43.18,1.12,1.76,sill-.24,sill+.23);
-      box('gardenPlinth',43.68,-43.18,.98,1.76,sill-.15,sill+.46);
-      box('gardenPlinth',44.78,-43.18,1.25,1.76,sill-.06,top);
+      // Fit the raised Garden landing to the adjoining wall face instead
+      // of floating in front of it (photo 3). Adjacent treads butt together.
+      const gNear=-44.50,gFar=-42.30,gZ=(gNear+gFar)/2,gD=gFar-gNear;
+      box('gardenPlinth',39.75,gZ,4.86,gD,sill-.28,sill);
+      box('gardenPlinth',42.72,gZ,1.08,gD,sill-.24,sill+.23);
+      box('gardenPlinth',43.65,gZ,.78,gD,sill-.15,sill+.46);
+      box('gardenPlinth',44.52,gZ,.96,gD,sill-.06,top);
       box('roof',40.5,-40.65,7.15,4.05,wallTop-.22,wallTop);
       for(const px of [37.25,39.45,41.65,43.85])
         box('beam',px,-40.65,.18,4.05,wallTop-.42,wallTop-.22);
@@ -273,8 +280,42 @@ if (typeof window !== "undefined") window.GAME_SERVER_URL = 'https://qkffhfksxm-
         box('gardenWall',px,-40.43,span,.42,-5,soffit+.03);
         box('beam',px,-40.43,span+.04,.48,soffit-.23,soffit+.02);
       }
-      box('gardenWall',49.73,-42.42,.60,4.42,-5,soffit+.03);
+      // Continue the lower return to the existing wall corner (photo 4).
+      box('gardenWall',49.73,-41.64,.60,5.98,-5,soffit+.03);
       box('gardenWall',70.24,-42.42,.44,4.42,-5,soffit+.03);
+      // Union flat upper landing slabs before mesh generation. Identical
+      // top faces previously overlapped and produced z-fighting (photos 1/2).
+      // Partition on actual slab edges and merge adjacent occupied strips.
+      const flat=map.parts.filter(p=>(p.kind==='deck'||p.kind==='gardenPlinth')&&
+        p.angle===0&&p.slope===0&&Math.abs(p.t-top)<1e-6);
+      const coord=n=>Math.round(n*1e8)/1e8;
+      const xs=[...new Set(flat.flatMap(p=>[coord(p.x-p.w/2),coord(p.x+p.w/2)]))].sort((a,b)=>a-b);
+      const zs=[...new Set(flat.flatMap(p=>[coord(p.z-p.d/2),coord(p.z+p.d/2)]))].sort((a,b)=>a-b);
+      const sorted=flat.slice().sort((a,b)=>a.kind===b.kind? a.b-b.b : a.kind==='deck'?-1:1);
+      const rects=[];
+      for(let iz=0;iz<zs.length-1;iz++){
+        const z0=zs[iz],z1=zs[iz+1],mz=(z0+z1)/2;
+        let run=null;
+        for(let ix=0;ix<xs.length-1;ix++){
+          const x0=xs[ix],x1=xs[ix+1],mx=(x0+x1)/2;
+          const covering=sorted.filter(p=>Math.abs(p.x-mx)<p.w/2+1e-8&&Math.abs(p.z-mz)<p.d/2+1e-8);
+          const owner=covering[0];
+          const key=owner?owner.kind+'|'+Math.min(...covering.map(p=>p.b)):'';
+          if(run&&run.key!==key){rects.push(run);run=null;}
+          if(owner){
+            if(run)run.x1=x1;
+            else run={x0,x1,z0,z1,key,kind:owner.kind,b:Math.min(...covering.map(p=>p.b))};
+          }
+        }
+        if(run)rects.push(run);
+      }
+      const merged=[];
+      for(const r of rects){
+        const prev=merged.find(p=>p.key===r.key&&p.x0===r.x0&&p.x1===r.x1&&p.z1===r.z0);
+        if(prev)prev.z1=r.z1;else merged.push(r);
+      }
+      map.parts=map.parts.filter(p=>!flat.includes(p));
+      for(const r of merged)box(r.kind,(r.x0+r.x1)/2,(r.z0+r.z1)/2,r.x1-r.x0,r.z1-r.z0,r.b,top);
       // A slim timber fascia and joists beneath the open gallery.
       box('beam',59.9,-40.27,20.9,.18,top-.65,top-.38);
       for(const px of [51.2,54.7,58.2,61.7,65.2,68.7])
