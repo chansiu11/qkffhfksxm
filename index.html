@@ -12,7 +12,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=Rajdhani:wght@600;700&family=Teko:wght@600;700&display=swap" rel="stylesheet">
   <script src="match-plans.js?v=buy-gates2"></script>
   <script src="config.js?v=buy-gates2"></script>
-  <script src="multiplayer-client.js?v=spike-audio"></script>
+  <script src="multiplayer-client.js?v=hit-vfx1"></script>
   <link rel="stylesheet" href="menu.css" />
   <!-- Three.js r128 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -2812,6 +2812,54 @@
        * ========================================================================= */
       const raycaster = new THREE.Raycaster();
 
+      // Abstract, non-blood impact flashes. Cosmetic only; no gameplay changes.
+      const hitBursts = [];
+      function removeHitBurst(b) {
+        scene.remove(b.mesh); b.mesh.geometry.dispose(); b.mesh.material.dispose();
+      }
+      function spawnHitBurst(point, isHead) {
+        if(!point || ![point.x,point.y,point.z].every(Number.isFinite))return;
+        if(hitBursts.length>=36)removeHitBurst(hitBursts.shift());
+        const count=isHead?12:7, duration=isHead?.22:.16;
+        const geometry=new THREE.BufferGeometry();
+        const positions=new Float32Array(count*6), colors=new Float32Array(count*6);
+        const directions=[];
+        for(let i=0;i<count;i++){
+          const angle=i*2.39996323, y=1-2*(i+.5)/count, radius=Math.sqrt(1-y*y);
+          directions.push(new THREE.Vector3(Math.cos(angle)*radius,y,Math.sin(angle)*radius));
+          const c=new THREE.Color(i%3===0?0xffffff:isHead?0xffcf65:0xffa36b);
+          colors.set([c.r,c.g,c.b,c.r*.65,c.g*.65,c.b*.65],i*6);
+        }
+        geometry.setAttribute('position',new THREE.BufferAttribute(positions,3));
+        geometry.setAttribute('color',new THREE.BufferAttribute(colors,3));
+        const material=new THREE.LineBasicMaterial({vertexColors:true,transparent:true,opacity:1,depthWrite:false});
+        const mesh=new THREE.LineSegments(geometry,material);
+        mesh.position.copy(point);mesh.frustumCulled=false;
+        scene.add(mesh);
+        hitBursts.push({mesh,directions,age:0,duration,size:isHead?.40:.23});
+        updateHitBurstGeometry(hitBursts[hitBursts.length-1]);
+      }
+      function updateHitBurstGeometry(b) {
+        const progress=Math.min(1,b.age/b.duration);
+        const array=b.mesh.geometry.attributes.position.array;
+        const radius=b.size*(.17+progress*.83);
+        const length=b.size*(.45*(1-progress)+.035);
+        b.directions.forEach((v,i)=>{
+          const offset=i*6, inner=Math.max(0,radius-length);
+          array.set([v.x*inner,v.y*inner,v.z*inner,v.x*radius,v.y*radius,v.z*radius],offset);
+        });
+        b.mesh.geometry.attributes.position.needsUpdate=true;
+        b.mesh.material.opacity=(1-progress)*(1-progress);
+      }
+      function updateHitBursts(dt) {
+        for(let i=hitBursts.length-1;i>=0;i--){
+          const b=hitBursts[i]; b.age+=dt;
+          if(!matchState.inMatch || b.age>=b.duration){
+            removeHitBurst(b);hitBursts.splice(i,1);
+          }else updateHitBurstGeometry(b);
+        }
+      }
+
       function showHitmarker(isHead) {
         const hm = document.getElementById('hitmarker');
         const l1 = document.getElementById('hm-line-1');
@@ -3041,6 +3089,7 @@
                 drill.damage+=before-targetBot.hp-targetBot.armor;drill.lastDamage=time;
                 setting('result').textContent='누적 피해 '+Math.round(drill.damage)+' · '+firstHit.distance.toFixed(1)+' m';
               } else if(activeMap==='range')setting('result').textContent=(isHead?'머리':'명중')+' · 피해 '+Math.round(before-targetBot.hp-targetBot.armor)+' · '+firstHit.distance.toFixed(1)+' m';
+              spawnHitBurst(endPt,!!isHead);
               showHitmarker(isHead);
               if (isHead) sfx.playHeadshotDing();
 
@@ -4200,11 +4249,12 @@
           }
         }
 
+        updateHitBursts(dt);
         renderer.render(scene, camera);
       }
 
       window.MP.install({gameSound,afterScopedShot,syncMapObjects,selectMap,resetChat,appendChat,roomState,matchState,player,bots,scene,spikeMesh,barrierGroup,gunGroup,muzzleFlashMesh,viewmodel,gameSpikeSiteAt,sfx,
-        createTacticalBotMesh,setEnemyOutline,spawnBulletTracer,drawLocalShot,
+        createTacticalBotMesh,setEnemyOutline,spawnBulletTracer,spawnHitBurst,drawLocalShot,
         cloneWeaponInstance,WEAPON_CATALOG,getActiveWeapon,startNewRound,
         updateHUD,flashDamage,showHitmarker,showRoundBanner,addKillFeed,syncCheatPermissionUI,
         launchAscentMatchImmediate,openWaitingLobby:window.openWaitingLobby,openEntryScreen:window.openEntryScreen,

@@ -294,7 +294,15 @@
         }
         case 'world_sound': a.gameSound(data.kind,data.x,data.z,data.source===this.myId,data.y);break;
         case 'bullet_tag': if(a.player.alive) a.player.taggedAt=performance.now(); break;
-        case 'hit': a.showHitmarker(!!data.headshot); if (data.headshot) a.sfx.playHeadshotDing(); break;
+        case 'hit': {
+          a.showHitmarker(!!data.headshot);
+          if (data.headshot) a.sfx.playHeadshotDing();
+          if(Array.isArray(data.effects))for(const effect of data.effects.slice(0,16)){
+            if(Array.isArray(effect?.point)&&effect.point.length===3&&effect.point.every(Number.isFinite))
+              a.spawnHitBurst?.(new THREE.Vector3(...effect.point),!!effect.head);
+          }
+          break;
+        }
         case 'kill': {
           const players = this.state?.players || [];
           const killer = players.find(p => p.id === data.killer), victim = players.find(p => p.id === data.victim);

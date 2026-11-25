@@ -377,7 +377,7 @@ function fire(r, p, msg) {
   }
   let totalDamage = 0, anyHeadshot = false, hitCount = 0;
   const taggedPlayers = new Set();
-  const ends = [];
+  const ends = [], effects = [];
   for (const [dx, dy, dz] of directions) {
     let {impactDistance,struck}=mapImpact(r,ox,oy,oz,dx,dy,dz,w.range);
     let best = impactDistance, hit = null, headshot = false, legshot = false;
@@ -393,6 +393,7 @@ function fire(r, p, msg) {
       const damage=ShootingSpread.applyGunDamage(hit,w.id,best,headshot?'head':legshot?'leg':'body');
       taggedPlayers.add(hit);
       totalDamage += damage; hitCount++; anyHeadshot ||= headshot;
+      effects.push({point:[ox+dx*best,oy+dy*best,oz+dz*best],head:!!headshot});
       if (hit.hp === 0) {
         hit.alive = false; p.credits = clamp(p.credits + 200, 0, 9000);
         emitRoom(r, {type:'kill', killer:p.id, victim:hit.id, weapon:p.weapon, headshot});
@@ -416,7 +417,7 @@ function fire(r, p, msg) {
   }
   for (const target of taggedPlayers) if(target.alive) send(target.client,{type:'bullet_tag'});
   if (hitCount) send(p.client, {type:'hit', headshot:anyHeadshot,
-    damage:totalDamage, pelletsHit:hitCount});
+    damage:totalDamage, pelletsHit:hitCount,effects});
 }
 
 function cancelEquipmentReload(p) {
