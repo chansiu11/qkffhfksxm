@@ -212,18 +212,27 @@ if (typeof window !== "undefined") window.GAME_SERVER_URL = 'https://qkffhfksxm-
         // Overlap the curved stone slices vertically so the arch has no open seams.
         box('limestone',archX,z+u,.72,d/18+.024,b,b+.36);
       }
-      // Cloth-covered scaffold sections at the ends, with an open central span.
-      // Keep the underside open and the floor continuous.
-      for(const [px,span,h] of [[51.45,2.7,2.45],[68.1,3.15,2.55]]){
-        box('tarp',px,-40.48,span,.14,top-.015,top+h);
-        for(const side of [-1,1])box('beam',px+side*span/2,-40.48,.15,.24,top-.32,top+h+.2);
-        box('beam',px,-40.48,span+.14,.22,top+h-.08,top+h+.08);
+      // Architectural reconstruction of the gallery: broad end screens,
+      // a low central timber sill, and connected rear and side surfaces.
+      // Reference proportions are approximate; preserve the existing floor.
+      for(const [l,r,h] of [[49.43,55.22,2.55],[65.13,70.39,2.55]]){
+        const px=(l+r)/2,span=r-l;
+        box('tarp',px,-40.43,span,.20,top-.04,top+h);
+        for(const u of [l,px,r]){
+          box('beam',u,-40.43,.17,.31,top-.38,top+h+.15);
+        }
+        box('beam',px,-40.43,span+.17,.29,top+h-.10,top+h+.10);
+        box('beam',px,-40.43,span+.17,.29,top-.04,top+.13);
       }
-      // Rear scaffolding fabric against the existing facade, not across the passage.
-      for(const px of [53.2,58.1,63,67.8]){
-        box('tarp',px,-44.48,4.94,.16,top,top+2.6);
-        box('beam',px-2.25,-44.42,.14,.22,top,top+3.1);
+      box('beam',60.175,-40.43,9.99,.24,top-.025,top+.19);
+      // Back cladding stays against the building and joins the end frame.
+      for(const [l,r] of [[49.43,54.7],[54.7,60],[60,65.2],[65.2,70.39]]){
+        box('tarp',(l+r)/2,-44.48,r-l+.03,.20,top-.04,top+2.6);
+        box('beam',l,-44.48,.17,.30,top-.38,top+2.76);
       }
+      box('beam',70.39,-44.48,.17,.30,top-.38,top+2.76);
+      box('tarp',70.32,-42.45,.22,4.25,top-.04,top+2.55);
+      box('beam',70.32,-42.45,.31,4.25,top+2.43,top+2.65);
       // Garden window: the raised carved stone base and inset wooden frame
       // follow the first-person Garden screenshot, not the overhead minimap.
       const wx=39.6,wz=-42.3,gy=height(id,wx,wz),sill=gy+1.42,head=sill+2.2;
@@ -256,10 +265,16 @@ if (typeof window !== "undefined") window.GAME_SERVER_URL = 'https://qkffhfksxm-
       box('roof',40.5,-40.65,7.15,4.05,wallTop-.22,wallTop);
       for(const px of [37.25,39.45,41.65,43.85])
         box('beam',px,-40.65,.18,4.05,wallTop-.42,wallTop-.22);
-      // Close the unintended passage beneath the west end of the gallery,
-      // as reported in screenshot 1. Connect the existing partition to
-      // the underside without extending across the main lower recess.
-      box('gardenWall',49.88,-40.30,.62,3.78,-5,top-.36);
+      // Replace the isolated lower partition with joined architectural
+      // end sections; the central recess remains an open room.
+      const soffit=top-.38;
+      for(const [l,r] of [[49.43,55.22],[65.13,70.39]]){
+        const px=(l+r)/2,span=r-l;
+        box('gardenWall',px,-40.43,span,.42,-5,soffit+.03);
+        box('beam',px,-40.43,span+.04,.48,soffit-.23,soffit+.02);
+      }
+      box('gardenWall',49.73,-42.42,.60,4.42,-5,soffit+.03);
+      box('gardenWall',70.24,-42.42,.44,4.42,-5,soffit+.03);
       // A slim timber fascia and joists beneath the open gallery.
       box('beam',59.9,-40.27,20.9,.18,top-.65,top-.38);
       for(const px of [51.2,54.7,58.2,61.7,65.2,68.7])
