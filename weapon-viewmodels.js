@@ -380,9 +380,9 @@
       const move=Math.min(1,Math.hypot(player.vel?.x||0,player.vel?.z||0)/7.6);
       camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();
       // Reference at 23.5–24.5 s: Classic grip sits below and right of the crosshair.
-      const scale=({classic:.54,shorty:.82,ghost:.74,sheriff:.64,bandit:.59,frenzy:.65})[selected];
+      const scale=({classic:.40,shorty:.82,ghost:.74,sheriff:.64,bandit:.59,frenzy:.65})[selected];
       pivot.scale.setScalar(scale);
-      pivot.position.set(.146*Math.min(camera.aspect,2.1)/1.78-.013*lift-.087*turn,
+      pivot.position.set((selected==='classic'?.168:.146)*Math.min(camera.aspect,2.1)/1.78-.013*lift-.087*turn,
         -.143+.048*lift-.08*turn-.26*draw-.25*dip+.015*seat+.003*move*Math.sin(now*.01),
         -.54+.05*lift+.045*kick);
       pivot.rotation.set(.12+.30*kick+.20*lift+.73*liftBarrel+.48*seat,
