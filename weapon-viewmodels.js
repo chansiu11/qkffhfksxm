@@ -427,6 +427,34 @@
     api.inspect=()=>{inspect();if(model&&!api.isReloading && performance.now()-equipped>=duration)inspected=performance.now();};
     api.fire=(mode)=>{startModelDraw=false;inspected=-Infinity;fired=performance.now();fire(mode);};
     api.beginReload=()=>{startModelDraw=false;inspected=-Infinity;reloadStarted=performance.now();reload();};
+    // Seconds, tip x/y and a second point along the blade or barrel, sampled
+    // in the 186 x 104 gameplay rectangle of the 200 px reference frames.
+    const inspectTracks={
+      knife:[[0,96,70,145,91],[1,145,43,143,84],[2,92,66,139,75],[3,96,65,143,91]],
+      bulldog:[[0,120,62,150,97],[.5,19,52,117,98],[1,26,42,154,88],[2,148,6,132,82],[3,120,62,150,97]],
+      guardian:[[0,115,62,152,97],[.5,34,40,154,80],[1.5,19,44,151,90],[2.5,35,20,88,99],[3.5,115,62,152,97]],
+      warden:[[0,114,61,153,95],[1,47,36,160,79],[2,19,43,151,91],[3,31,13,89,100],[4,82,76,169,100],[5,114,61,153,95]]
+    };
+    const forward=new T.Vector3(0,0,-1), direction=new T.Vector3(), correction=new T.Quaternion();
+    function applyRecordedInspect(track,time){
+      const end=track.findIndex(row=>row[0]>=time);
+      if(end<=0)return;
+      const a=track[end-1], b=track[end], mix=(time-a[0])/(b[0]-a[0]);
+      const sample=k=>a[k]+(b[k]-a[k])*mix;
+      const dx=sample(1)-sample(3), dy=sample(4)-sample(2);
+      const first=track[0], baseAngle=Math.atan2(first[4]-first[2],first[1]-first[3]);
+      direction.copy(forward).applyQuaternion(pivot.quaternion);
+      const azimuth=Math.atan2(direction.y,direction.x)+Math.atan2(dy,dx)-baseAngle;
+      const side=Math.min(1,Math.hypot(direction.x,direction.y)*Math.hypot(dx,dy)/Math.hypot(first[1]-first[3],first[4]-first[2]));
+      model.localToWorld(tip.copy(model.userData.muzzle));
+      const px=tip.x/-tip.z, py=tip.y/-tip.z;
+      const target=new T.Vector3(side*Math.cos(azimuth),side*Math.sin(azimuth),-Math.sqrt(1-side*side));
+      pivot.quaternion.premultiply(correction.setFromUnitVectors(direction,target));
+      model.localToWorld(tip.copy(model.userData.muzzle));
+      const units=2*Math.tan(camera.fov*Math.PI/360)/104;
+      pivot.position.x+=(-tip.z)*(px+(sample(1)-first[1])*units)-tip.x;
+      pivot.position.y+=(-tip.z)*(py-(sample(2)-first[2])*units)-tip.y;
+    }
     api.update=(dt,player,state)=>{
       update(dt,player,state);
       visible=!!(model&&player?.alive&&state?.inMatch);
@@ -436,8 +464,9 @@
       const smooth=x=>{x=Math.max(0,Math.min(1,x));return x*x*(3-2*x);};
       const aim=Math.max(0,Math.min(1,player.adsProgress||0));
       if(aim>0 || player.adsRequested) inspected=-Infinity;
-      const lift=(1-aim)*smooth(age/.34)*(1-smooth((age-2.54)/.38));
-      const turn=(1-aim)*smooth((age-1.12)/.42)*(1-smooth((age-2.48)/.40));
+      const track=inspectTracks[selected];
+      const lift=(track?0:1-aim)*smooth(age/.34)*(1-smooth((age-2.54)/.38));
+      const turn=(track?0:1-aim)*smooth((age-1.12)/.42)*(1-smooth((age-2.48)/.40));
       const equip=Math.min(1,(now-equipped)/duration);
       const draw=1-smooth(equip);
       const reloadT=api.isReloading?Math.min(1,(now-reloadStarted)/(1000*(catalog[selected]?.reloadTime||1.1))):1;
@@ -481,6 +510,7 @@
         pivot.position.x-=tip.x*ads;
         pivot.position.y-=(tip.y+.014)*ads;
       }
+      if(track && Number.isFinite(inspected))applyRecordedInspect(track,age);
       const photo=document.querySelector('#fps-weapon-sprite-layer .fps-paper-weapon');
       if(photo)photo.style.opacity='0';
       const flash=photo?.nextElementSibling;
