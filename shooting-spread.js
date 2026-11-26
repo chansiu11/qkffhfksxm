@@ -71,7 +71,11 @@
     const profile=weaponProfile(w);
     if(!state||state.weapon!==w.id||!Number.isFinite(state.at)||nowMs-state.at>profile.recovery)
       return 0;
-    return Math.min(19,(state.count||0)+1);
+    const interval = (w.fireRate || 0) * 1000;
+    const elapsed = Math.max(0, nowMs - state.at);
+    if (elapsed >= profile.recovery) return 0;
+    const remaining = 1 - clamp((elapsed - interval) / Math.max(1, profile.recovery - interval), 0, 1);
+    return Math.min(19, Math.round(((state.count || 0) + 1) * remaining));
   }
   function confirmShot(state,w,nowMs,index){
     if(!state)return;
@@ -93,7 +97,7 @@
     return [next(),next()];
   }
   // PC 11.08 rifle yaw switches. Track the lateral center separately from shot scatter.
-  function rifleYaw(w, options, shot, protectedShots, amplitude) {
+  function automaticYaw(w, options, shot, protectedShots, amplitude, switchMs) {
     const state=options.recoilState || {};
     const time=options.shotTime ?? shot*w.fireRate*1000;
     const [initial, roll]=rand2((options.seed ^ 0xa3c59ac3) >>> 0);
@@ -105,13 +109,13 @@
       state.yawSwitchAt=-Infinity;
     }
     const elapsed=Math.max(0,time-state.yawAt);
-    if (shot>=protectedShots && time-state.yawSwitchAt>=600 && roll<.10) {
+    if (shot>=protectedShots && time-state.yawSwitchAt>=switchMs && roll<.10) {
       state.yawSign*=-1;
       state.yawSwitchAt=time;
     }
     const target=state.yawSign*amplitude*Math.min(1,shot/10);
-    // A full left-to-right transition takes 600 ms at maximum displacement.
-    const step=2*amplitude*elapsed/600;
+    // Traverse the full lateral width over the configured transition time.
+    const step=2*amplitude*elapsed/switchMs;
     state.yawCenter+=clamp(target-state.yawCenter,-step,step);
     state.yawAt=time;
     return state.yawCenter;
@@ -138,9 +142,12 @@
     const jitterX=Math.cos(theta)*radius;
     const jitterY=Math.sin(theta)*radius;
     const climb=pitchDegrees(tune.pitch,shot)*rad*(1+onMove*.4);
-    const lateral=Math.max(0,shot-(tune.protected??3)+1);
-    const rifle=w.id==='vandal' || w.id==='phantom' || w.id==='bulldog';
-    const sway=rifle ? rifleYaw(w,options,shot,tune.protected,.014*p.side) : Math.sin(lateral*.82)*Math.min(10,lateral)*.0014*p.side;
+    const rifleSwitch = ['bulldog','vandal','phantom'].includes(w.id);
+    const switchMs = rifleSwitch ? 600 : w.id==='spectre' ? 280 : p.recovery;
+    const amplitude = .014*p.side;
+    const sway = w.auto
+      ? automaticYaw(w,options,shot,tune.protected ?? 3,amplitude,switchMs)
+      : (rand2((options.seed ^ 0x7f4a7c15) >>> 0)[1]*2-1)*amplitude*Math.min(1,shot/10);
     const yaw=options.yaw+jitterX+sway;
     const pitch=clamp(options.pitch+jitterY+climb,-1.48,1.48);
     const pelletCone=multi?Math.min(.17,scatterBase*(1+onMove*.65+shot*.045+air*.25)) : 0;
