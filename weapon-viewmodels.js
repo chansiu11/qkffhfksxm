@@ -722,10 +722,10 @@
         const bytes = hex.match(/../g).map(pair => parseInt(pair, 16));
         const count = bytes.length / 4;
         const anchor = action === 0 ? bytes.slice(-4) : bytes.slice(0, 4);
-        const rows = [[0, ...anchor]];
+        const rows = [];
+        rows.anchor = anchor;
         for (let i = 0; i < count; i++) {
-          const fade = Math.min(1, (count - 1 - i) / 4);
-          rows.push([(i + 1) / 30, ...anchor.map((base, k) => base + (bytes[4*i+k] - base)*fade)]);
+          rows.push([i / 30, ...bytes.slice(4*i, 4*i+4)]);
         }
         return rows;
       })
@@ -758,7 +758,45 @@
       model.updateWorldMatrix(true,false);
       return model.localToWorld(tip.copy(model.userData.muzzle));
     }
+    const cameraAxis = new T.Vector3(0,0,1);
+    const originTip = new T.Vector3(), desiredTip = new T.Vector3();
+    const restAxis = new T.Vector3(), desiredAxis = new T.Vector3();
+    const screenRoll = new T.Quaternion();
+    function applyCapture(track,time){
+      const frame = time*30;
+      if(frame<0 || frame>track.length-1+1e-6)return;
+      const i=Math.min(track.length-1,Math.floor(frame));
+      const a=track[i], b=track[Math.min(i+1,track.length-1)];
+      const value=k=>a[k]+(b[k]-a[k])*(frame-i);
+      const [x,y,rearX,rearY]=track.anchor;
+      const units=2*Math.tan(camera.fov*Math.PI/360)/104;
+      originTip.copy(readMuzzle());
+      const depth=-originTip.z, rearDepth=depth*.76;
+      const u=originTip.x/depth, v=originTip.y/depth;
+      const ru=u+(rearX-x)*units, rv=v-(rearY-y)*units;
+      restAxis.set(u*depth-ru*rearDepth,v*depth-rv*rearDepth,rearDepth-depth);
+      const tu=u+(value(1)-x)*units, tv=v-(value(2)-y)*units;
+      const bu=ru+(value(3)-rearX)*units, bv=rv-(value(4)-rearY)*units;
+      // Choose the closer rear depth on its camera ray. At full side view,
+      // move both endpoints towards the camera to preserve the rigid span.
+      const k=1+bu*bu+bv*bv;
+      const center=depth*(1+tu*bu+tv*bv)/k;
+      const span=restAxis.length();
+      desiredAxis.set(tu*depth-bu*center,tv*depth-bv*center,center-depth);
+      const closest=desiredAxis.length();
+      const factor=closest>span ? span/closest : 1;
+      const back=center*factor-Math.sqrt(Math.max(0,span*span-closest*closest)/k);
+      desiredTip.set(tu*depth*factor,tv*depth*factor,-depth*factor);
+      desiredAxis.set(desiredTip.x-bu*back,desiredTip.y-bv*back,back-depth*factor).normalize();
+      const roll=Math.atan2(tv-bv,tu-bu)-Math.atan2(v-rv,u-ru);
+      screenRoll.setFromAxisAngle(cameraAxis,roll);
+      restAxis.normalize().applyQuaternion(screenRoll);
+      correction.setFromUnitVectors(restAxis,desiredAxis).multiply(screenRoll);
+      pivot.quaternion.premultiply(correction);
+      pivot.position.add(desiredTip.sub(readMuzzle()));
+    }
     function applyRecordedInspect(track,time){
+      if(track.anchor){applyCapture(track,time);return;}
       const end=track.findIndex(row=>row[0]>=time);
       if(end<=0)return;
       const a=track[end-1], b=track[end], mix=(time-a[0])/(b[0]-a[0]);
@@ -851,7 +889,7 @@
       if(aim===0){
         if(clips && api.isReloading)applyRecordedInspect(clips[2],reloadT*clips[2].at(-1)[0]);
         else if(track && Number.isFinite(inspected))applyRecordedInspect(track,age);
-        else if(clips && equip<1)applyRecordedInspect(clips[0],Math.max(.001,equip)*clips[0].at(-1)[0]);
+        else if(clips && equip<1)applyRecordedInspect(clips[0],Math.max(0,equip)*clips[0].at(-1)[0]);
       }
       if(model===releaseModel && now-releaseTime<150){
         const remaining=1-smooth((now-releaseTime)/150);
