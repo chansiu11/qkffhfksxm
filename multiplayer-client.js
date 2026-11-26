@@ -613,7 +613,10 @@
       p.lastShotTime=now;
       p.bulldogCount=p.isScoped&&w.id==='bulldog'?((p.bulldogCount||0)+1)%3:0;p.lastInterval=rate;
       a.afterScopedShot?.(w);
-      if(w.slot!=='knife')ShootingSpread.confirmShot(burstState,w,nowMs,burst);
+      if(w.slot!=='knife'){
+        ShootingSpread.confirmShot(burstState,w,nowMs,burst);
+        a.recordCameraVisual?.(w,spreadResult,nowMs);
+      }
       if(w.slot!=='knife')w.mag -= alt && w.id === 'classic' ? Math.min(3,w.mag) : 1;
       a.viewmodel.fire(knifeMode);
       window.markCrosshairFiring?.();

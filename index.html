@@ -14,7 +14,7 @@
   <script src="config.js?v=perf19"></script>
   <script src="host-transport.js?v=armory20"></script>
   <script src="movement-physics.js?v=move25"></script>
-  <script src="multiplayer-client.js?v=scoreboard1"></script>
+  <script src="multiplayer-client.js?v=visual-event1"></script>
   <link rel="stylesheet" href="menu.css" />
   <!-- Three.js r128 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -3322,6 +3322,7 @@
           scatter: pelletRotation
         }, ShotgunPellets);
         ShootingSpread.confirmShot(burstState, w, shotAtMs, burst);
+        recordCameraVisual(w,spreadResult,shotAtMs);
         afterScopedShot(w);
         let pelletDirections = spreadResult.vectors;
         // Update mesh world transforms so ray collision matches the visible geometry.
@@ -4314,8 +4315,9 @@
 
           camera.position.copy(player.pos);
           const viewNow = performance.now();
-          camera.rotation.y = player.yaw + cameraYawRecoil(heldWeapon, viewNow, dt);
-          camera.rotation.x = Math.max(-1.48, Math.min(1.48, player.lookPitch + cameraRecoil(heldWeapon, viewNow)));
+          const visual=updateCameraVisual(heldWeapon,viewNow);
+          camera.rotation.y = player.yaw + visual.yaw;
+          camera.rotation.x = Math.max(-1.48, Math.min(1.48, player.lookPitch + visual.pitch));
 
           document.getElementById('hud-callout-name').textContent = player.callout;
           const elevSign = player.footY >= 0 ? '+' : '';
@@ -4659,60 +4661,51 @@
       }
 
       let prevTime = performance.now();
-      // Apply recoil only to the view. Shot directions already include ballistic climb.
-      let recoilStateSeen, recoilShotAt, recoilStart = 0, recoilPeak = 0, viewPitch = 0;
-      let viewYaw = 0, yawStateSeen;
-      // Visual offsets only: never write into the player's input angles.
+      // Display only: use the already generated fictional shot event, not a
+      // second independent sample. Never change input angles or hit testing.
+      let visualShot = null, visualWeapon = null, viewPitch = 0, viewYaw = 0;
       function resetCameraEffects() {
-        recoilStateSeen = yawStateSeen = null;
-        recoilShotAt = undefined;
-        recoilStart = recoilPeak = viewPitch = viewYaw = 0;
+        visualShot = visualWeapon = null;
+        viewPitch = viewYaw = 0;
       }
-      function cameraYawRecoil(weapon, now, dt) {
-        const state = weapon?._spreadState;
-        if (!state || state !== yawStateSeen || !weapon.auto) viewYaw = 0;
-        yawStateSeen = state;
-        if (!state || !weapon.auto || state.yawWeapon !== weapon.id ||
-            !Number.isFinite(state.at)) return 0;
-        const age = Math.max(0, now - state.at);
-        const recovery = ShootingSpread.weaponProfile(weapon).recovery;
-        const interval = Math.min((player.lastInterval || weapon.fireRate) * 1000, recovery / 2);
-        const fade = Math.max(0, 1 - Math.max(0, (age - interval) / (recovery - interval)));
-        const target = (Number.isFinite(state.yawCenter) ? state.yawCenter : 0) * fade;
-        viewYaw += (target - viewYaw) * (1 - Math.exp(-Math.max(0,dt) / .055));
-        if (target === 0 && Math.abs(viewYaw) < .00001) viewYaw = 0;
-        return viewYaw;
+      function recordCameraVisual(weapon, result, now) {
+        if(!weapon || !result?.shot || !Number.isFinite(now))return;
+        if(visualWeapon!==weapon){
+          viewPitch=viewYaw=0;
+          visualWeapon=weapon;
+        }
+        const state=weapon._spreadState;
+        visualShot={
+          at:now,
+          startPitch:viewPitch,
+          startYaw:viewYaw,
+          pitch:Number.isFinite(result.shot.recoil)?result.shot.recoil:0,
+          yaw:weapon.auto&&Number.isFinite(state?.yawCenter)?state.yawCenter:0,
+          duration:Math.max(1,ShootingSpread.weaponProfile(weapon).recovery),
+          interval:Math.max(1,(player.lastInterval||weapon.fireRate)*1000)
+        };
       }
-
-      function cameraRecoil(weapon, now) {
-        const state = weapon?._spreadState;
-        if (!state || !Number.isFinite(state.at) || state.weapon !== weapon.id) {
-          recoilStateSeen = null;
-          return viewPitch = 0;
+      function updateCameraVisual(weapon, now) {
+        if(!weapon||visualWeapon!==weapon||!visualShot){
+          resetCameraEffects();
+          return {pitch:0,yaw:0};
         }
-        if (recoilStateSeen !== state) viewPitch = 0;
-        const recovery = ShootingSpread.weaponProfile(weapon).recovery;
-        const age = Math.max(0, now - state.at);
-        if (age >= recovery) return viewPitch = 0;
-        const interval = (player.lastInterval || weapon.fireRate) * 1000;
-        const rise = Math.min(45, interval * .45);
-        const hold = Math.min(interval, recovery * .55);
-        if (recoilStateSeen !== state || recoilShotAt !== state.at) {
-          const next = ShootingSpread.sample(weapon, {
-            ...ShootingSpread.motion(player), shotIndex: Math.min(19, state.count + 1),
-            yaw: 0, pitch: 0, seed: 1
-          });
-          recoilStart = viewPitch;
-          recoilPeak = Math.max(next.recoil, weapon.recoilPitch || 0);
-          recoilStateSeen = state;
-          recoilShotAt = state.at;
+        const age=Math.max(0,now-visualShot.at);
+        const duration=visualShot.duration;
+        const hold=Math.min(visualShot.interval,duration*.55);
+        const rise=Math.min(45,hold*.8);
+        const smooth=t=>{t=Math.max(0,Math.min(1,t));return t*t*(3-2*t);};
+        if(age<rise){
+          const t=smooth(age/Math.max(1,rise));
+          viewPitch=visualShot.startPitch+(visualShot.pitch-visualShot.startPitch)*t;
+          viewYaw=visualShot.startYaw+(visualShot.yaw-visualShot.startYaw)*t;
+        }else{
+          const fade=1-smooth((age-hold)/Math.max(1,duration-hold));
+          viewPitch=visualShot.pitch*fade;
+          viewYaw=visualShot.yaw*fade;
         }
-        if (age < rise) {
-          const t = age / Math.max(1,rise);
-          return viewPitch = recoilStart + (recoilPeak - recoilStart) * t*t*(3-2*t);
-        }
-        const t = Math.min(1, Math.max(0, (age - hold) / (recovery - hold)));
-        return viewPitch = recoilPeak * (1 - t*t*(3-2*t));
+        if(age>=duration)visualShot=null;
+        return {pitch:viewPitch,yaw:viewYaw};
       }
 
       function animate(now) {
@@ -4775,7 +4768,7 @@
       }
 
       window.MP.install({spikeRoundResult,stopSpikeClip,gameSound,afterScopedShot,syncMapObjects,selectMap,resetChat,appendChat,roomState,matchState,player,bots,scene,spikeMesh,barrierGroup,gunGroup,muzzleFlashMesh,viewmodel,gameSpikeSiteAt,sfx,
-        createTacticalBotMesh,setEnemyOutline,spawnBulletTracer,spawnHitBurst,drawLocalShot,
+        createTacticalBotMesh,setEnemyOutline,spawnBulletTracer,spawnHitBurst,drawLocalShot,recordCameraVisual,
         cloneWeaponInstance,WEAPON_CATALOG,getActiveWeapon,startNewRound,
         updateHUD,flashDamage,showHitmarker,showRoundBanner,addKillFeed,syncCheatPermissionUI,
         launchAscentMatchImmediate,openWaitingLobby:window.openWaitingLobby,openEntryScreen:window.openEntryScreen,
