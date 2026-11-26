@@ -3580,7 +3580,12 @@
         if (e.code === 'KeyX') {
           if (e.target?.matches?.('input, textarea, select, [contenteditable]')) return;
           e.preventDefault();
-          if (!e.repeat) window.toggleScope();
+          if (e.repeat) return;
+          if (getActiveWeapon().id === 'classic') {
+            if (gameplayInputAllowed()) secondaryInput();
+          } else {
+            window.toggleScope();
+          }
           return;
         }
 
