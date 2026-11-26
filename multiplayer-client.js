@@ -566,7 +566,8 @@
         b.footY = rp.footY; b.yaw = rp.yaw; b.pitch = rp.pitch;
         const weaponId = rp.weapon in a.WEAPON_CATALOG ? rp.weapon : 'classic';
         if (!b.weapon || b.weapon.id !== weaponId) b.weapon = a.cloneWeaponInstance(weaponId);
-        const displayId=rp.spikeSelected?'spikeFolded':weaponId;
+        const plantAction=rp.spikeAction?.mode==='plant' ? rp.spikeAction.progress : 0;
+        const displayId=plantAction>=.5?'spikeOpen':rp.spikeSelected||plantAction>0?'spikeFolded':weaponId;
         if(b.displayWeapon!==displayId){
           b.displayWeapon=displayId;
           if(!b.hold){
@@ -577,11 +578,12 @@
           a.viewmodel.remoteModel(displayId).then(model=>{
             if(!model||b.displayWeapon!==displayId||this.peers.get(b.id)!==b)return;
             const pistol=b.weapon.slot==='secondary';
-            model.scale.multiplyScalar(rp.spikeSelected ? .44 : pistol ? .66 : 1.45);
+            model.scale.multiplyScalar(displayId.startsWith('spike') ? .44 : pistol ? .66 : 1.45);
             model.position.z=pistol?-.09:-.21;
             b.hold.add(model);
           }).catch(()=>{});
         }
+        b.crouchedOnSpike=!!rp.spikeAction?.progress;
         b.peerAim=!!rp.aiming && !!b.weapon.canScope && !rp.reloading;
         b.spotted = state.phase !== 'buy' && (isAlly || Math.hypot(rp.x - a.player.pos.x, rp.z - a.player.pos.z) < 20);
         if (!b.targetPosition) b.targetPosition = new THREE.Vector3();
@@ -706,6 +708,7 @@
         if (!b.targetPosition) continue;
         const alpha=Math.min(1,(dt||0.016)*13);
         b.group.position.lerp(b.targetPosition,alpha);
+        b.group.scale.y+=((b.crouchedOnSpike ? .75 : 1)-b.group.scale.y)*alpha;
         if(b.hold){
           const t=b.aimBlend=(b.aimBlend||0)+((b.peerAim?1:0)-(b.aimBlend||0))*alpha;
           b.hold.position.set(.23-.19*t,1.01+.32*t,-.34-.07*t);
@@ -742,11 +745,11 @@
         const site=this.api.gameSpikeSiteAt(p.pos.x,p.pos.z,p.footY);
         const plant=p.alive&&s.phase==='combat'&&side==='attack'&&!!site;
         const defuse=p.alive&&s.phase==='planted'&&side==='defense'&&s.spike&&
-          Math.hypot(p.pos.x-s.spike.x,p.pos.z-s.spike.z)<4.5;
+          Math.abs(p.footY-s.spike.y)<1.25&&Math.hypot(p.pos.x-s.spike.x,p.pos.z-s.spike.z)<=4.5;
         const action=this.state.players.find(q=>q.id===this.myId)?.spikeAction;
         const eligible=plant||defuse;
         el.classList.toggle('hidden',!eligible);
-        if(eligible)el.textContent=plant?`[4/F] 길게 눌러 ${site} 사이트에 설치 (4초)`:'[4/F] 길게 눌러 해체 (7초)';
+        if(eligible)el.textContent=plant?`[4/F] 길게 눌러 ${site} 사이트에 설치 (4초)`:'[4] 길게 눌러 해체 (7초)';
         const moving=eligible&&held&&action&&action.progress>0;
         box.classList.toggle('hidden',!moving);
         if(moving){

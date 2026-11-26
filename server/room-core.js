@@ -180,12 +180,14 @@ function worldSound(r,p,kind){
       send(q.client,{type:'world_sound',source:p.id,kind,x:p.x,z:p.z,y:movement?p.footY+.12:p.footY+.8});
   }
 }
+function inRing(r,p){return !!r.spike&&Math.abs(p.footY-r.spike.y)<1.25&&Math.hypot(p.x-r.spike.x,p.z-r.spike.z)<=4.5;}
+function defusing(r,p){return p.heldSpike&&p.alive&&p.team==='defense'&&r.phase==='planted'&&inRing(r,p);}
 function planting(r,p){return r.carrier===p.id&&p.heldSpike&&r.phase==='combat'&&p.team==='attack'&&spikeSite(p.x,p.z,p.footY,r.map);}
 function fire(r, p, msg) {
   if(p.spikeSelected)return;
   const blockers = ground.maps[r.map].blockers;
   if (r.phase !== 'combat' && r.phase !== 'planted') return;
-  if (!p.alive || p.reloading || planting(r,p)) return;
+  if (!p.alive || p.reloading || planting(r,p) || defusing(r,p)) return;
   const w = catalog[p.weapon] || catalog.classic;
   const now = Date.now();
   const meleeMode = MeleeRules.modeFor(msg.mode);
@@ -408,6 +410,7 @@ function receive(c,m) {
     r.drops=r.drops.filter(d=>d!==item);
   } else if(m.type==='equip' && r.started) {
     const slot=String(m.slot||'');
+    if(defusing(r,p)&&slot!=='knife')return;
     const item=p.inventory?.[slot];
     if(!item||!catalog[item])return;
     if (p.weapon !== item) {cancelEquipmentReload(p);p.bulldogCount=0;p.lastShot=0;p.lastInterval=0;p.equipUntil=now+1000*catalog[item].equipTime;}
@@ -420,7 +423,7 @@ function receive(c,m) {
   }
   // Keep non-combat inter-round position updates synchronized, using the existing bounds checks.
   else if(m.type==='move' && r.started && p.alive && ['combat','buy','planted','round_end'].includes(r.phase)) {
-    if(planting(r,p)){p.y=p.footY+1.2;return;}
+    if(planting(r,p)||defusing(r,p)){p.y=p.footY+1.2;return;}
     const x=finite(m.x,-LIMIT,LIMIT,p.x),z=finite(m.z,-LIMIT,LIMIT,p.z),
           footY=finite(m.footY,-5,16,p.footY),y=finite(m.y,-4,20,p.y);
     const dt=p.lastPosAt?clamp((now-p.lastPosAt)/1000,0.03,0.35):0.2;
@@ -551,6 +554,7 @@ function receive(c,m) {
     },duration);
   } else if (m.type==='spike' && r.started) {
     p.heldSpike=!!m.held;
+    if(defusing(r,p)){cancelEquipmentReload(p);p.weapon='knife';p.aiming=false;p.mag=p.ammo.knife.mag;p.reserve=p.ammo.knife.reserve;p.y=p.footY+1.2;}
     if(!p.heldSpike) {p.actionFrom=0;p.actionBase=0;}
   }
 }
@@ -563,7 +567,7 @@ function spikeAction(r,p,now) {
     const site=spikeSite(p.x,p.z,p.footY,r.map);
     return site?{site,mode:'plant',progress:p.heldSpike&&p.actionFrom?clamp((now-p.actionFrom)/4000,0,1):0}:null;
   }
-  if(r.phase==='planted' && p.team==='defense' && r.spike && Math.hypot(p.x-r.spike.x,p.z-r.spike.z)<4.5) {
+  if(r.phase==='planted' && p.team==='defense' && inRing(r,p)) {
     const progress=p.heldSpike&&p.actionFrom?
       clamp(p.actionBase+(now-p.actionFrom)/7000,0,1):(r.halfDefused?0.5:0);
     return {site:r.spike.site,mode:'defuse',progress};
@@ -628,7 +632,7 @@ function step(r,now){
           emitRoom(r,{type:'spike_planted',spike:r.spike});
         }
       } else if(p.team==='defense' && r.phase==='planted' && r.spike){
-        if(Math.hypot(p.x-r.spike.x,p.z-r.spike.z)>4.5){p.actionFrom=0;continue;}
+        if(!inRing(r,p)){p.actionFrom=0;continue;}
         if(!p.actionFrom){worldSound(r,p,r.halfDefused?'half':'defuse');p.actionFrom=now;p.actionBase=r.halfDefused?0.5:0;}
         const progress=p.actionBase+(now-p.actionFrom)/7000;
         if(progress>=0.5)r.halfDefused=true;

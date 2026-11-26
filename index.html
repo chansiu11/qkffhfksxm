@@ -14,7 +14,7 @@
   <script src="config.js?v=perf19"></script>
   <script src="host-transport.js?v=consent-lock1"></script>
   <script src="movement-physics.js?v=move25"></script>
-  <script src="multiplayer-client.js?v=objective-death1"></script>
+  <script src="multiplayer-client.js?v=defuse-ring2"></script>
   <link rel="stylesheet" href="menu.css" />
   <!-- Three.js r128 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -312,11 +312,11 @@
 #scope-overlay[data-weapon] div:last-child{width:4px;height:4px;border:0;background:#ea5954}
 #scope-overlay[data-weapon="outlaw"]{background:radial-gradient(circle,transparent 30%,#292d30 30.5%,#06080a 33%)!important}
 #scope-overlay[data-weapon="operator"]{background:radial-gradient(circle,transparent 34%,#1e2023 34.5%,#030406 36%)!important}
-#plant-device{display:none;position:fixed;pointer-events:none;left:50%;bottom:2%;width:min(18vw,145px);height:min(27vh,210px);z-index:15;background:linear-gradient(105deg,#2d3840 18%,#708089 19% 28%,#1d292d 29% 67%,#728087 68% 75%,#344650 76%);clip-path:polygon(25% 0,75% 0,94% 28%,100% 100%,0 100%,6% 28%);border-top:7px solid #8bd8ce}
-      #plant-device:after{content:'';position:absolute;inset:22% 38% 16%;background:repeating-linear-gradient(0deg,#65efdd 0 5px,#294345 6px 15px)}
-      .planting-spike #plant-device{display:block;animation:seat-spike 4s linear both}
+
+
+
       .planting-spike #fps-weapon-sprite-layer{visibility:hidden}
-      @keyframes seat-spike{0%{transform:translate(5%,90%) rotate(24deg)}20%{transform:translate(-48%,5%) rotate(-6deg)}75%{transform:translate(-50%,8%)}90%,100%{transform:translate(-50%,70%) rotateX(25deg)}}
+
       </style>
 </head>
 <body>
@@ -2021,12 +2021,14 @@
       const activeTracers = [];
 
       const spikeMesh = new THREE.Group();
-      const spikeCore = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.28, 0.34, 0.68, 8),
-        new THREE.MeshStandardMaterial({ color: 0x0f1923, emissive: 0xf5c542, emissiveIntensity: 0.8 })
-      );
-      spikeCore.position.y = 0.34;
-      spikeMesh.add(spikeCore);
+      const defuseRadius=4.5;
+      const defuseRing=new THREE.Mesh(new THREE.RingGeometry(defuseRadius-.045,defuseRadius,96),
+        new THREE.MeshBasicMaterial({color:0xffffff,side:THREE.DoubleSide,depthWrite:false}));
+      defuseRing.rotation.x=-Math.PI/2;defuseRing.position.y=.035;spikeMesh.add(defuseRing);
+      const blast=new THREE.Mesh(new THREE.SphereGeometry(1,64,32),
+        new THREE.MeshBasicMaterial({color:0x08060c,transparent:true,side:THREE.DoubleSide,depthWrite:false}));
+      scene.add(blast);blast.visible=false;
+      let blastAt=-Infinity,plantBegan=null;
       spikeMesh.visible = false;
       scene.add(spikeMesh);
 
@@ -2045,8 +2047,11 @@
           if(fallback)fallback.visible=false;
         }).catch(()=>{});
       }
-      addDevice(heldDevice,'spikeFolded',.32);
-      addDevice(spikeMesh,'spikeOpen',.94,spikeCore);
+      const foldedHand=new THREE.Group(),openHand=new THREE.Group();
+      heldDevice.add(foldedHand,openHand);
+      addDevice(foldedHand,'spikeFolded',.32);
+      addDevice(openHand,'spikeOpen',.32);
+      addDevice(spikeMesh,'spikeOpen',.94);
       function ownsSpike(){
         return roomState.playerSide==='attack'&&!matchState.spikePlanted&&
           (window.MP.active?window.MP.state?.carrier===window.MP.myId:offlineCarrier);
@@ -2640,7 +2645,7 @@
       let roundTransitionTimer=0,roundTransitionDeadline=0;
       const localShopReceipts={};
       function startNewRound() {
-        syncLoot([]);offlineCarrier=true;deathView=null;setSpikeHeld(false);
+        blastAt=-Infinity;plantBegan=null;syncLoot([]);offlineCarrier=true;deathView=null;setSpikeHeld(false);
         resetRoundStartAudio();
         clearTimeout(roundTransitionTimer);roundTransitionTimer=0;roundTransitionDeadline=0;
         delete localShopReceipts.primary;delete localShopReceipts.secondary;
@@ -3474,7 +3479,7 @@
 
       function attemptFire(knifeMode='light') {
         if(matchState.phase==='post_match')return;
-        if(spikeInHand||planting())return;
+        if(spikeInHand||planting()||defusing())return;
         if (!matchState.inMatch || (activeMap==='range' && rangeOptions.open)) return;
         if (window.MP.active) { window.MP.fire(knifeMode); return; }
         if (!player.alive) {
@@ -3686,7 +3691,7 @@
       };
 
       window.switchWeaponSlot = function (slot) {
-        if (!player[slot]) return;
+        if (!player[slot]||(slot!=='knife'&&defusing())) return;
         setSpikeHeld(false);
         if (slot !== player.activeSlot || (player.reloading && player.pendingReloadWeapon !== player[slot]?.id)) {
           player.reloadId = (player.reloadId || 0) + 1;
@@ -3804,7 +3809,7 @@
       };
 
       window.triggerJump = function () {
-        if(planting())return;
+        if(planting()||defusing())return;
         if (!matchState.inMatch || !player.alive) return;
         if (roomState.allowCheats && cheats.ghost) {
           player.pos.y += 2.2;
@@ -3846,7 +3851,7 @@
       let isLeftTouchFiring = false;
       let isRightTouchFiring = false;
       let isSpikeKeyHeld = false;
-      let isSpikeMobileToggleLock = false;
+      let isSpikeMobileToggleLock = false, mobileSpikePressed=false;
 
       const chatInput = document.getElementById('chat-input');
       const chatLog = document.getElementById('chat-log');
@@ -3908,7 +3913,7 @@
         e.stopImmediatePropagation();
         for (const key of Object.keys(keys)) keys[key] = false;
         isMouseFiring = isKeyboardFiring = isLeftTouchFiring = isRightTouchFiring = false;
-        isSpikeKeyHeld = isSpikeMobileToggleLock = false;
+        mobileSpikePressed=isSpikeKeyHeld = isSpikeMobileToggleLock = false;
         restoreChatPointer = document.pointerLockElement === canvas;
         if (restoreChatPointer) document.exitPointerLock();
         chatChannel = e.code === 'KeyN' ? 'team' : 'all';
@@ -4177,13 +4182,14 @@
         const startHold = (e) => {
           e.preventDefault();
           e.stopPropagation();
-          pressTime = performance.now();
+          pressTime = performance.now();mobileSpikePressed=true;
           isSpikeKeyHeld = true;
           btn.classList.add('active-hold');
         };
         const endHold = (e) => {
           e.preventDefault();
           e.stopPropagation();
+          mobileSpikePressed=false;
           const heldDur = performance.now() - pressTime;
           if (heldDur < 260) {
             // Quick tap toggles auto-hold for convenient mobile planting/defusing
@@ -4355,7 +4361,7 @@
         stopSpikeClip('countdown');
         const p = matchState.spikePos;
         if (/defused|해체/i.test(reason)) playSpikeClip('defused', 'result', p.x, p.y, p.z, false);
-        else if (/detonat|explod|explosion|폭발/i.test(reason)) playSpikeClip('boom', 'result', p.x, p.y, p.z, false);
+        else if (/detonat|explod|explosion|폭발/i.test(reason)) {blast.position.copy(p);blastAt=performance.now();playSpikeClip('boom', 'result', p.x, p.y, p.z, false);}
       }
       function gameSound(kind,x,z,own=false,y=AscentGround.height(activeMap,x,z)+.8,weapon){
         if (kind === 'half') { spikeHalf = true; return; }
@@ -4399,6 +4405,13 @@
           const noise=ctx.createBufferSource();noise.buffer=buffer;noise.connect(gain);noise.start(t);
         }
         osc.start(t);osc.stop(t+.33);
+      }
+      function insideDefuseRing(){
+        const p=matchState.spikePos;
+        return Math.abs(player.footY-p.y)<1.25&&Math.hypot(player.pos.x-p.x,player.pos.z-p.z)<=defuseRadius;
+      }
+      function defusing(){
+        return matchState.inMatch&&player.alive&&player.onGround&&matchState.phase==='planted'&&roomState.playerSide==='defense'&&insideDefuseRing()&&!!(keys.Digit4||mobileSpikePressed||isSpikeMobileToggleLock);
       }
       function planting(){
         return ownsSpike()&&matchState.inMatch&&player.alive&&player.onGround&&isSpikeKeyHeld&&matchState.phase==='combat'&&roomState.playerSide==='attack'&&gameSpikeSiteAt(player.pos.x,player.pos.z,player.footY);
@@ -4547,7 +4560,7 @@
           const forward = new THREE.Vector3(-Math.sin(player.yaw), 0, -Math.cos(player.yaw));
           const right = new THREE.Vector3(Math.cos(player.yaw), 0, -Math.sin(player.yaw));
           const wishDir = new THREE.Vector3().addScaledVector(forward, moveF).addScaledVector(right, moveR);
-          if(planting())wishDir.set(0,0,0);
+          if(planting()||defusing())wishDir.set(0,0,0);
           if (wishDir.lengthSq() > 1) wishDir.normalize();
 
           if (roomState.allowCheats && cheats.ghost) {
@@ -4559,7 +4572,7 @@
             GameMovement.reset(player);
             player.audioRunning=false;player.audioAirTime=0;player.audioJumped=false;player.audioPeak=player.footY;stepDistance=0;
           } else {
-            const locked=!!planting();
+            const locked=!!planting()||defusing();
             const isCrouching = locked || keys['ControlLeft'] || player.crouchToggle;
             const isWalkingSlow = keys['ShiftLeft'] || player.walkToggle || (joyState.active && joyState.distRatio < 0.52);
             const walkSpeed = ShootingSpread.movementSpeed(getActiveWeapon().id,isCrouching,isWalkingSlow)
@@ -4903,10 +4916,10 @@
             matchState.plantProgress = 0;
             boxEl.classList.add('hidden');
           }
-        } else if (player.alive && matchState.phase === 'planted' && !isAtk && player.pos.distanceTo(matchState.spikePos) < 4.5) {
-          promptEl.textContent = '[SPIKE] 버튼 또는 [4/F] 키를 길게 눌러 스파이크 해체 (7초 • 50% 반해체 저장)';
+        } else if (player.alive && matchState.phase === 'planted' && !isAtk && insideDefuseRing()) {
+          promptEl.textContent = '[SPIKE] 버튼 또는 [4] 키를 길게 눌러 스파이크 해체 (7초 • 50% 반해체 저장)';
           promptEl.classList.remove('hidden');
-          if (isSpikeKeyHeld) {
+          if (defusing()) {
             boxEl.classList.remove('hidden');
             lblEl.textContent = 'DEFUSING SPIKE...';
             matchState.defuseProgress += dt / 7.0;
@@ -5055,8 +5068,10 @@
         MatchSamples.updateHandling(sfx.ctx, sfx.effectsBus, heldWeapon?.id, audibleReload,
           audibleReload ? (heldWeapon?.reloadTime || 1.1) : heldWeapon?.equipTime);
         const plant=planting();
+        if(defusing()&&player.activeSlot!=='knife')window.switchWeaponSlot('knife');
+        plantBegan=plant?(plantBegan??now):null;
         document.body.classList.toggle('planting-spike',!!plant);
-        const action=plant?'plant':matchState.inMatch&&player.alive&&isSpikeKeyHeld&&matchState.phase==='planted'&&roomState.playerSide==='defense'&&player.pos.distanceTo(matchState.spikePos)<4.5?'defuse':'';
+        const action=plant?'plant':defusing()?'defuse':'';
         if(!window.MP.active&&action&&action!==lastAction)gameSound(action,player.pos.x,player.pos.z,true);
         if (!action && lastAction) stopSpikeClip(lastAction + '-local');
         lastAction=action;
@@ -5110,13 +5125,17 @@
         const renderMenu=now-lastMenuRenderAt>=100;
         if(matchState.inMatch||previousRenderWasMatch||renderMenu){
           if(spikeInHand&&(!player.alive||!ownsSpike()))setSpikeHeld(false);
-          heldDevice.visible=matchState.inMatch&&player.alive&&spikeInHand;
+          heldDevice.visible=matchState.inMatch&&player.alive&&(spikeInHand||!!plant);
+          openHand.visible=!!plant&&now-plantBegan>=2000;foldedHand.visible=!openHand.visible;
+          const age=(now-blastAt)/1000;blast.visible=matchState.inMatch&&age>=0&&age<1.8;
+          if(blast.visible){blast.scale.setScalar(Math.max(.01,35*Math.min(1,age/1.15)));blast.material.opacity=Math.min(.97,(1.8-age)/.65);}
+          defuseRing.visible=matchState.phase==='planted';
           for(const {item,group,start} of loot.values()){
             const t=Math.min(1,(performance.now()-start)/360),back=(1-t)*1.3;
             group.position.set(item.x+Math.sin(item.yaw||0)*back,item.y+.04+(1-t)*.8+Math.sin(t*Math.PI)*.4,item.z+Math.cos(item.yaw||0)*back);
           }
           renderer.render(scene,camera);
-          if(matchState.inMatch&&!hideAimedWeapon&&!spikeInHand)viewmodel.renderModel(renderer);
+          if(matchState.inMatch&&!hideAimedWeapon&&!heldDevice.visible)viewmodel.renderModel(renderer);
           else lastMenuRenderAt=now;
         }
         previousRenderWasMatch=matchState.inMatch;
@@ -5127,7 +5146,7 @@
         cloneWeaponInstance,WEAPON_CATALOG,getActiveWeapon,startNewRound,
         updateHUD,flashDamage,showHitmarker,showRoundBanner,addKillFeed,syncCheatPermissionUI,
         launchAscentMatchImmediate,enterPostMatch,showGroundDisplay,openWaitingLobby:window.openWaitingLobby,openEntryScreen:window.openEntryScreen,
-        switchWeaponSlot:window.switchWeaponSlot,getSpikeHeld:()=>isSpikeKeyHeld&&(roomState.playerSide!=='attack'||!!planting())});
+        switchWeaponSlot:window.switchWeaponSlot,getSpikeHeld:()=>!!planting()||defusing()});
       // Complete the small data/audio stage before starting any 3D model jobs.
       let startupStarted=false;
       function settleAsset(job, timeout=12000){
