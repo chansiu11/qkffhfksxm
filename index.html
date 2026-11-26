@@ -765,14 +765,7 @@
           <div class="menu-hero-copy"><div class="menu-hero-overline"><span class="menu-hero-dash"></span> WELCOME TO THE FIELD</div><h1 class="menu-hero-title">PLAY<br><em>ASCENT</em><span class="menu-title-stop">.</span></h1><p class="menu-hero-desc">하나의 선택이 승부를 바꾼다.<br>전략적인 5대5 전투에 참여하세요.</p></div>
           <button type="button" onclick="window.openCrosshairSettings(event)"
                   class="mt-2 mb-3 px-4 py-2 text-sm font-bold border border-[#38e2c7]/60 text-[#38e2c7] hover:bg-[#38e2c7]/10 cursor-pointer">감도 · 조준점 설정</button>
-           <details style="margin:8px 0;color:#ece8e1;font-size:12px">
-             <summary style="cursor:pointer;color:#38e2c7;font-weight:bold">킬 효과음 · 이미지 불러오기</summary>
-             <p style="margin:6px 0">1~5킬 MP3 또는 PNG/WebP/JPG 파일을 선택하세요. 예: kill-1.mp3, kill-1.png. 이 브라우저에만 저장됩니다.</p>
-             <input id="kill-asset-files" type="file" accept=".mp3,.png,.jpg,.jpeg,.webp" multiple style="max-width:100%;font-size:12px">
-             <div id="kill-asset-status" role="status" style="margin-top:5px">음원 확인 중</div>
-             <select id="kill-asset-tier" aria-label="미리 듣기 단계" style="color:white;background:#182530;padding:4px"><option value="1">1킬</option><option value="2">2킬</option><option value="3">3킬</option><option value="4">4킬</option><option value="5">5킬</option></select>
-             <button type="button" id="kill-asset-preview" style="padding:4px 8px;border:1px solid #38e2c7">미리 듣기</button>
-           </details>
+
           <div class="menu-feature-row"><span>◈ &nbsp; REALTIME 5 VS 5</span><span>◈ &nbsp; CUSTOM ROOMS</span><span>◈ &nbsp; CROSS PLATFORM</span></div>
           <label class="menu-setting">온라인 경기 맵 <select id="map-choice" onchange="document.querySelector('.menu-hero-title em').textContent=this.value.toUpperCase()" style="color:white;background:#182530;padding:6px"><option value="ascent">어센트</option><option value="haven">헤이븐</option></select></label>
           <button type="button" class="menu-practice-btn" onclick="window.quickStartMatch(event)"><span class="menu-practice-icon">↗</span><span><b>혼자 연습하기</b><small>OFFLINE · 사격 연습장</small></span><span class="menu-practice-arrow">→</span></button>
@@ -2220,71 +2213,37 @@
         }, 2300);
       }
 
-      const killAudioBuffers = new Map(), customKillAudio = new Map(), customKillIcons = new Map();
+      const killAudioBuffers = new Map(), customKillIcons = new Map();
       let activeKillAudio = null, killAudioGeneration = 0;
       function killTier(count){ return Math.max(1,Math.min(5,Math.floor(count)||1)); }
-      const noticeKey=(kind,tier)=>'match-notice-v1-'+kind+'-'+tier;
-      function readNotice(kind,tier){try{return localStorage.getItem(noticeKey(kind,tier));}catch(_){return null;}}
-      for(let tier=1;tier<=5;tier++){
-        const audio=readNotice('audio',tier),icon=readNotice('icon',tier);
-        if(audio?.startsWith('data:audio/'))customKillAudio.set(tier,audio);
-        if(icon && /^data:image\/(png|jpeg|webp);base64,/.test(icon))customKillIcons.set(tier,icon);
-      }
-      function fileDataURL(file){
-        return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=reject;reader.readAsDataURL(file);});
-      }
+      const killTiers=[1,2,3,4,5];
+      const killAudioPath=tier=>'audio/kill/kill-'+killTier(tier)+'.mp3';
       async function loadKillAudio(tier){
         tier=killTier(tier);
         if(!sfx.ctx)return null;
         if(!killAudioBuffers.has(tier)){
-          const pending=fetch(customKillAudio.get(tier)||'audio/kill/kill-'+tier+'.mp3')
-            .then(r=>r.ok?r.arrayBuffer():null)
-            .then(bytes=>bytes?sfx.ctx.decodeAudioData(bytes):null)
-            .catch(()=>null);
+          const pending=fetch(killAudioPath(tier))
+            .then(r=>{if(!r.ok)throw Error(r.status+' '+killAudioPath(tier));return r.arrayBuffer();})
+            .then(bytes=>sfx.ctx.decodeAudioData(bytes))
+            .catch(error=>{console.warn('Notification audio unavailable',error);return null;});
           killAudioBuffers.set(tier,pending);
           pending.then(buffer=>{if(!buffer&&killAudioBuffers.get(tier)===pending)killAudioBuffers.delete(tier);});
         }
         return killAudioBuffers.get(tier);
       }
-      const importStatus=document.getElementById('kill-asset-status');
-      async function refreshKillStatus(){
-        const buffers=await Promise.all([1,2,3,4,5].map(loadKillAudio));
-        const ready=buffers.map((b,i)=>b?i+1:null).filter(Boolean);
-        importStatus.textContent='음원 '+ready.length+'/5 · 이미지 '+customKillIcons.size+'/5'+(ready.length<5?' · 누락: '+[1,2,3,4,5].filter(n=>!ready.includes(n)).join(', '):' · 재생 준비 완료');
+      async function preloadKillAudio(tier){
+        const buffer=await loadKillAudio(tier);
+        if(!buffer)console.warn('Missing optional audio:',killAudioPath(tier));
+        // Missing optional media must not lock the entire game at startup.
+        return true;
       }
-      document.getElementById('kill-asset-files').addEventListener('change',async e=>{
-        const input=e.currentTarget,files=Array.from(input.files||[]);
-        input.disabled=true;sfx.init();
-        let count=0,failed=0,notSaved=0;
-        for(const file of files){
-          try{
-            const match=file.name.match(/(?:^|[-_ ])([1-5])(?:[-_ .]|kill|$)/i);
-            if(!match||file.size>1500000)throw Error('name or size');
-            const tier=Number(match[1]),audio=/\.mp3$/i.test(file.name),icon=/\.(png|jpe?g|webp)$/i.test(file.name);
-            if(!audio&&!icon)throw Error('format');
-            let data=await fileDataURL(file);
-            if(audio){
-              data=data.replace(/^data:[^;,]*/, 'data:audio/mpeg');
-              const buffer=await sfx.ctx.decodeAudioData(await file.arrayBuffer());
-              if(!(buffer.duration>0))throw Error('empty');
-              customKillAudio.set(tier,data);killAudioBuffers.set(tier,Promise.resolve(buffer));
-            }else{
-              const mime=/\.png$/i.test(file.name)?'png':/\.webp$/i.test(file.name)?'webp':'jpeg';
-              data=data.replace(/^data:[^;,]*/, 'data:image/'+mime);
-              const preview=new Image();preview.src=data;await preview.decode();
-              customKillIcons.set(tier,data);
-            }
-            try{localStorage.setItem(noticeKey(audio?'audio':'icon',tier),data);}catch(_){notSaved++;}
-            count++;
-          }catch(_){failed++;}
-        }
-        input.disabled=false;input.value='';
-        await refreshKillStatus();
-        importStatus.textContent+=' · 불러옴 '+count+'개'+(failed?' · 실패 '+failed+'개':'')+(notSaved?' · '+notSaved+'개는 이번 접속에만 저장':'');
-      });
-      document.getElementById('kill-asset-preview').addEventListener('click',()=>{
-        const tier=Number(document.getElementById('kill-asset-tier').value);playKillNotice(tier);
-      });
+      async function preloadKillIcon(tier){
+        const path='assets/kill/kill-'+tier+'.png';
+        const img=new Image();
+        img.src=path;
+        try{await img.decode();customKillIcons.set(tier,path);}catch(_){}
+        return true;
+      }
       function stopKillAudio(){
         ++killAudioGeneration;
         if(activeKillAudio){try{activeKillAudio.stop();}catch(_){} activeKillAudio=null;}
@@ -4856,9 +4815,8 @@
           sfx.init();
           if(!sfx.ctx)throw Error('audio');
           const sounds=MatchSamples.preloadJobs(sfx.ctx);
-          refreshKillStatus().catch(()=>{});
           const spikeNames=['planting','planted','defuse_start_1','defuse_start_2','defused','boom'];
-          const jobs=[...sounds,...spikeNames.map(name=>()=>loadSpikeClip(name)),...viewmodel.preloadJobs()];
+          const jobs=[...sounds,...killTiers.map(tier=>()=>preloadKillAudio(tier)),...killTiers.map(tier=>()=>preloadKillIcon(tier)),...spikeNames.map(name=>()=>loadSpikeClip(name)),...viewmodel.preloadJobs()];
           let next=0, done=0, failed=false;
           function showProgress(){
             progress.value=Math.floor(done*100/jobs.length);
