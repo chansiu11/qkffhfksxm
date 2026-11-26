@@ -431,7 +431,9 @@
       getModel(id).then(asset=>{if(asset && selected===id){model=asset;pivot.add(asset);}}).catch(err=>console.warn('Pistol model',id,err));
     }
     const set=api.setWeapon, update=api.update, fire=api.fire, inspect=api.inspect, reload=api.beginReload;
-    api.setWeapon=(id,time)=>{set(id,time);duration=(time??catalog[id]?.equipTime??.75)*1000;select(api.current);};
+    let modelLoadingEnabled=false;
+    api.enableModelLoading=()=>{modelLoadingEnabled=true;select(api.current);};
+    api.setWeapon=(id,time)=>{set(id,time);duration=(time??catalog[id]?.equipTime??.75)*1000;if(modelLoadingEnabled)select(api.current);};
     api.hasRenderedModel=id=>visible && selected===id && !!model;
     api.inspect=()=>{inspect();if(model&&!api.isReloading && performance.now()-equipped>=duration)inspected=performance.now();};
     api.fire=(mode)=>{startModelDraw=false;inspected=-Infinity;fired=performance.now();fire(mode);};
@@ -553,7 +555,6 @@
       try {renderer.clearDepth();renderer.render(scene,camera);}
       finally {renderer.autoClear=clear;}
     };
-    select(api.current);
     return api;
   };
 })();

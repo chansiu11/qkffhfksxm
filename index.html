@@ -25,7 +25,7 @@
   <script src="crosshair-profile.js"></script>
   <script src="crosshair-ui.js" defer></script>
   <script src="ads-system.js?v=armory20"></script>
-  <script src="weapon-viewmodels.js?v=visual-continuity1"></script>
+  <script src="weapon-viewmodels.js?v=preload-stage2"></script>
 
   <style>
     :root {
@@ -318,10 +318,10 @@
 </head>
 <body>
   <div id="asset-loading" style="position:fixed;inset:0;z-index:2147483647;background:#101921;color:white;display:grid;place-content:center;text-align:center;gap:12px;font:600 18px system-ui">
-    <span id="asset-status" role="status">모델과 소리 불러오는 중 · 0%</span>
+    <span id="asset-status" role="status">기본 데이터 불러오는 중 · 0%</span>
     <progress id="asset-progress" aria-label="로딩 진행률" value="0" max="100" style="width:min(300px,80vw);accent-color:#38e2c7"></progress>
-    <button id="asset-skip" type="button" style="justify-self:center;padding:9px 22px;border:1px solid #38e2c7;background:#172c34;color:#ece8e1;border-radius:3px;cursor:pointer">로딩 건너뛰기</button>
-    <span style="font-size:12px;color:#b7c6ce">건너뛰면 필요한 모델은 사용 시 불러옵니다.</span>
+    <button id="asset-skip" type="button" hidden disabled style="justify-self:center;padding:9px 22px;border:1px solid #38e2c7;background:#172c34;color:#ece8e1;border-radius:3px;cursor:pointer">로딩 건너뛰기</button>
+    <span id="asset-skip-hint" hidden style="font-size:12px;color:#b7c6ce">3D 모델만 건너뛸 수 있습니다. 필요한 모델은 사용 시 불러옵니다.</span>
   </div>
   <script>
     function blockLoadingKeys(event){
@@ -2239,8 +2239,8 @@
       async function preloadKillAudio(tier){
         const buffer=await loadKillAudio(tier);
         if(!buffer)console.warn('Missing optional audio:',killAudioPath(tier));
-        // Missing optional media must not lock the entire game at startup.
-        return true;
+        // Record missing audio without locking startup indefinitely.
+        return !!buffer;
       }
       async function preloadKillIcon(tier){
         const path='assets/kill/kill-'+tier+'.png';
@@ -4838,10 +4838,9 @@
         updateHUD,flashDamage,showHitmarker,showRoundBanner,addKillFeed,syncCheatPermissionUI,
         launchAscentMatchImmediate,openWaitingLobby:window.openWaitingLobby,openEntryScreen:window.openEntryScreen,
         switchWeaponSlot:window.switchWeaponSlot,getSpikeHeld:()=>isSpikeKeyHeld&&(roomState.playerSide!=='attack'||!!planting())});
-      // Preload all available 3D models unless the visitor chooses to skip.
-      // Already downloaded models remain in the viewmodel cache.
+      // Complete the small data/audio stage before starting any 3D model jobs.
       let startupStarted=false;
-      function settleAsset(job, timeout=3500){
+      function settleAsset(job, timeout=12000){
         return new Promise(resolve=>{
           let finished=false;
           const finish=value=>{if(finished)return;finished=true;clearTimeout(timer);resolve(value);};
@@ -4856,62 +4855,58 @@
         const status=document.getElementById('asset-status');
         const progress=document.getElementById('asset-progress');
         const skip=document.getElementById('asset-skip');
+        const hint=document.getElementById('asset-skip-hint');
         for(const element of document.body.children)if(element!==overlay && element.tagName!=='SCRIPT')element.inert=true;
-        let remaining=[], entered=false, skipped=false;
+        let entered=false, skipped=false, stage='data';
+        skip.hidden=true;skip.disabled=true;hint.hidden=true;
         function enter(){
           if(entered)return;
           entered=true;
+          viewmodel.enableModelLoading();
           for(const element of document.body.children)if(element!==overlay && element.tagName!=='SCRIPT')element.inert=false;
           overlay.remove();
           window.removeEventListener('keydown',blockLoadingKeys,true);
           window.removeEventListener('keyup',blockLoadingKeys,true);
-          refreshInputUI();
-          syncCheatPermissionUI();
+          refreshInputUI();syncCheatPermissionUI();
           requestAnimationFrame(animate);
-          let next=0;
-          async function warm(){
-            while(next<remaining.length){
-              const job=remaining[next++];
-              await settleAsset(job,8000);
-              await new Promise(resolve=>setTimeout(resolve,30));
-            }
-          }
-          setTimeout(()=>{for(let i=0;i<3;i++)warm();},0);
         }
-        skip.addEventListener('click',()=>{skipped=true;enter();},{once:true});
+        skip.addEventListener('click',()=>{
+          if(stage!=='models'||skip.disabled||entered)return;
+          skipped=true;enter();
+        });
         try{
           sfx.init();
-          let initial=[];
-          if(sfx.ctx){
-            const sounds=MatchSamples.preloadJobs(sfx.ctx);
-            initial=[...sounds.slice(0,1),...killTiers.map(tier=>()=>preloadKillAudio(tier))];
-            const spikeNames=['planting','planted','defuse_start_1','defuse_start_2','defused','boom'];
-            remaining=[...sounds.slice(1),...killTiers.map(tier=>()=>preloadKillIcon(tier)),...spikeNames.map(name=>()=>loadSpikeClip(name))];
-          }
+          const data=sfx.ctx?[...killTiers.map(tier=>()=>preloadKillAudio(tier)),...MatchSamples.preloadJobs(sfx.ctx),...['planting','planted','defuse_start_1','defuse_start_2','defused','boom'].map(name=>()=>loadSpikeClip(name)),...killTiers.map(tier=>()=>preloadKillIcon(tier))]:[];
           const models=viewmodel.preloadJobs();
-          let nextModel=0, modelDone=0, modelFailed=0, soundDone=0;
+          let dataDone=0, dataFailed=0, modelDone=0, modelFailed=0, nextData=0, nextModel=0;
           function showProgress(){
             if(entered)return;
-            const total=models.length+initial.length;
-            progress.value=total?Math.round((modelDone+soundDone)*100/total):100;
-            status.textContent='3D 모델 '+modelDone+'/'+models.length+' · 기본 효과음 '+soundDone+'/'+initial.length+(modelFailed?' · 모델 실패 '+modelFailed:'');
+            const total=data.length+models.length;
+            progress.value=total?Math.round((dataDone+modelDone)*100/total):100;
+            status.textContent=(stage==='data'?'1/2 기본 데이터 및 효과음 '+dataDone+'/'+data.length:'2/2 3D 모델 '+modelDone+'/'+models.length)+(dataFailed?' · 데이터 누락 '+dataFailed:'')+(modelFailed?' · 모델 실패 '+modelFailed:'');
           }
           showProgress();
+          async function dataWorker(){
+            while(nextData<data.length){
+              const job=data[nextData++];
+              if(!await settleAsset(job))dataFailed++;
+              dataDone++;showProgress();
+            }
+          }
+          await Promise.all(Array.from({length:Math.min(6,data.length)},()=>dataWorker()));
+          stage='models';
+          if(models.length){skip.hidden=false;skip.disabled=false;hint.hidden=false;}
+          showProgress();
           async function modelWorker(){
-            while(!skipped && nextModel<models.length){
+            while(!skipped&&nextModel<models.length){
               const job=models[nextModel++];
               try{if(!await job())modelFailed++;}
               catch(error){modelFailed++;console.warn('Optional model preload',error);}
-              modelDone++;
-              showProgress();
-              // Give rendering and the skip button a chance to respond between models.
+              modelDone++;showProgress();
               if(!skipped)await new Promise(resolve=>setTimeout(resolve,0));
             }
           }
-          await Promise.all([
-            ...initial.map(async job=>{await settleAsset(job);soundDone++;showProgress();}),
-            ...Array.from({length:Math.min(2,models.length)},()=>modelWorker())
-          ]);
+          await Promise.all(Array.from({length:Math.min(2,models.length)},()=>modelWorker()));
         }catch(error){console.warn('Optional startup media',error);}
         enter();
       }
