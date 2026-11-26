@@ -560,11 +560,6 @@
           if(!b.hold){
             b.hold=new THREE.Group();
             b.group.add(b.hold);
-            b.hands=[1,-1].map(side=>{
-              const limb=new THREE.Mesh(b.bodyMesh.geometry,b.bodyMesh.material);
-              b.group.add(limb);
-              return {limb,shoulder:new THREE.Vector3(side*.34,1.16,0),hand:new THREE.Vector3()};
-            });
           }
           b.hold.clear();
           a.viewmodel.remoteModel(weaponId).then(model=>{
@@ -703,15 +698,6 @@
           const t=b.aimBlend=(b.aimBlend||0)+((b.peerAim?1:0)-(b.aimBlend||0))*alpha;
           b.hold.position.set(.23-.19*t,1.01+.32*t,-.34-.07*t);
           b.hold.rotation.x=(b.pitch||0)-.13*(1-t);
-          b.hold.updateMatrix();
-          for(let i=0;i<b.hands.length;i++){
-            const {limb,shoulder,hand}=b.hands[i];
-            hand.set(i?-.045:.035,-.045,i?(b.weapon.slot==='primary'?-.24:-.055):.045).applyMatrix(b.hold.matrix);
-            limb.position.copy(shoulder).lerp(hand,.5);
-            hand.sub(shoulder);
-            limb.scale.set(.19,hand.length()/1.24,.32);
-            limb.quaternion.setFromUnitVectors(limb.up,hand.normalize());
-          }
         }
         if (Number.isFinite(b.targetAt) && Number.isFinite(b.renderAt))
           b.renderAt+=(b.targetAt-b.renderAt)*alpha;
