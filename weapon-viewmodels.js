@@ -231,7 +231,7 @@
     function update(dt,player,state){
       const visible=!!(player?.alive&&state?.inMatch);
       if(visible!==lastVisible){layer.classList.toggle('weapon-visible',visible);lastVisible=visible;}
-      if(!visible||!photo){inspectAt=-Infinity;visualKickStart=0;fireAt=-100000;return;}
+      if(!visible||!photo){inspectAt=-Infinity;return;}
       const now=performance.now(),w=window.innerWidth||1440,h=window.innerHeight||900;
       const moving=Math.min(1,Math.hypot(player.vel?.x||0,player.vel?.z||0)/7.6);
       const bob=Math.sin(now*.010)*2.8*moving;
@@ -488,7 +488,7 @@
       const shortyInspect=shorty?lift:0;
       const shortyTurn=shorty?turn:0;
       const shortyReload=shorty?smooth(reloadT/.22)*(1-smooth((reloadT-.72)/.28)):0;
-      const shot=(now-fired)/1000, kick=selected==='knife'?0:.4*api.getVisualKick(now);
+      const shot=(now-fired)/1000, kick=selected==='knife'?(shot<.25?Math.sin(Math.PI*Math.min(1,shot/.055)/2)*Math.exp(-shot*18):0):.4*api.getVisualKick(now);
       const move=Math.min(1,Math.hypot(player.vel?.x||0,player.vel?.z||0)/7.6);
       camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();
       // Reference at 23.5–24.5 s: Classic grip sits below and right of the crosshair.
