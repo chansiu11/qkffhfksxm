@@ -7,19 +7,17 @@ const MatchSamples = (() => {
   let previousStep = -1;
 
   const clips = new Map();
-  let clickRequest=0;
+  let clickRequest=0, activeClick=null;
   function cleanClick(ctx,buffer) {
-    // Retain the first attack of the recorded click and fade the room tail.
-    const pcm=buffer.getChannelData(0), rate=buffer.sampleRate;
-    let peak=0;
-    for(const sample of pcm) peak=Math.max(peak,Math.abs(sample));
-    if(!peak)return buffer;
-    const start=Math.max(0,pcm.findIndex(v=>Math.abs(v)>peak*.12)-Math.round(rate*.002));
-    const length=Math.min(buffer.length-start,Math.round(rate*.08));
+    // Keep the original recording, with only short edge fades to avoid pops.
+    const rate=buffer.sampleRate, length=buffer.length;
     const clip=ctx.createBuffer(buffer.numberOfChannels,length,rate);
     for(let ch=0;ch<buffer.numberOfChannels;ch++){
       const out=clip.getChannelData(ch),input=buffer.getChannelData(ch);
-      for(let i=0;i<length;i++)out[i]=input[start+i]*Math.min(1,i/(rate*.001),(length-1-i)/(rate*.018));
+      for(let i=0;i<length;i++){
+        const envelope=Math.min(1,i/Math.max(1,rate*.0008),(length-1-i)/Math.max(1,rate*.010));
+        out[i]=input[i]*envelope;
+      }
     }
     return clip;
   }
@@ -75,6 +73,16 @@ const MatchSamples = (() => {
     const pan = position && ctx.createPanner();
     source.buffer = buffer;
     gain.gain.value = volume;
+    if (name==='menu-click') {
+      if(activeClick){
+        const old=activeClick, now=ctx.currentTime;
+        old.gain.gain.cancelScheduledValues(now);
+        old.gain.gain.setValueAtTime(old.gain.gain.value,now);
+        old.gain.gain.linearRampToValueAtTime(0,now+.008);
+        try{old.source.stop(now+.009);}catch(_){}
+      }
+      activeClick={source,gain};
+    }
     if (pan) {
       pan.panningModel = 'HRTF';
       pan.rolloffFactor = 0; // gameSound already applies distance attenuation.
@@ -82,7 +90,10 @@ const MatchSamples = (() => {
       source.connect(pan).connect(gain);
     } else source.connect(gain);
     gain.connect(output);
-    source.onended = () => { source.disconnect(); gain.disconnect(); if (pan) pan.disconnect(); };
+    source.onended = () => {
+      if(activeClick?.source===source)activeClick=null;
+      source.disconnect(); gain.disconnect(); if (pan) pan.disconnect();
+    };
     source.start();
     return true;
   }
