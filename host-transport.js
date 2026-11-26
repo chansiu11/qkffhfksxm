@@ -5,6 +5,8 @@ const CONTROL=new Set(['create','join','resume','leave','host_opt','host_signal'
 function make(mp){
   let room=null,worker=null,workerReady=false,mode=false,enabled=false,epoch=0,lastWorkerAt=0;
   const links=new Map(),early=[];
+  let invitationDismissed=false,requestWasOn=false,withdrawing=false;
+  const privacyNotice='신뢰하는 참가자끼리만 직접 연결하세요. WebRTC 연결에서는 상대방에게 네트워크 주소가 노출될 수 있습니다. 방장이 경기를 제어하며 연결이 끊기면 경기가 재시작될 수 있습니다.';
   let diagnostics=null,reading=false,lastRead=0,lastProbeRoute=null;
   const workerProbes=new Map();
   function noteWorkerProbe(from,data){
@@ -53,13 +55,39 @@ function make(mp){
   const raw=m=>mp.rawSend(m);
   function clearLink(id){const l=links.get(id);if(!l)return;links.delete(id);try{l.pc.close();}catch(_){}}
   function stopWorker(){workerProbes.clear();if(worker)worker.terminate();worker=null;workerReady=false;}
-  function reset(){epoch++;diagnostics=null;lastProbeRoute=null;mode=false;enabled=false;room=null;early.length=0;for(const id of [...links.keys()])clearLink(id);stopWorker();}
-  function report(){const el=document.getElementById('host-transport-status');if(el)el.textContent=mode?'방장 호스트 연결':enabled?'직접 연결 '+[...links.values()].filter(l=>l.dc?.readyState==='open').length+'명':'Render 서버 연결';}
-  function setEnabled(value){
-    if(mode||!room||room.started)return;
-    if(value&&!window.confirm('신뢰하는 참가자끼리만 직접 연결하세요. WebRTC 연결에서는 상대방에게 네트워크 주소가 노출될 수 있습니다. 방장이 경기를 제어하며 연결이 끊기면 경기가 재시작될 수 있습니다. 동의하시겠습니까?'))return;
-    if(value&&(!window.RTCPeerConnection||!window.Worker)){report();return;}
-    enabled=!!value;raw({type:'host_opt',enabled});if(!enabled){for(const id of [...links.keys()])clearLink(id);stopWorker();}report();
+  function reset(){epoch++;invitationDismissed=false;requestWasOn=false;withdrawing=false;diagnostics=null;lastProbeRoute=null;mode=false;enabled=false;room=null;early.length=0;for(const id of [...links.keys()])clearLink(id);stopWorker();}
+  function hostRequested(){return !!room?.players.find(p=>p.id===room.host)?.direct;}
+  function report(){
+    const requested=hostRequested(),host=isHost(),total=room?.players.length||0;
+    const agreed=room?.players.filter(p=>p.direct).length||0;
+    const open=[...links.values()].filter(l=>l.dc?.readyState==='open').length;
+    const el=document.getElementById('host-transport-status');
+    if(el)el.textContent=mode?'방장 호스트 연결':requested?
+      '직접 연결 동의 '+agreed+'/'+total+(host?' · 연결 '+(open+(workerReady&&enabled?1:0))+'/'+total:''):'Render 서버 연결';
+    const cb=document.getElementById('host-transport-opt');
+    if(cb){cb.checked=enabled;cb.disabled=!room||!!room.started||(!host&&!requested);}
+    const label=document.getElementById('host-transport-label');
+    if(label)label.textContent=host?'방 전체에 직접 연결 요청 (참가자별 동의 필요)':'직접 연결에 동의';
+    const invite=document.getElementById('host-consent-invite');
+    if(invite)invite.hidden=!room||!!room.started||host||!requested||enabled||invitationDismissed;
+    const detail=document.getElementById('host-consent-detail');
+    if(detail)detail.textContent=requested&&!host&&!enabled&&invitationDismissed?'직접 연결에 동의하지 않았습니다. 원하면 위 옵션으로 동의할 수 있습니다.':requested&&host?'모든 참가자의 동의 및 연결 준비가 필요합니다.':'';
+  }
+  function setEnabled(value,explicitConsent=false){
+    if(mode||!room||room.started)return false;
+    if(value&&!isHost()&&!hostRequested()){report();return false;}
+    if(value&&!explicitConsent&&!window.confirm(privacyNotice+' 동의하시겠습니까?')){report();return false;}
+    if(value&&(!window.RTCPeerConnection||!window.Worker)){mp.status('이 브라우저에서는 직접 연결을 사용할 수 없습니다.',true);report();return false;}
+    if(!raw({type:'host_opt',enabled:!!value})){report();return false;}
+    enabled=!!value;
+    if(!isHost())invitationDismissed=true;
+    if(!enabled){for(const id of [...links.keys()])clearLink(id);stopWorker();}
+    report();return true;
+  }
+  function respondToInvitation(accepted){
+    if(!room||room.started||isHost()||!hostRequested()||enabled)return;
+    if(accepted){setEnabled(true,true);}
+    else{invitationDismissed=true;report();}
   }
   function getWorker(){
     if(worker)return;
@@ -117,8 +145,17 @@ function make(mp){
     if(mode&&!room.hostMode)fallback();
     if(oldHost&&oldHost!==room.host&&!mode){for(const id of [...links.keys()])clearLink(id);stopWorker();}
     const me=room.players.find(p=>p.id===mp.myId);
+    const requested=hostRequested(),hostChanged=!!oldHost&&oldHost!==room.host;
+    if(hostChanged||requested!==requestWasOn)invitationDismissed=false;
+    requestWasOn=requested;
     enabled=!!me?.direct;
-    const cb=document.getElementById('host-transport-opt');if(cb){cb.checked=enabled;cb.disabled=!!room.started;}
+    // A previous consent is not transferable to a different host.
+    if(!room.started&&enabled&&!isHost()&&(!requested||hostChanged||withdrawing)){
+      if(!withdrawing){withdrawing=raw({type:'host_opt',enabled:false});}
+      enabled=false;for(const id of [...links.keys()])clearLink(id);stopWorker();
+      report();return;
+    }
+    if(!me?.direct)withdrawing=false;
     if(!enabled||!window.RTCPeerConnection){report();return;}
     const eligible=room.players.filter(p=>p.id!==mp.myId&&p.direct&&(isHost()||p.id===room.host));
     for(const id of [...links.keys()])if(!eligible.some(p=>p.id===id))clearLink(id);
@@ -151,13 +188,21 @@ function make(mp){
   function send(m){
     if(m.type==='start'&&!mode&&isHost()){
       const ready=[...links.values()].filter(l=>l.dc?.readyState==='open').map(l=>l.id);
+      if(hostRequested()){
+        const allAgreed=room.players.every(p=>p.direct&&p.online!==false);
+        const allReady=enabled&&workerReady&&room.players.every(p=>p.id===mp.myId||ready.includes(p.id));
+        if(!allAgreed||!allReady){
+          if(!window.confirm('아직 모든 참가자의 동의 또는 연결 준비가 완료되지 않았습니다. Render 서버로 시작하시겠습니까? 취소를 누르면 대기실에 남습니다.'))return false;
+          return raw({...m,hostReady:false,ready:[]});
+        }
+      }
       return raw({...m,hostReady:enabled&&workerReady,ready});
     }
     if(!mode||CONTROL.has(m.type))return raw(m);
     if(isHost()){if(!worker)return false;if(m.type==='ping'&&performance.now()-lastWorkerAt<3000)raw({type:'host_alive',run:room.hostRun});noteWorkerProbe(mp.myId,m);worker.postMessage({type:'input',from:mp.myId,data:m});return true;}
     return route(room.host,{kind:'input',data:m});
   }
-  return {reset,update,signal,begin,fallback,send,setEnabled,sampleDiagnostics,
+  return {reset,update,signal,begin,fallback,send,setEnabled,respondToInvitation,sampleDiagnostics,
     get diagnostics(){return mode&&diagnostics&&performance.now()-diagnostics.at<6000?{...diagnostics,probeRoute:lastProbeRoute}:null;},
     get probeRoute(){return mode?lastProbeRoute:null;},
     relayInput:m=>deliver(m.from,{kind:'input',run:m.run,data:m.data}),
