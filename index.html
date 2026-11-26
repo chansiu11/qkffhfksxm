@@ -2218,7 +2218,8 @@
       let activeKillAudio = null, killAudioGeneration = 0;
       function killTier(count){ return Math.max(1,Math.min(5,Math.floor(count)||1)); }
       const killTiers=[1,2,3,4,5];
-      const killAudioPath=tier=>'audio/kill/kill-'+killTier(tier)+'.mp3?v=originals1';
+      const killAudioNames=['valorant-1-kill.mp3','valorant-2-kills.mp3','valorant-3-kills.mp3','valorant-4-kills.mp3','valorant-5-kills.mp3'];
+      const killAudioPath=tier=>'audio/kill/'+killAudioNames[killTier(tier)-1]+'?v=uploaded2';
       const readyKillAudio=new Set();
       function reportKillAudio(){const el=document.getElementById('kill-audio-ready');if(el)el.textContent='킬 효과음 '+readyKillAudio.size+'/5'+(readyKillAudio.size===5?' 준비 완료':' · 음원 확인 중 또는 누락');}
       async function loadKillAudio(tier){
