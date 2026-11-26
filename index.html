@@ -14,7 +14,7 @@
   <script src="config.js?v=perf19"></script>
   <script src="host-transport.js?v=armory20"></script>
   <script src="movement-physics.js?v=move25"></script>
-  <script src="multiplayer-client.js?v=alt22"></script>
+  <script src="multiplayer-client.js?v=scoreboard1"></script>
   <link rel="stylesheet" href="menu.css" />
   <!-- Three.js r128 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -255,6 +255,28 @@
     .round-count-marks i.filled {background:#ece8e1;}
     .round-count-badge[data-tier='5'] {border-color:#e6c78a;color:#e6c78a;}
 
+
+    #match-scoreboard[hidden]{display:none!important}
+    #match-scoreboard{position:fixed;inset:0;z-index:110;display:flex;align-items:center;justify-content:center;pointer-events:none;background:rgba(10,17,24,.48);font-family:Rajdhani,Arial,sans-serif;color:#ece8e1}
+    .msb-panel{width:min(1080px,94vw);max-height:86vh;overflow:hidden;filter:drop-shadow(0 6px 18px #0008)}
+    .msb-top{display:flex;align-items:center;justify-content:center;gap:24px;font-size:36px;font-weight:800;padding:0 0 12px}
+    .msb-top .ally{color:#54d8c7}.msb-top .enemy{color:#ff6574}
+    .msb-top small{font-size:12px;letter-spacing:.17em;color:#ece8e1b0}
+    .msb-grid{display:grid;grid-template-columns:minmax(100px,2.5fr) .9fr .9fr .9fr .9fr .9fr 1.1fr .8fr;align-items:center;gap:0}
+    .msb-grid>*{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:center;padding:0 8px}
+    .msb-grid>*:first-child{text-align:left;padding-left:18px}
+    .msb-head{height:26px;background:#0b141dcc;color:#d7dfdf;font-size:11px;font-weight:700;letter-spacing:.06em}
+    .msb-row{height:clamp(25px,4.4vh,47px);font-size:clamp(11px,1.55vw,17px);font-weight:700;border-bottom:1px solid #f1ffff13}
+    .msb-team.ally .msb-row{background:linear-gradient(90deg,#1f625ee8,#173838dc)}
+    .msb-team.enemy .msb-row{background:linear-gradient(90deg,#6a303ce8,#42252ddc)}
+    .msb-row.me{outline:1px solid #c8fff4;outline-offset:-1px;background:linear-gradient(90deg,#398e83,#24564f)!important}
+    .msb-row.dead{color:#c0c9c9b3}
+    .msb-team+.msb-team{margin-top:10px}
+    .msb-team-label{font-size:11px;letter-spacing:.16em;font-weight:800;padding:4px 10px}
+    .msb-team.ally .msb-team-label{background:#21514e;color:#b5fff2}
+    .msb-team.enemy .msb-team-label{background:#66333c;color:#ffd8db}
+    .msb-footer{text-align:right;color:#d1d7d8;font-size:11px;padding:8px 0;letter-spacing:.08em}
+    @media(max-width:600px){.msb-grid{grid-template-columns:minmax(74px,2.3fr) repeat(5,minmax(24px,.8fr)) minmax(38px,1fr) minmax(25px,.7fr)}.msb-grid>*{padding:0 2px}.msb-grid>*:first-child{padding-left:5px}.msb-head{font-size:8px;letter-spacing:0}.msb-top{font-size:27px;gap:12px}.msb-row{font-size:10px}}
     .modal-scroll {
       touch-action: pan-y !important;
     }
@@ -636,6 +658,16 @@
       </div>
     </div>
 
+
+    <div id="match-scoreboard" hidden aria-label="경기 점수판">
+      <div class="msb-panel">
+        <div class="msb-top"><span class="ally" id="msb-ally-score">0</span><small>ROUND <span id="msb-round">1</span></small><span class="enemy" id="msb-enemy-score">0</span></div>
+        <div class="msb-grid msb-head"><span>NAME</span><span>ULTIMATE</span><span>K</span><span>D</span><span>A</span><span>LOADOUT</span><span>CREDS</span><span>PING</span></div>
+        <div id="msb-ally" class="msb-team ally"></div>
+        <div id="msb-enemy" class="msb-team enemy"></div>
+        <div class="msb-footer">T — CLOSE SCOREBOARD</div>
+      </div>
+    </div>
     <!-- BOTTOM-CENTER VALORANT ANIMATED KILL EMBLEM (Pure Geometric Star / Cross, Zero Emojis) -->
     <div id="val-kill-banner-slot" class="fixed bottom-24 left-1/2 -translate-x-1/2 pointer-events-none z-25"></div>
 
@@ -2237,7 +2269,68 @@
         wrap.addEventListener('animationend',()=>wrap.remove(),{once:true});
       }
 
-      function addKillFeed(killer, victim, weaponName, isHead) {
+
+      // Presentation-only match scoreboard; no actor portraits or game rule changes.
+      const scoreboardStats = new Map();
+      let scoreboardLastAt = -Infinity, scoreboardSignature = '';
+      function scoreboardStat(id) {
+        if(!scoreboardStats.has(id))scoreboardStats.set(id,{k:0,d:0});
+        return scoreboardStats.get(id);
+      }
+      function resetScoreboard(){
+        scoreboardStats.clear();scoreboardSignature='';setScoreboard(false);
+      }
+      function setScoreboard(open) {
+        const board=document.getElementById('match-scoreboard');
+        board.hidden=!open;
+        if(open){scoreboardLastAt=-Infinity;renderScoreboard(performance.now());}
+      }
+      function recordScoreboard(killer,victim,ids){
+        if(window.MP.active && ids){
+          if(ids.killer)scoreboardStat(ids.killer).k++;
+          if(ids.victim)scoreboardStat(ids.victim).d++;
+        }else if(!window.MP.active){
+          scoreboardStat(killer).k++;scoreboardStat(victim).d++;
+        }
+        scoreboardSignature='';
+      }
+      function renderScoreboard(now){
+        const board=document.getElementById('match-scoreboard');
+        if(board.hidden)return;
+        if(!matchState.inMatch){setScoreboard(false);return;}
+        if(now-scoreboardLastAt<150)return;
+        scoreboardLastAt=now;
+        const mp=window.MP, online=!!(mp.active&&mp.started&&mp.state?.players);
+        let rows;
+        if(online){
+          rows=mp.state.players.map(p=>({id:p.id,name:p.name,ally:p.team===roomState.playerSide,me:p.id===mp.myId,alive:p.alive,credits:p.credits,loadout:p.inventory?.primary||p.inventory?.secondary||p.weapon,ping:p.id===mp.myId?mp.rtt:null,k:p.kills,d:p.deaths,a:p.assists}));
+        }else{
+          rows=[{id:'YOU',name:'YOU',ally:true,me:true,alive:player.alive,credits:player.credits,loadout:player.primary?.id||player.secondary?.id},...bots.filter(b=>activeMap!=='range').map(b=>({id:b.name,name:b.name,ally:b.team==='ally',alive:b.alive,credits:b.credits,loadout:b.weapon?.id}))];
+        }
+        const clean=v=>Number.isFinite(v)?String(Math.round(v)):'—';
+        const data=rows.map(p=>{const stat=scoreboardStat(p.id);return {...p,k:p.k??stat.k,d:p.d??stat.d};});
+        const signature=JSON.stringify([matchState.allyScore,matchState.enemyScore,matchState.round,data]);
+        if(signature===scoreboardSignature)return;
+        scoreboardSignature=signature;
+        document.getElementById('msb-ally-score').textContent=matchState.allyScore;
+        document.getElementById('msb-enemy-score').textContent=matchState.enemyScore;
+        document.getElementById('msb-round').textContent=matchState.round;
+        for(const [ally,id] of [[true,'msb-ally'],[false,'msb-enemy']]){
+          const section=document.getElementById(id), team=data.filter(p=>p.ally===ally).sort((a,b)=>b.k-a.k||a.d-b.d||a.name.localeCompare(b.name));
+          const label=document.createElement('div');label.className='msb-team-label';label.textContent=ally?'ALLY TEAM':'ENEMY TEAM';
+          const frag=document.createDocumentFragment();frag.appendChild(label);
+          for(const p of team){
+            const row=document.createElement('div');row.className='msb-grid msb-row'+(p.me?' me':'')+(p.alive===false?' dead':'');
+            for(const value of [p.name+(p.me&&p.name!=='YOU'?' (YOU)':''),'—',clean(p.k),clean(p.d),clean(p.a),p.loadout?String(p.loadout).toUpperCase():'—',clean(p.credits),clean(p.ping)]){
+              const cell=document.createElement('span');cell.textContent=value;row.appendChild(cell);
+            }
+            frag.appendChild(row);
+          }
+          section.replaceChildren(frag);
+        }
+      }
+      function addKillFeed(killer, victim, weaponName, isHead, ids) {
+        recordScoreboard(killer,victim,ids);
         const feed = document.getElementById('kill-feed');
         if (!feed) return;
         const row = document.createElement('div');
@@ -2564,6 +2657,7 @@
         if (e) e.stopPropagation();
         if (window.MP.active) window.MP.disconnect();
         matchState.inMatch = false;
+        setScoreboard(false);
         if (document.pointerLockElement) {
           try { document.exitPointerLock(); } catch (err) {}
         }
@@ -2580,6 +2674,7 @@
         if(activeMap==='range')return window.openEntryScreen(e);
         if (e) e.stopPropagation();
         matchState.inMatch = false;
+        setScoreboard(false);
         if (document.pointerLockElement) {
           try { document.exitPointerLock(); } catch (err) {}
         }
@@ -2633,6 +2728,7 @@
           document.getElementById('crosshair-wrap').classList.remove('hidden');
 
           resetKillNotice();
+          resetScoreboard();
           matchState.inMatch = true;
           matchState.round = 1;
           matchState.allyScore = 0;
@@ -3597,6 +3693,10 @@
           e.preventDefault(); window.openCrosshairSettings(); return;
         }
         if (editing) return;
+        if(e.code==='KeyT' && matchState.inMatch && !e.ctrlKey && !e.altKey && !e.metaKey){
+          e.preventDefault();if(!e.repeat)setScoreboard(document.getElementById('match-scoreboard').hidden);return;
+        }
+        if(e.code==='Escape' && !document.getElementById('match-scoreboard').hidden){setScoreboard(false);return;}
         if(e.code==='KeyY' && !e.repeat && player.alive && gameplayInputAllowed()){viewmodel.inspect();return;}
         keys[e.code] = true;
 
@@ -4644,8 +4744,10 @@
           else {updateBotsAndTeamCombat(dt);updateSpikeAndMatchRules(dt);}
 
           window.MP.tick(dt);orientAudio();
+          renderScoreboard(now);
           if (now - lastRadarAt > 75) {drawAscentRadar();lastRadarAt = now;}
         } else {
+          if(!document.getElementById('match-scoreboard').hidden)setScoreboard(false);
           resetCameraEffects();
           if(player.adsRequested||player.adsProgress)resetADS();
           viewmodel.update(dt, player, matchState); // Hide the 2D viewmodel in menus and after a match.

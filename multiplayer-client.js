@@ -345,7 +345,7 @@
           const players = this.state?.players || [];
           const killer = players.find(p => p.id === data.killer), victim = players.find(p => p.id === data.victim);
           const myKill = data.killer === this.myId;
-          a.addKillFeed(myKill ? 'YOU' : (killer?.name || 'PLAYER'), victim?.name || 'PLAYER', (data.weapon || '').toUpperCase(), !!data.headshot);
+          a.addKillFeed(myKill ? 'YOU' : (killer?.name || 'PLAYER'), victim?.name || 'PLAYER', (data.weapon || '').toUpperCase(), !!data.headshot, {killer:data.killer,victim:data.victim});
           break;
         }
         case 'spike_planted': a.showRoundBanner('SITE ' + data.spike.site, 'SPIKE PLANTED'); break;
