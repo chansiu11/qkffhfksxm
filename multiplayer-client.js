@@ -354,8 +354,7 @@
           a.resetChat();
           a.showRoundBanner('MATCH COMPLETE', 'MATCH FINISHED');
           this.started = false; this.lastRound = 0;
-          a.matchState.inMatch = false;
-          a.openWaitingLobby();
+          a.enterPostMatch();
           break;
       }
     },
@@ -479,6 +478,14 @@
       // for live damage (not the initial round reset or spectator transitions).
       if (a.matchState.inMatch && a.player.alive && me.alive && state.phase !== 'buy' &&
           (me.hp < a.player.hp || me.armor < a.player.armor)) a.flashDamage();
+      // Use snapshot coordinates, not interpolated positions, for scene decorations.
+      for(const rp of state.players){
+        if(!rp.alive){
+          const equipped=a.WEAPON_CATALOG[rp.weapon];
+          const id=rp.inventory?.primary||rp.inventory?.secondary||(equipped?.slot!=='knife'?rp.weapon:null);
+          a.showGroundDisplay(rp.id,id,rp.x,rp.footY,rp.z);
+        }
+      }
       a.player.hp = me.hp;
       a.player.armor = me.armor;
       a.player.alive = me.alive;

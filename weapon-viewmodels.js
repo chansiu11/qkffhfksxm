@@ -422,6 +422,28 @@
       return cache.get(id);
     }
     api.preloadJobs=()=>Object.keys(files).map(id=>()=>getModel(id));
+    // Cosmetic scene props reuse existing resources and never affect simulation.
+    api.createGroundDisplay=(id,group)=>{
+      if(!referenceImages[id])return;
+      let active=true, sprite=null, clone=null;
+      const [w,h]=sourceSize[id];
+      const texture=new T.TextureLoader().load('assets/weapons/'+referenceImages[id]+'.webp',tex=>{
+        if(!active){tex.dispose();return;}
+        tex.encoding=T.sRGBEncoding;
+      },undefined,()=>{});
+      const material=new T.MeshBasicMaterial({map:texture,transparent:true,depthWrite:false,side:T.DoubleSide});
+      const geometry=new T.PlaneGeometry(.85,.85*h/w);
+      sprite=new T.Mesh(geometry,material);sprite.rotation.x=-Math.PI/2;
+      group.add(sprite);
+      if(files[id])getModel(id).then(asset=>{
+        if(!active||!asset)return;
+        clone=asset.clone(true);group.add(clone);
+        const bounds=new T.Box3().setFromObject(clone);
+        clone.position.y+=group.position.y-bounds.min.y;
+        sprite.visible=false;
+      }).catch(()=>{});
+      return ()=>{active=false;group.clear();geometry.dispose();material.dispose();texture.dispose();};
+    };
     function select(id) {
       if(selected===id)return;
       startModelDraw=!!files[id];

@@ -14,7 +14,7 @@
   <script src="config.js?v=perf19"></script>
   <script src="host-transport.js?v=armory20"></script>
   <script src="movement-physics.js?v=move25"></script>
-  <script src="multiplayer-client.js?v=notice-audio2"></script>
+  <script src="multiplayer-client.js?v=postmatch1"></script>
   <link rel="stylesheet" href="menu.css" />
   <!-- Three.js r128 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -25,7 +25,7 @@
   <script src="crosshair-profile.js"></script>
   <script src="crosshair-ui.js" defer></script>
   <script src="ads-system.js?v=armory20"></script>
-  <script src="weapon-viewmodels.js?v=preload-stage2"></script>
+  <script src="weapon-viewmodels.js?v=ground-display1"></script>
 
   <style>
     :root {
@@ -2367,6 +2367,39 @@
           section.replaceChildren(frag);
         }
       }
+      // Visual-only equipment display at the last known location.
+      const groundDisplays=new Map();
+      function clearGroundDisplays(){
+        for(const entry of groundDisplays.values()){entry.dispose?.();scene.remove(entry.group);}
+        groundDisplays.clear();
+      }
+      function showGroundDisplay(key,id,x,y,z){
+        if(!key||!id||groundDisplays.has(key)||![x,y,z].every(Number.isFinite)||!WEAPON_CATALOG[id]||WEAPON_CATALOG[id].slot==='knife')return;
+        const group=new THREE.Group();group.position.set(x,y+.045,z);scene.add(group);
+        const dispose=viewmodel.createGroundDisplay(id,group);
+        groundDisplays.set(key,{group,dispose});
+      }
+      function showOfflineDisplays(){
+        if(window.MP.active||activeMap==='range')return;
+        if(!player.alive)showGroundDisplay('local',player.primary?.id||player.secondary?.id,player.pos.x,player.footY,player.pos.z);
+        for(const b of bots)if(!b.alive)showGroundDisplay(b.id||b.name,b.primary?.id||b.secondary?.id||b.weapon?.id,b.group.position.x,b.footY,b.group.position.z);
+      }
+      function enterPostMatch(){
+        showOfflineDisplays();
+        matchState.phase='post_match';
+        matchState.inMatch=true;
+        matchState.spikePlanted=false;
+        spikeMesh.visible=false;barrierGroup.visible=false;
+        player.alive=true;
+        resetADS();resetCameraEffects();GameMovement.reset(player);resetMovementAudio(player);
+        isSpikeKeyHeld=false;isKeyboardFiring=false;isMouseFiring=false;isLeftTouchFiring=false;isRightTouchFiring=false;
+        document.getElementById('hud-phase-badge').textContent='MATCH COMPLETE · 자유 이동 / 대기실 버튼으로 종료';
+        document.getElementById('hud-timer-text').textContent='END';
+        document.getElementById('hud-context-prompt').classList.add('hidden');
+        document.getElementById('spike-action-box').classList.add('hidden');
+        document.getElementById('spectator-banner').classList.add('hidden');
+        updateHUD();
+      }
       function addKillFeed(killer, victim, weaponName, isHead, ids) {
         recordScoreboard(killer,victim,ids);
         const feed = document.getElementById('kill-feed');
@@ -2500,6 +2533,7 @@
       }
 
       function startNewRound() {
+        clearGroundDisplays();
         GameMovement.reset(player);resetMovementAudio(player);
         player.reloadId = (player.reloadId || 0) + 1;
         player.reloading = false;
@@ -2697,6 +2731,7 @@
       };
 
       window.openEntryScreen = function (e) {
+        clearGroundDisplays();
         if(activeMap==='range'){
           document.body.classList.remove('in-range');setting('controls').hidden=true;
           clearRangeMarks();
@@ -2726,6 +2761,7 @@
       };
 
       window.openWaitingLobby = function (e) {
+        clearGroundDisplays();
         if(activeMap==='range')return window.openEntryScreen(e);
         if (e) e.stopPropagation();
         matchState.inMatch = false;
@@ -2773,6 +2809,7 @@
 
       function launchAscentMatchImmediate() {
         try {
+          clearGroundDisplays();
           sfx.init();
           document.getElementById('entry-screen').classList.add('hidden');
           document.getElementById('waiting-lobby').classList.add('hidden');
@@ -3129,9 +3166,8 @@
           if (matchState.allyScore >= roomState.winRounds || matchState.enemyScore >= roomState.winRounds) {
             const wonMatch = matchState.allyScore >= roomState.winRounds;
             showRoundBanner('MATCH COMPLETE', wonMatch ? 'VICTORY // MATCH WON' : 'DEFEAT // MATCH OVER');
-            matchState.allyScore = 0;
-            matchState.enemyScore = 0;
-            matchState.round = 1;
+            enterPostMatch();
+            return;
           } else {
             matchState.round++;
             const halfRound = roomState.winRounds;
@@ -3304,6 +3340,7 @@
       }
 
       function attemptFire(knifeMode='light') {
+        if(matchState.phase==='post_match')return;
         if(planting())return;
         if (!matchState.inMatch || (activeMap==='range' && rangeOptions.open)) return;
         if (window.MP.active) { window.MP.fire(knifeMode); return; }
@@ -4791,8 +4828,11 @@
           if (!player.alive) resetCameraEffects();
           updatePlayerAndSpectatorCamera(dt, heldWeapon);
           window.updateCrosshairErrors?.(ShootingSpread.crosshairError(getActiveWeapon(), player, now), now);
-          if(activeMap==='range')updateRange(now);
-          else {updateBotsAndTeamCombat(dt);updateSpikeAndMatchRules(dt);}
+          if(matchState.phase!=='post_match'){
+            if(activeMap==='range')updateRange(now);
+            else {updateBotsAndTeamCombat(dt);updateSpikeAndMatchRules(dt);}
+            showOfflineDisplays();
+          }
 
           window.MP.tick(dt);orientAudio();
           renderScoreboard(now);
@@ -4836,7 +4876,7 @@
         createTacticalBotMesh,setEnemyOutline,spawnBulletTracer,spawnHitBurst,drawLocalShot,recordCameraVisual,
         cloneWeaponInstance,WEAPON_CATALOG,getActiveWeapon,startNewRound,
         updateHUD,flashDamage,showHitmarker,showRoundBanner,addKillFeed,syncCheatPermissionUI,
-        launchAscentMatchImmediate,openWaitingLobby:window.openWaitingLobby,openEntryScreen:window.openEntryScreen,
+        launchAscentMatchImmediate,enterPostMatch,showGroundDisplay,openWaitingLobby:window.openWaitingLobby,openEntryScreen:window.openEntryScreen,
         switchWeaponSlot:window.switchWeaponSlot,getSpikeHeld:()=>isSpikeKeyHeld&&(roomState.playerSide!=='attack'||!!planting())});
       // Complete the small data/audio stage before starting any 3D model jobs.
       let startupStarted=false;
