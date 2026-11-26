@@ -5073,7 +5073,7 @@
         const state=weapon._spreadState;
         visualShot={
           at:now,
-          kick:Math.max(0,weapon.recoilPitch||0),
+          kick:Math.max(0,weapon.recoilPitch||0)*.35,
           startPitch:viewPitch,
           startYaw:viewYaw,
           pitch:Number.isFinite(result.shot.recoil)?result.shot.recoil:0,
