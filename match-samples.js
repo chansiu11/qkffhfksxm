@@ -5,7 +5,8 @@ const MatchSamples = (() => {
   const buffers = new Map();
 
   let previousStep = -1;
-  const localShots = new Set(['bandit', 'warden', 'outlaw']);
+  const localShots = new Set(['bandit', 'warden']);
+  const recordedEquip = new Set(['bandit','warden','outlaw']);
   const pendingShots = new Map();
   function loadShot(ctx, name) {
     if (buffers.has(name)) return Promise.resolve(buffers.get(name));
@@ -65,8 +66,9 @@ const MatchSamples = (() => {
       });
     }
     for(const id of weapons)for(const action of ['equip','reload']){
-      if(id!=='outlaw'||action!=='equip')jobs.push(()=>loadHandling(ctx,id,action));
+      jobs.push(()=>loadHandling(ctx,id,action));
     }
+    for(const id of ['bandit','warden'])jobs.push(()=>loadHandling(ctx,id,'equip'));
     return jobs;
   }
 
@@ -132,10 +134,11 @@ const MatchSamples = (() => {
   let handlingGeneration = 0;
 
   function loadHandling(ctx, weapon, action) {
-    if (!weapons.includes(weapon) || (weapon === 'outlaw' && action === 'equip')) return;
+    const recorded = action === 'equip' && recordedEquip.has(weapon);
+    if (!recorded && !weapons.includes(weapon)) return;
     const key = weapon + '-' + action;
     if (!handlingBuffers.has(key)) {
-      const extension = action === 'reload' && oggReloads.has(weapon) ? 'ogg' : 'mp3';
+      const extension = recorded ? 'wav' : action === 'reload' && oggReloads.has(weapon) ? 'ogg' : 'mp3';
       handlingBuffers.set(key, fetch('audio/handling/' + key + '.' + extension)
         .then(response => {
           if (!response.ok) throw new Error(String(response.status));
@@ -164,7 +167,7 @@ const MatchSamples = (() => {
     const started = ctx.currentTime;
     clip.then(buffer => {
       if (!buffer || generation !== handlingGeneration) return;
-      const rate = buffer.duration / duration;
+      const rate = !reloading && recordedEquip.has(weapon) ? 1 : buffer.duration / duration;
       const offset = (ctx.currentTime - started) * rate;
       if (offset >= buffer.duration) return;
       const source = ctx.createBufferSource();
