@@ -24,7 +24,7 @@ const MatchSamples = (() => {
   function loadClip(ctx,name) {
     if (!clips.has(name)) {
       const folder=name==='menu-click'?'ui':'melee';
-      const request=fetch('audio/'+folder+'/'+name+'.wav?v=recording2')
+      const request=fetch('audio/'+folder+'/'+name+'.wav?v='+(name==='menu-click'?'click-original3':'recording2'))
         .then(response=>{if(!response.ok)throw Error(response.status);return response.arrayBuffer();})
         .then(bytes=>ctx.decodeAudioData(bytes))
         .then(buffer=>buffers.set(name,name==='menu-click'?cleanClick(ctx,buffer):buffer))
