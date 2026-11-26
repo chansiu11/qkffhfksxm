@@ -5,12 +5,23 @@ const MatchSamples = (() => {
   const buffers = new Map();
 
   let previousStep = -1;
-  // Keep existing Outlaw audio available even when startup preloading was skipped.
-  let outlawLoad=null;
-  function loadOutlaw(ctx){
-    if(buffers.has('outlaw'))return Promise.resolve(buffers.get('outlaw'));
-    if(!outlawLoad)outlawLoad=fetch('audio/guns/outlaw.ogg').then(r=>{if(!r.ok)throw Error(r.status);return r.arrayBuffer();}).then(bytes=>ctx.decodeAudioData(bytes)).then(buffer=>{buffers.set('outlaw',buffer);return buffer;}).catch(()=>null).finally(()=>{outlawLoad=null;});
-    return outlawLoad;
+  const localShots = new Set(['bandit', 'warden', 'outlaw']);
+  const pendingShots = new Map();
+  function loadShot(ctx, name) {
+    if (buffers.has(name)) return Promise.resolve(buffers.get(name));
+    if (!pendingShots.has(name)) {
+      const request = fetch('audio/guns/' + name + '-local.ogg')
+        .then(response => {
+          if (!response.ok) throw Error(response.status);
+          return response.arrayBuffer();
+        })
+        .then(bytes => ctx.decodeAudioData(bytes))
+        .then(buffer => { buffers.set(name, buffer); return buffer; })
+        .catch(() => null)
+        .finally(() => pendingShots.delete(name));
+      pendingShots.set(name, request);
+    }
+    return pendingShots.get(name);
   }
 
   const clips = new Map();
@@ -42,11 +53,11 @@ const MatchSamples = (() => {
   }
   function preloadJobs(ctx) {
     const jobs=['menu-click','knife-light','knife-heavy'].map(name=>()=>loadClip(ctx,name));
-    for(const name of [...weapons,...footsteps,'land-01']){
+    for(const name of [...new Set([...weapons, ...localShots]),...footsteps,'land-01']){
       const folder=weapons.includes(name)?'guns':'movement';
       jobs.push(async()=>{
         if(buffers.has(name))return true;
-        if(name==='outlaw')return !!(await loadOutlaw(ctx));
+        if(localShots.has(name))return !!(await loadShot(ctx, name));
         const response=await fetch('audio/'+folder+'/'+name+'.ogg');
         if(!response.ok)throw Error(name);
         buffers.set(name,await ctx.decodeAudioData(await response.arrayBuffer()));
@@ -75,7 +86,13 @@ const MatchSamples = (() => {
       });
       return true;
     }
-    if (!buffer && name==='outlaw')loadOutlaw(ctx);
+    if (!buffer && kind === 'shot' && localShots.has(name)) {
+      const requested = performance.now();
+      loadShot(ctx, name).then(loaded => {
+        if (loaded && performance.now() - requested < 250) play(ctx, output, kind, name, position, volume);
+      });
+      return true;
+    }
     if (!buffer) return false;
     const source = ctx.createBufferSource();
     const gain = ctx.createGain();
@@ -139,6 +156,7 @@ const MatchSamples = (() => {
     const generation = ++handlingGeneration;
     if (handlingSource) { handlingSource.stop(); handlingSource = null; }
     if (!weapon || !ctx || !output) return;
+    if (localShots.has(weapon)) loadShot(ctx, weapon);
     if (!reloading) loadHandling(ctx, weapon, 'reload');
     if (!reloading && previous === weapon + ':reload') return;
     const clip = loadHandling(ctx, weapon, reloading ? 'reload' : 'equip');
