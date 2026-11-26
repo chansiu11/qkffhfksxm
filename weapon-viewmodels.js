@@ -359,7 +359,7 @@
   }
 
   // Strip disconnected decorative islands from the nine newly uploaded display assets.
-  function retainedPropFaces(parts) {
+  function retainedPropFaces(parts,strict=false) {
     let count=0, lo=[Infinity,Infinity,Infinity], hi=[-Infinity,-Infinity,-Infinity];
     for(const a of parts){count+=a.length/9;for(let i=0;i<a.length;i++) {const k=i%3;lo[k]=Math.min(lo[k],a[i]);hi[k]=Math.max(hi[k],a[i]);}}
     if(!count||!Number.isInteger(count))return null;
@@ -391,7 +391,7 @@
     }
     const keep=new Set([main]),distance=new Map();
     for(const [r,g] of groups)if(r!==main){
-      const gap=g.area>=best.area*.025?length*.02:length*.007;
+      const gap=strict?(g.area>=best.area*.025?length*.004:length*.0015):(g.area>=best.area*.025?length*.02:length*.007);
       if(g.lo.some((v,k)=>v>best.hi[k]+gap||g.hi[k]<best.lo[k]-gap))continue;
       distance.set(r,gap*gap);
     }
@@ -410,7 +410,7 @@
     face=0;
     return parts.map(a=>{const out=[];for(let i=0;i<a.length;i+=9,face++)if(keep.has(root(face)))out.push(i/3,i/3+1,i/3+2);return out;});
   }
-  function removeDetachedDecorations(mesh,T){
+  function removeDetachedDecorations(mesh,T,strict=false){
     mesh.updateMatrixWorld(true);
     const nodes=[],parts=[],p=new T.Vector3();
     mesh.traverse(node=>{
@@ -425,7 +425,7 @@
       }
       nodes.push({node,src});parts.push(world);
     });
-    const selected=retainedPropFaces(parts);if(!selected)return;
+    const selected=retainedPropFaces(parts,strict);if(!selected)return;
     for(let n=0;n<nodes.length;n++){
       const {node,src}=nodes[n],keep=selected[n];
       if(keep.length===src.attributes.position.count)continue;
@@ -467,7 +467,7 @@
     const names = Object.keys(entries);
     const mesh = new T.FBXLoader(new T.LoadingManager()).parse(entries[names.find(n => /\.fbx$/i.test(n))].buffer, '');
     removeLabelBands(mesh,id,T);
-    if(Object.hasOwn(heldOnlyArchives,id))removeDetachedDecorations(mesh,T);
+    if(Object.hasOwn(heldOnlyArchives,id))removeDetachedDecorations(mesh,T,id==='stinger');
     const textureName = names.find(n => /_texture\.png$/i.test(n));
     const url = URL.createObjectURL(new Blob([entries[textureName]], {type:'image/png'}));
     let texture;
@@ -496,6 +496,8 @@
     });
     if(files[id] && ['knife','bulldog','guardian','warden','vandal','phantom'].includes(id))body.rotation.y=-Math.PI/2;
     else if(count && sum<0) body.rotation.y+=Math.PI;
+    // User-reported reversed cosmetic model orientation; no simulation changes.
+    if(['stinger','bucky','marshal','outlaw','operator','ares'].includes(id))body.rotation.y+=Math.PI;
     body.updateMatrixWorld(true);
     const bounds=new T.Box3().setFromObject(body);
     const cap=new T.Box3();

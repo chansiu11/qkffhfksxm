@@ -5,6 +5,13 @@ const MatchSamples = (() => {
   const buffers = new Map();
 
   let previousStep = -1;
+  // Keep existing Outlaw audio available even when startup preloading was skipped.
+  let outlawLoad=null;
+  function loadOutlaw(ctx){
+    if(buffers.has('outlaw'))return Promise.resolve(buffers.get('outlaw'));
+    if(!outlawLoad)outlawLoad=fetch('audio/guns/outlaw.ogg').then(r=>{if(!r.ok)throw Error(r.status);return r.arrayBuffer();}).then(bytes=>ctx.decodeAudioData(bytes)).then(buffer=>{buffers.set('outlaw',buffer);return buffer;}).catch(()=>null).finally(()=>{outlawLoad=null;});
+    return outlawLoad;
+  }
 
   const clips = new Map();
   let clickRequest=0, activeClick=null;
@@ -39,6 +46,7 @@ const MatchSamples = (() => {
       const folder=weapons.includes(name)?'guns':'movement';
       jobs.push(async()=>{
         if(buffers.has(name))return true;
+        if(name==='outlaw')return !!(await loadOutlaw(ctx));
         const response=await fetch('audio/'+folder+'/'+name+'.ogg');
         if(!response.ok)throw Error(name);
         buffers.set(name,await ctx.decodeAudioData(await response.arrayBuffer()));
@@ -67,6 +75,7 @@ const MatchSamples = (() => {
       });
       return true;
     }
+    if (!buffer && name==='outlaw')loadOutlaw(ctx);
     if (!buffer) return false;
     const source = ctx.createBufferSource();
     const gain = ctx.createGain();
