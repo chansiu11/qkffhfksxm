@@ -4167,7 +4167,7 @@
           }
 
           camera.position.copy(player.pos);
-          camera.rotation.y = player.yaw;
+          camera.rotation.y = player.yaw + cameraYawRecoil(heldWeapon, performance.now(), dt);
           camera.rotation.x = Math.min(1.48, player.lookPitch + cameraRecoil(heldWeapon, performance.now()));
 
           document.getElementById('hud-callout-name').textContent = player.callout;
@@ -4514,6 +4514,22 @@
       let prevTime = performance.now();
       // Apply recoil only to the view. Shot directions already include ballistic climb.
       let recoilStateSeen, recoilShotAt, recoilStart, recoilPeak;
+      let viewYaw = 0, yawStateSeen;
+      function cameraYawRecoil(weapon, now, dt) {
+        const state = weapon?._spreadState;
+        if (!state || state !== yawStateSeen || !weapon.auto) viewYaw = 0;
+        yawStateSeen = state;
+        if (!state || !weapon.auto || state.yawWeapon !== weapon.id) return 0;
+        const age = Math.max(0, now - state.at);
+        const recovery = ShootingSpread.weaponProfile(weapon).recovery;
+        if (age >= recovery) return viewYaw = 0;
+        const interval = Math.min((player.lastInterval || weapon.fireRate) * 1000, recovery / 2);
+        const fade = 1 - Math.max(0, (age - interval) / (recovery - interval));
+        const target = (state.yawCenter || 0) * fade;
+        viewYaw += (target - viewYaw) * (1 - Math.exp(-dt / .055));
+        return viewYaw;
+      }
+
       function cameraRecoil(weapon, now) {
         const state = weapon?._spreadState;
         if (!state || !Number.isFinite(state.at) || state.weapon !== weapon.id) {
