@@ -520,6 +520,11 @@
     grip.y-=.20*(bounds.max.y-bounds.min.y);
     grip.z+=.30*(bounds.max.z-bounds.min.z);
     body.userData.inspectGrip=body.worldToLocal(grip);
+    body.userData.inspectCorners=[];
+    for(const x of [bounds.min.x,bounds.max.x])
+      for(const y of [bounds.min.y,bounds.max.y])
+        for(const z of [bounds.min.z,bounds.max.z])
+          body.userData.inspectCorners.push(body.worldToLocal(new T.Vector3(x,y,z)));
     return body;
   }
   WeaponViewmodels.create = function(T,catalog) {
@@ -626,6 +631,8 @@
       return model.localToWorld(tip.copy(model.userData.muzzle));
     }
     const gripBefore=new T.Vector3(), gripAfter=new T.Vector3();
+    const inspectCorner=new T.Vector3(), screenAxis=new T.Vector3(0,0,1);
+    const tiltRotation=new T.Quaternion();
     const gunInspectDuration=3;
     function easeInspect(t){
       t=Math.max(0,Math.min(1,t));
@@ -642,9 +649,27 @@
       model.updateWorldMatrix(true,false);
       model.localToWorld(gripBefore.copy(model.userData.inspectGrip));
       pivot.rotation.y=yaw;
+      // Roll in camera space so the muzzle rises on both opposite-facing poses.
+      const tilt=(-15*first+90*turn-75*finish)*Math.PI/180;
+      pivot.quaternion.premultiply(tiltRotation.setFromAxisAngle(screenAxis,tilt));
       model.updateWorldMatrix(true,false);
       model.localToWorld(gripAfter.copy(model.userData.inspectGrip));
       pivot.position.add(gripBefore.sub(gripAfter));
+      model.updateWorldMatrix(true,false);
+      const h=.90*Math.tan(camera.fov*Math.PI/360), w=h*camera.aspect;
+      let left=-Infinity,right=Infinity,bottom=-Infinity,top=Infinity;
+      for(const corner of model.userData.inspectCorners){
+        const p=model.localToWorld(inspectCorner.copy(corner));
+        left=Math.max(left,p.z*w-p.x);
+        right=Math.min(right,-p.z*w-p.x);
+        bottom=Math.max(bottom,p.z*h-p.y);
+        top=Math.min(top,-p.z*h-p.y);
+      }
+      const back=Math.max(0,(left-right)/(2*w),(bottom-top)/(2*h));
+      const weight=first-finish;
+      pivot.position.x+=weight*Math.max(left-back*w,Math.min(0,right+back*w));
+      pivot.position.y+=weight*Math.max(bottom-back*h,Math.min(0,top+back*h));
+      pivot.position.z-=weight*back;
     }
     function applyRecordedInspect(track,time){
       const end=track.findIndex(row=>row[0]>=time);
