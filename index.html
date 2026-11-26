@@ -21,7 +21,7 @@
   <script src="match-samples.js?v=equip-recording3"></script>
   <script src="melee-rules.js?v=equipment2"></script>
   <script src="shotgun-pellets.js"></script>
-  <script src="shooting-spread.js?v=alt22"></script>
+  <script src="shooting-spread.js?v=recoil-camera2"></script>
   <script src="crosshair-profile.js"></script>
   <script src="crosshair-ui.js" defer></script>
   <script src="ads-system.js?v=armory20"></script>
@@ -5073,6 +5073,7 @@
         const state=weapon._spreadState;
         visualShot={
           at:now,
+          kick:Math.max(0,weapon.recoilPitch||0),
           startPitch:viewPitch,
           startYaw:viewYaw,
           pitch:Number.isFinite(result.shot.recoil)?result.shot.recoil:0,
@@ -5100,6 +5101,11 @@
           viewPitch=visualShot.pitch*fade;
           viewYaw=visualShot.yaw*fade;
         }
+        // The discharge moves the view after the ray has already been sampled.
+        const kickEnd=Math.min(duration,visualShot.interval);
+        const peak=Math.min(32,kickEnd*.35);
+        const kickEnvelope=age<peak?smooth(age/peak):1-smooth((age-peak)/Math.max(1,kickEnd-peak));
+        viewPitch+=visualShot.kick*kickEnvelope;
         if(age>=duration)visualShot=null;
         return {pitch:viewPitch,yaw:viewYaw};
       }
