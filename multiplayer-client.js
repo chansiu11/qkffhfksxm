@@ -555,6 +555,27 @@
         b.footY = rp.footY; b.yaw = rp.yaw; b.pitch = rp.pitch;
         const weaponId = rp.weapon in a.WEAPON_CATALOG ? rp.weapon : 'classic';
         if (!b.weapon || b.weapon.id !== weaponId) b.weapon = a.cloneWeaponInstance(weaponId);
+        if(b.displayWeapon!==weaponId){
+          b.displayWeapon=weaponId;
+          if(!b.hold){
+            b.hold=new THREE.Group();
+            b.group.add(b.hold);
+            b.hands=[1,-1].map(side=>{
+              const limb=new THREE.Mesh(b.bodyMesh.geometry,b.bodyMesh.material);
+              b.group.add(limb);
+              return {limb,shoulder:new THREE.Vector3(side*.34,1.16,0),hand:new THREE.Vector3()};
+            });
+          }
+          b.hold.clear();
+          a.viewmodel.remoteModel(weaponId).then(model=>{
+            if(!model||b.displayWeapon!==weaponId||this.peers.get(b.id)!==b)return;
+            const pistol=b.weapon.slot==='secondary';
+            model.scale.multiplyScalar(pistol ? .66 : 1.45);
+            model.position.z=pistol?-.09:-.21;
+            b.hold.add(model);
+          }).catch(()=>{});
+        }
+        b.peerAim=!!rp.aiming && !!b.weapon.canScope && !rp.reloading;
         b.spotted = state.phase !== 'buy' && (isAlly || Math.hypot(rp.x - a.player.pos.x, rp.z - a.player.pos.z) < 20);
         if (!b.targetPosition) b.targetPosition = new THREE.Vector3();
         b.targetPosition.set(rp.x, rp.footY, rp.z);
@@ -678,6 +699,20 @@
         if (!b.targetPosition) continue;
         const alpha=Math.min(1,(dt||0.016)*13);
         b.group.position.lerp(b.targetPosition,alpha);
+        if(b.hold){
+          const t=b.aimBlend=(b.aimBlend||0)+((b.peerAim?1:0)-(b.aimBlend||0))*alpha;
+          b.hold.position.set(.23-.19*t,1.01+.32*t,-.34-.07*t);
+          b.hold.rotation.x=(b.pitch||0)-.13*(1-t);
+          b.hold.updateMatrix();
+          for(let i=0;i<b.hands.length;i++){
+            const {limb,shoulder,hand}=b.hands[i];
+            hand.set(i?-.045:.035,-.045,i?(b.weapon.slot==='primary'?-.24:-.055):.045).applyMatrix(b.hold.matrix);
+            limb.position.copy(shoulder).lerp(hand,.5);
+            hand.sub(shoulder);
+            limb.scale.set(.19,hand.length()/1.24,.32);
+            limb.quaternion.setFromUnitVectors(limb.up,hand.normalize());
+          }
+        }
         if (Number.isFinite(b.targetAt) && Number.isFinite(b.renderAt))
           b.renderAt+=(b.targetAt-b.renderAt)*alpha;
       }
@@ -693,9 +728,9 @@
       // Do not flood the room with identical stationary/aim-still packets.
       // A periodic 600ms refresh keeps server presence and hold state alive.
       const q=n=>Math.round(n*1000)/1000;
-      const move={type:'move',running:!!p.running,audioRunning:!!p.audioRunning,audioGrounded:!!p.audioGrounded,landSeq:p.audioLandingSeq||0,x:q(p.pos.x),y:q(p.pos.y),z:q(p.pos.z),
+      const move={type:'move',aiming:!!p.adsRequested,running:!!p.running,audioRunning:!!p.audioRunning,audioGrounded:!!p.audioGrounded,landSeq:p.audioLandingSeq||0,x:q(p.pos.x),y:q(p.pos.y),z:q(p.pos.z),
         footY:q(p.footY),yaw:q(p.yaw),pitch:q(p.lookPitch??p.pitch)};
-      const key=`${move.x}|${move.y}|${move.z}|${move.footY}|${move.yaw}|${move.pitch}|${move.audioRunning}|${move.audioGrounded}|${move.landSeq}`;
+      const key=`${move.aiming}|${move.x}|${move.y}|${move.z}|${move.footY}|${move.yaw}|${move.pitch}|${move.audioRunning}|${move.audioGrounded}|${move.landSeq}`;
       if (key !== this.lastMoveKey || now-this.lastSent >= 600) {
         if (this.send(move)) {this.lastMoveKey=key; this.lastSent=now;}
       }

@@ -26,6 +26,7 @@ function spawn(p, idx, map, keepWeapons = false) {
   p.armor = 0;
   p.alive = true;
   if (!keepWeapons) {
+    p.aiming=false;
     p.weapon = 'classic';
     p.inventory = { primary: null, secondary: 'classic', knife: 'knife' };
   }
@@ -383,6 +384,7 @@ function receive(c,m) {
     const item=p.inventory?.[slot];
     if(!item||!catalog[item])return;
     if (p.weapon !== item) {cancelEquipmentReload(p);p.bulldogCount=0;p.lastShot=0;p.lastInterval=0;p.equipUntil=now+1000*catalog[item].equipTime;}
+    p.aiming=false;
     p.weapon=item;
     p.mag=p.ammo[item]?.mag ?? catalog[item].magSize;
     p.reserve=p.ammo[item]?.reserve ?? catalog[item].resSize;
@@ -441,6 +443,7 @@ function receive(c,m) {
       if(gateCorrected)send(c,{type:'buy_gate_correction',x:p.x,z:p.z,attemptX:x,attemptZ:z,round:r.round});
       p.yaw=finite(m.yaw,-1e6,1e6,p.yaw);
       p.pitch=finite(m.pitch,-1.48,1.48,p.pitch);
+      p.aiming=m.aiming===true;
       recordPosition(p,now);
     }
     p.lastPosAt=now;
@@ -545,7 +548,7 @@ function snapshot(r) {
   const q=n=>Math.round(n*100)/100;
   return {type:'state',objects:r.objects,serverAt:now,code:r.code,round:r.round,phase:r.phase,timer:q(Math.max(0,(r.until-now)/1000)),
     scores:r.scores,host:r.host,winRounds:r.winRounds,spike:r.spike,
-    players:roomUsers(r).map(p=>({id:p.id,name:p.name,team:p.team,x:q(p.x),y:q(p.y),z:q(p.z),footY:q(p.footY),yaw:q(p.yaw),pitch:q(p.pitch),hp:p.hp,armor:p.armor,alive:p.alive,credits:p.credits,inventory:p.inventory,weapon:p.weapon,mag:p.mag,reserve:p.reserve,reloading:p.reloading,reloadWeapon:p.reloadWeapon,spikeAction:spikeAction(r,p,now)}))};
+    players:roomUsers(r).map(p=>({id:p.id,name:p.name,team:p.team,x:q(p.x),y:q(p.y),z:q(p.z),footY:q(p.footY),yaw:q(p.yaw),pitch:q(p.pitch),aiming:!!p.aiming,hp:p.hp,armor:p.armor,alive:p.alive,credits:p.credits,inventory:p.inventory,weapon:p.weapon,mag:p.mag,reserve:p.reserve,reloading:p.reloading,reloadWeapon:p.reloadWeapon,spikeAction:spikeAction(r,p,now)}))};
 }
 function broadcastState(r) {
   if(r.started)sendSnapshot(r,snapshot(r));

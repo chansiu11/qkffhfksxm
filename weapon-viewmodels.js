@@ -528,6 +528,11 @@
       if(!cache.has(id))cache.set(id,loadModel(id,T).catch(err=>{cache.delete(id);throw err;}));
       return cache.get(id);
     }
+    api.remoteModel=async id=>{
+      if(!hasHeldModel(id))return null;
+      const asset=await getModel(id);
+      return asset?.clone(true);
+    };
     api.preloadJobs=()=>[...Object.keys(files),...Object.keys(heldOnlyArchives)].map(id=>()=>getModel(id));
     // Cosmetic scene props reuse existing resources and never affect simulation.
     api.createGroundDisplay=(id,group)=>{
