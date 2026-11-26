@@ -1240,11 +1240,11 @@
       const renderQuality = {
         dpr: Math.min(window.devicePixelRatio || 1, coarseDevice ? 1.0 : 1.25),
         max: Math.min(window.devicePixelRatio || 1, coarseDevice ? 1.2 : 1.5),
-        min: coarseDevice ? 0.55 : 0.75,
+        min: coarseDevice ? 0.50 : 0.65,
         frames: 0, lastAt: performance.now(), fastestFrame: 100, warmup: 0, goodPeriods: 0
       };
-      renderer.setSize(window.innerWidth, window.innerHeight);
       renderer.setPixelRatio(renderQuality.dpr);
+      renderer.setSize(window.innerWidth, window.innerHeight);
       // High resolution cascaded shadows cost more than the whole map on low-power phones.
       renderer.shadowMap.enabled = !coarseDevice;
       renderer.shadowMap.type = THREE.PCFShadowMap;
@@ -2408,57 +2408,74 @@
         });
       }
 
+      // Avoid repeating DOM writes when the visible value has not changed.
+      const hudElements=new Map();
+      function hudElement(id){
+        let el=hudElements.get(id);
+        if(!el||!el.isConnected){el=document.getElementById(id);if(el)hudElements.set(id,el);}
+        return el;
+      }
+      function hudText(el,value){
+        if(!el)return;
+        const text=String(value);
+        if(el.textContent!==text)el.textContent=text;
+      }
+      function hudClass(el,value){if(el&&el.className!==value)el.className=value;}
+      function hudStyle(el,key,value){if(el&&el.style[key]!==value)el.style[key]=value;}
+      function hudVisible(el,visible){
+        if(el&&el.classList.contains('hidden')===visible)el.classList.toggle('hidden',!visible);
+      }
       function updateHUD() {
-        document.getElementById('hud-room-code').textContent = roomState.code;
-        document.getElementById('hud-score-ally').textContent = matchState.allyScore;
-        document.getElementById('hud-score-enemy').textContent = matchState.enemyScore;
-        document.getElementById('hud-round-label').textContent = `ROUND ${matchState.round} // ${matchState.phase.toUpperCase()}`;
+        hudText(hudElement('hud-room-code'), roomState.code);
+        hudText(hudElement('hud-score-ally'), matchState.allyScore);
+        hudText(hudElement('hud-score-enemy'), matchState.enemyScore);
+        hudText(hudElement('hud-round-label'), `ROUND ${matchState.round} // ${matchState.phase.toUpperCase()}`);
 
         const isAtk = roomState.playerSide === 'attack';
-        const roleEl = document.getElementById('hud-team-role');
-        roleEl.textContent = isAtk ? 'ATTACKERS (공격팀)' : 'DEFENDERS (수비팀)';
-        roleEl.className = isAtk ? 'font-bold text-[#ff4655] text-[10px] mt-0.5 uppercase tracking-wider' : 'font-bold text-[#38e2c7] text-[10px] mt-0.5 uppercase tracking-wider';
+        const roleEl = hudElement('hud-team-role');
+        hudText(roleEl, isAtk ? 'ATTACKERS (공격팀)' : 'DEFENDERS (수비팀)');
+        hudClass(roleEl, isAtk ? 'font-bold text-[#ff4655] text-[10px] mt-0.5 uppercase tracking-wider' : 'font-bold text-[#38e2c7] text-[10px] mt-0.5 uppercase tracking-wider');
 
         if (activeMap==='range' || roomState.allowCheats && cheats.infiniteCreds) player.credits = 9000;
-        document.getElementById('hud-credits').textContent = player.credits.toLocaleString();
-        const shopCredEl = document.getElementById('shop-credits-val');
-        if (shopCredEl) shopCredEl.textContent = player.credits.toLocaleString();
+        hudText(hudElement('hud-credits'), player.credits.toLocaleString());
+        const shopCredEl = hudElement('shop-credits-val');
+        if (shopCredEl) hudText(shopCredEl, player.credits.toLocaleString());
 
         const specTarget = !player.alive ? getCurrentSpectatedAlly() : null;
-        const specBanner = document.getElementById('spectator-banner');
+        const specBanner = hudElement('spectator-banner');
 
         if (!player.alive && specTarget) {
-          specBanner.classList.remove('hidden');
-          document.getElementById('spec-alive-count').textContent = `ALIVE ALLIES: ${getAliveAllies().length}`;
-          document.getElementById('spec-target-name').textContent = `SPECTATING // ${specTarget.name}`;
-          document.getElementById('spec-target-info').textContent = `HP ${Math.ceil(specTarget.hp)} // ${specTarget.weapon.name} // ${specTarget.callout}`;
+          hudVisible(specBanner,true);
+          hudText(hudElement('spec-alive-count'), `ALIVE ALLIES: ${getAliveAllies().length}`);
+          hudText(hudElement('spec-target-name'), `SPECTATING // ${specTarget.name}`);
+          hudText(hudElement('spec-target-info'), `HP ${Math.ceil(specTarget.hp)} // ${specTarget.weapon.name} // ${specTarget.callout}`);
         } else {
-          specBanner.classList.add('hidden');
+          hudVisible(specBanner,false);
         }
 
         const displayHp = specTarget ? Math.max(0, Math.ceil(specTarget.hp)) : Math.max(0, Math.ceil(player.hp));
         const displayArmor = Math.ceil(specTarget ? specTarget.armor : player.armor);
-        const hpOwnerEl = document.getElementById('hud-hp-owner');
-        hpOwnerEl.textContent = specTarget ? 'SPEC HP' : 'HP';
+        const hpOwnerEl = hudElement('hud-hp-owner');
+        hudText(hpOwnerEl, specTarget ? 'SPEC HP' : 'HP');
 
-        const hpEl = document.getElementById('hud-hp-val');
-        hpEl.textContent = displayHp;
-        hpEl.className = displayHp <= 30 ? 'font-num text-2xl sm:text-3xl font-black text-[#ff4655] leading-none' : 'font-num text-2xl sm:text-3xl font-black text-[#ece8e1] leading-none';
+        const hpEl = hudElement('hud-hp-val');
+        hudText(hpEl, displayHp);
+        hudClass(hpEl, displayHp <= 30 ? 'font-num text-2xl sm:text-3xl font-black text-[#ff4655] leading-none' : 'font-num text-2xl sm:text-3xl font-black text-[#ece8e1] leading-none');
 
-        document.getElementById('hud-armor-val').textContent = displayArmor;
-        const hpBar = document.getElementById('hud-hp-bar');
-        hpBar.style.width = Math.max(0, displayHp) + '%';
-        hpBar.className = displayHp <= 30 ? 'h-full bg-[#ff4655] transition-all duration-150' : 'h-full bg-[#38e2c7] transition-all duration-150';
+        hudText(hudElement('hud-armor-val'), displayArmor);
+        const hpBar = hudElement('hud-hp-bar');
+        hudStyle(hpBar,'width',Math.max(0, displayHp) + '%');
+        hudClass(hpBar, displayHp <= 30 ? 'h-full bg-[#ff4655] transition-all duration-150' : 'h-full bg-[#38e2c7] transition-all duration-150');
 
-        document.getElementById('slot-primary-name').textContent = player.primary ? player.primary.name : 'EMPTY';
-        document.getElementById('slot-secondary-name').textContent = player.secondary.name;
+        hudText(hudElement('slot-primary-name'), player.primary ? player.primary.name : 'EMPTY');
+        hudText(hudElement('slot-secondary-name'), player.secondary.name);
 
         const w = specTarget ? specTarget.weapon : getActiveWeapon();
-        document.getElementById('hud-weapon-title').textContent = w.name;
-        document.getElementById('hud-ammo-mag').textContent = w.slot === 'knife' ? 'INF' : (((activeMap==='range' && setting('ammo').checked || roomState.allowCheats && cheats.infiniteAmmo) && !specTarget) ? 'INF' : w.mag);
-        document.getElementById('hud-ammo-res').textContent = w.slot === 'knife' ? '-' : w.reserve;
+        hudText(hudElement('hud-weapon-title'), w.name);
+        hudText(hudElement('hud-ammo-mag'), w.slot === 'knife' ? 'INF' : (((activeMap==='range' && setting('ammo').checked || roomState.allowCheats && cheats.infiniteAmmo) && !specTarget) ? 'INF' : w.mag));
+        hudText(hudElement('hud-ammo-res'), w.slot === 'knife' ? '-' : w.reserve);
         viewmodel.setWeapon(w.id,w.equipTime);
-        document.querySelector('#mob-ads-btn span').textContent=w.slot==='knife'?'강공격':'ADS';
+        hudText(document.querySelector('#mob-ads-btn span'),w.slot==='knife'?'강공격':'ADS');
 
         renderTopAlivePortraits();
       }
@@ -2902,7 +2919,7 @@
             GameMovement.reset(player);resetMovementAudio(player);
           }
           drill.finished=drill.checkpoint===ledges.length-1;
-          setting('score').textContent='파쿠르 '+(drill.checkpoint+1)+' / '+ledges.length+' · '+((now-drill.started)/1000).toFixed(1)+'초';
+          hudText(setting('score'),'파쿠르 '+(drill.checkpoint+1)+' / '+ledges.length+' · '+((now-drill.started)/1000).toFixed(1)+'초');
           return;
         }
         const scored=['easy','medium','hard'].includes(drill.mode);
@@ -2920,7 +2937,7 @@
             if(drill.mode==='target'){b.baseX=2.5;b.group.position.set(2.5,0,drill.board.position.z);}
             if(setting('strafe').checked)b.group.position.x=b.baseX+Math.sin(now*.0025+i)*1.6;
           }
-          setting('score').textContent=drill.mode==='target'?'표적 · '+drill.marks.length+'발':(drill.finished?'완료 · ':'')+drill.kills+(scored?' / 30':Number.isFinite(goal)?' / '+goal:' 처치')+' · '+((now-drill.started)/1000).toFixed(1)+'초';
+          hudText(setting('score'),drill.mode==='target'?'표적 · '+drill.marks.length+'발':(drill.finished?'완료 · ':'')+drill.kills+(scored?' / 30':Number.isFinite(goal)?' / '+goal:' 처치')+' · '+((now-drill.started)/1000).toFixed(1)+'초');
         }
       }
       function rangeSettings() {
@@ -4352,10 +4369,10 @@
           camera.rotation.y = player.yaw + visual.yaw;
           camera.rotation.x = Math.max(-1.48, Math.min(1.48, player.lookPitch + visual.pitch));
 
-          document.getElementById('hud-callout-name').textContent = player.callout;
+          hudText(hudElement('hud-callout-name'), player.callout);
           const elevSign = player.footY >= 0 ? '+' : '';
-          document.getElementById('hud-elevation-badge').textContent = `${elevSign}${player.footY.toFixed(1)}m`;
-          document.getElementById('hud-map-coordinates').textContent = `X: ${player.pos.x.toFixed(1)} / Z: ${player.pos.z.toFixed(1)}`;
+          hudText(hudElement('hud-elevation-badge'), `${elevSign}${player.footY.toFixed(1)}m`);
+          hudText(hudElement('hud-map-coordinates'), `X: ${player.pos.x.toFixed(1)} / Z: ${player.pos.z.toFixed(1)}`);
         } else {
           // PLAYER IS DEAD -> LIVE 1ST-PERSON TEAMMATE SPECTATOR CAMERA!
           const specAlly = getCurrentSpectatedAlly();
@@ -4370,10 +4387,10 @@
             camera.rotation.y = specAlly.yaw;
             camera.rotation.x = specAlly.pitch;
 
-            document.getElementById('hud-callout-name').textContent = specAlly.callout;
+            hudText(hudElement('hud-callout-name'), specAlly.callout);
             const elevSign = specAlly.footY >= 0 ? '+' : '';
-            document.getElementById('hud-elevation-badge').textContent = `${elevSign}${specAlly.footY.toFixed(1)}m`;
-            document.getElementById('hud-map-coordinates').textContent = `X: ${specAlly.group.position.x.toFixed(1)} / Z: ${specAlly.group.position.z.toFixed(1)}`;
+            hudText(hudElement('hud-elevation-badge'), `${elevSign}${specAlly.footY.toFixed(1)}m`);
+            hudText(hudElement('hud-map-coordinates'), `X: ${specAlly.group.position.x.toFixed(1)} / Z: ${specAlly.group.position.z.toFixed(1)}`);
           }
         }
 
@@ -4576,7 +4593,7 @@
         const sec = Math.max(0, Math.ceil(matchState.timer));
         const m = Math.floor(sec / 60);
         const s = String(sec % 60).padStart(2, '0');
-        document.getElementById('hud-timer-text').textContent = matchState.spikePlanted ? `SPIKE ${sec}s` : `${m}:${s}`;
+        hudText(hudElement('hud-timer-text'), matchState.spikePlanted ? `SPIKE ${sec}s` : `${m}:${s}`);
 
         const inSite = gameSpikeSiteAt(player.pos.x, player.pos.z, player.footY);
         const promptEl = document.getElementById('hud-context-prompt');
@@ -4658,6 +4675,7 @@
       // FPS is displayed as a measured value. Rendering cannot exceed the display's
       // refresh rate, so this prioritizes stable frame pacing over fake "120 FPS".
       let lastRadarAt = 0;
+      let lastMenuRenderAt=-Infinity, previousRenderWasMatch=false;
       const perfStats = document.getElementById('hud-network-stats');
       function updateRenderQuality(now, frameMs) {
         renderQuality.frames++;
@@ -4675,10 +4693,10 @@
         // The fastest recent rAF interval is a rough indication of panel refresh.
         const highRefresh = renderQuality.fastestFrame < 11.0;
         const target = highRefresh ? (coarseDevice ? 90 : 120) : 60;
-        if (matchState.inMatch && renderQuality.warmup > 2) {
+        if (matchState.inMatch && !document.hidden && renderQuality.warmup > 1) {
           const before = renderQuality.dpr;
           if (fps < target * 0.79) {
-            renderQuality.dpr = Math.max(renderQuality.min, before - 0.11);
+            renderQuality.dpr = Math.max(renderQuality.min, before - (fps < target*.55 ? .18 : .10));
             renderQuality.goodPeriods = 0;
           } else if (fps >= target * 0.96) {
             renderQuality.goodPeriods++;
@@ -4746,7 +4764,9 @@
         const frameMs = now - prevTime;
         const dt = Math.min(0.05, frameMs / 1000);
         prevTime = now;
-        updateRenderQuality(now, frameMs);
+        if(frameMs>250||document.hidden){
+          renderQuality.frames=0;renderQuality.lastAt=now;renderQuality.fastestFrame=100;
+        }else updateRenderQuality(now,frameMs);
 
         const heldWeapon = matchState.inMatch && player.alive ? getActiveWeapon() : null;
         const audibleReload = player.reloading && (!window.MP.active || player.reloadServerConfirmed);
@@ -4773,7 +4793,7 @@
           renderScoreboard(now);
           if (now - lastRadarAt > 75) {drawAscentRadar();lastRadarAt = now;}
         } else {
-          if(!document.getElementById('match-scoreboard').hidden)setScoreboard(false);
+          if(!hudElement('match-scoreboard').hidden)setScoreboard(false);
           resetCameraEffects();
           if(player.adsRequested||player.adsProgress)resetADS();
           viewmodel.update(dt, player, matchState); // Hide the 2D viewmodel in menus and after a match.
@@ -4796,8 +4816,15 @@
         }
 
         updateHitBursts(dt);
-        renderer.render(scene, camera);
-        viewmodel.renderModel(renderer);
+        // The decorative menu backdrop does not need display-refresh rendering.
+        // Match rendering is still driven by requestAnimationFrame as before.
+        const renderMenu=now-lastMenuRenderAt>=100;
+        if(matchState.inMatch||previousRenderWasMatch||renderMenu){
+          renderer.render(scene,camera);
+          if(matchState.inMatch)viewmodel.renderModel(renderer);
+          else lastMenuRenderAt=now;
+        }
+        previousRenderWasMatch=matchState.inMatch;
       }
 
       window.MP.install({spikeRoundResult,stopSpikeClip,gameSound,afterScopedShot,syncMapObjects,selectMap,resetChat,appendChat,roomState,matchState,player,bots,scene,spikeMesh,barrierGroup,gunGroup,muzzleFlashMesh,viewmodel,gameSpikeSiteAt,sfx,
