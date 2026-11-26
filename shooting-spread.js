@@ -41,8 +41,8 @@
     frenzy:   {hip:.65, pitch:[0,.18,.85,3.5,3.5,3.5,3.5], bloom:4},
     ghost:    {hip:.3,  pitch:[0,.045,.18,.65,1.25,1.6,1.6]},
     sheriff:  {hip:.25, pitch:[0,.28,.8,2.25,3.1,3.1,3.1]},
-    stinger:  {hip:.65, ads:.35,pitch:[0,.18,.7,2.4,3.9,4.3,4.3], bloom:5},
-    spectre:  {hip:.4,  ads:.25,pitch:[0,.07,.28,1.15,2.65,3.4,3.4], protected:5},
+    stinger:  {hip:.65, ads:.35,pitch:[0,.18,.7,2.4,3.9,4.3,4.3], bloom:5, hipMax:1.5},
+    spectre:  {hip:.4,  ads:.25,pitch:[0,.07,.28,1.15,2.65,3.4,3.4], hipMax:1.3, protected:5},
     bucky:    {hip:3,   pitch:[0,.09,.12,.12,.12,.12,.12]},
     judge:    {hip:2.5, pitch:[0,.25,.72,1.65,2.4,2.4,2.4]},
     bulldog:  {hip:.3,  ads:.3,pitch:[0,.09,.31,1.35,2.95,3.75,3.75], protected:5},
@@ -134,7 +134,8 @@
     const base=multi?.0045:scatterBase;
     const moveCone=(Math.max(.012,Number(w?.spreadMove)||.04)*p.move)*onMove*crouch*ads;
     const airborneCone=air*.040*p.move;
-    const sprayCone=Math.pow(Math.min(1,shot/(tune.bloom??11)),1.5)*.024*p.growth*(ads*.83+.17);
+    const bloomLimit=tune.hipMax && !options.ads ? (tune.hipMax-tune.hip)*rad : .024*p.growth;
+    const sprayCone=Math.pow(Math.min(1,shot/(tune.bloom??11)),1.5)*bloomLimit*(ads*.83+.17);
     const cone=Math.min(.19,base + moveCone + airborneCone + sprayCone);
     const [randA,randB]=rand2(options.seed);
     const radius=Math.sqrt(randA)*cone; // uniform disk, not central-bias moving shots
