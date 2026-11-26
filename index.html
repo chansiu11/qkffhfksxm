@@ -2200,16 +2200,18 @@
        * ========================================================================= */
       let roundKillStreak = 0;
 
+      let roundBannerTimer=0;
       function showRoundBanner(subText, mainText) {
         const banner = document.getElementById('round-banner');
         const subEl = document.getElementById('round-banner-sub');
         const mainEl = document.getElementById('round-banner-main');
-        if (!banner) return;
+        if (!banner||!subEl||!mainEl) return;
+        clearTimeout(roundBannerTimer);
         subEl.textContent = subText;
         mainEl.textContent = mainText;
         banner.style.opacity = '1';
         banner.style.transform = 'scale(1)';
-        setTimeout(() => {
+        roundBannerTimer=setTimeout(() => {
           banner.style.opacity = '0';
           banner.style.transform = 'scale(0.95)';
         }, 2300);
@@ -2563,11 +2565,11 @@
         }, 150);
       }
 
-      let roundTransitionTimer=0;
+      let roundTransitionTimer=0,roundTransitionDeadline=0;
       const localShopReceipts={};
       function startNewRound() {
         resetRoundStartAudio();
-        clearTimeout(roundTransitionTimer);roundTransitionTimer=0;
+        clearTimeout(roundTransitionTimer);roundTransitionTimer=0;roundTransitionDeadline=0;
         delete localShopReceipts.primary;delete localShopReceipts.secondary;
         clearGroundDisplays();
         document.getElementById('buy-shop-overlay')?.classList.add('hidden');
@@ -2769,7 +2771,7 @@
 
       window.openEntryScreen = function (e) {
         resetRoundStartAudio();
-        clearTimeout(roundTransitionTimer);roundTransitionTimer=0;
+        clearTimeout(roundTransitionTimer);roundTransitionTimer=0;roundTransitionDeadline=0;
         clearGroundDisplays();
         if(activeMap==='range'){
           document.body.classList.remove('in-range');setting('controls').hidden=true;
@@ -2801,7 +2803,7 @@
 
       window.openWaitingLobby = function (e) {
         resetRoundStartAudio();
-        clearTimeout(roundTransitionTimer);roundTransitionTimer=0;
+        clearTimeout(roundTransitionTimer);roundTransitionTimer=0;roundTransitionDeadline=0;
         clearGroundDisplays();
         if(activeMap==='range')return window.openEntryScreen(e);
         if (e) e.stopPropagation();
@@ -3201,9 +3203,10 @@
       function endRound(winnerTeam, reasonText) {
         if (window.MP.active) return;
         if (matchState.phase === 'round_end') return;
-        spikeRoundResult(reasonText);
+        try{spikeRoundResult(reasonText);}catch(error){console.warn('Optional result audio:',error);}
         matchState.phase = 'round_end';
-        matchState.timer = 4.0;
+        roundTransitionDeadline=performance.now()+3500;
+        matchState.timer = 3.5;
 
         if (winnerTeam === 'ally') {
           matchState.allyScore++;
@@ -4153,7 +4156,7 @@
       const spikeBuffers = new Map();
       const spikeVoices = new Map();
       let countdownRound = null;
-      const roundStartAudioPath='audio/round-start.mp3?v=1';
+      const roundStartAudioPath='audio/'+encodeURIComponent('Round Start Ping - Sound Effect (Valorant Game SFX).mp3')+'?v=2';
       let roundStartBuffer=null,roundStartSource=null,roundStartPlayed=false,roundStartGeneration=0;
       function loadRoundStartAudio(){
         if(!sfx.ctx)return Promise.resolve(null);
@@ -4202,7 +4205,7 @@
         const voice = spikeVoices.get(slot);
         if (!voice) return;
         spikeVoices.delete(slot);
-        if (voice.source) voice.source.stop();
+        if (voice.source) {try{voice.source.stop();}catch(error){console.warn('Audio cleanup:',error);}}
       }
 
       function playSpikeClip(name, slot, x, y, z, own, offset = 0) {
@@ -4706,6 +4709,9 @@
           d.mesh.position.y = nextY + 1.8;
         });
 
+        if(matchState.phase==='round_end'&&roundTransitionDeadline>0){
+          matchState.timer=Math.max(0,(roundTransitionDeadline-performance.now())/1000);
+        }
         if (!(roomState.allowCheats && cheats.pauseTimer) && matchState.phase !== 'round_end') {
           matchState.timer -= dt;
           if (matchState.timer <= 0) {
@@ -4925,8 +4931,7 @@
         if(!window.MP.active&&action&&action!==lastAction)gameSound(action,player.pos.x,player.pos.z,true);
         if (!action && lastAction) stopSpikeClip(lastAction + '-local');
         lastAction=action;
-        syncSpikeCountdown();
-        syncRoundStartAudio();
+        try{syncSpikeCountdown();syncRoundStartAudio();}catch(error){console.warn('Optional countdown audio:',error);}
         if (matchState.inMatch) {
           const holdingAnyFire = isMouseFiring || isKeyboardFiring || isLeftTouchFiring || isRightTouchFiring;
           if ((holdingAnyFire || (player.bulldogCount && player.isScoped && getActiveWeapon().id==='bulldog')) && player.alive && getActiveWeapon().auto) attemptFire();
