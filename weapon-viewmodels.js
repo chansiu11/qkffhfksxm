@@ -293,6 +293,7 @@
 (function () {
   const createSprite = WeaponViewmodels.create;
   const files = {
+    bulldog:'Bulldog_Rifle', guardian:'Guardian', warden:'Valorant_New_Gun_Warden', knife:'Tactical_Shadow_Blade',
     classic: 'Black_Semi_Automatic_Pistol', shorty: 'Shadowbreaker',
     frenzy: 'Tactical_Shadow_SMG', ghost: 'Shadow_Sentinel',
     bandit: 'Shadowline_Pistol', sheriff: 'Shadowhawk_Revolver'
@@ -305,6 +306,30 @@
     bandit:  {scale:.52, right:.163, height:-.145, inspectYaw:1.02, turnRoll:.94, reloadDrop:.16, reloadRoll:.46},
     sheriff: {scale:.61, right:.154, height:-.155, inspectYaw:1.21, turnRoll:.62, reloadDrop:.12, reloadRoll:.86}
   };
+  const riflePose={scale:1.04,right:.17,height:-.15,inspectYaw:.85,turnRoll:.66,reloadDrop:.17,reloadRoll:.47};
+  Object.assign(poses,{bulldog:riflePose,warden:riflePose,guardian:riflePose,knife:{...riflePose,scale:.69}});
+  // These FBXs have detached lettering above/below the prop in local Z.
+  function removeLabelBands(mesh,id,T){
+    if(id!=='knife' && id!=='bulldog')return;
+    mesh.traverse(node=>{
+      if(!node.isMesh)return;
+      const src=node.geometry.index?node.geometry.toNonIndexed():node.geometry;
+      src.computeBoundingBox();
+      const bottom=src.boundingBox.min.z, height=src.boundingBox.max.z-bottom;
+      const positions=src.attributes.position, keep=[];
+      for(let i=0;i<positions.count;i+=3){
+        const z=((positions.getZ(i)+positions.getZ(i+1)+positions.getZ(i+2))/3-bottom)/height;
+        if(id==='knife'?z>.36:z>.16 && z<.71)keep.push(i,i+1,i+2);
+      }
+      const cleaned=new T.BufferGeometry();
+      for(const [key,attr] of Object.entries(src.attributes)){
+        const size=attr.itemSize, values=new attr.array.constructor(keep.length*size);
+        keep.forEach((v,j)=>values.set(attr.array.subarray(v*size,(v+1)*size),j*size));
+        cleaned.setAttribute(key,new T.BufferAttribute(values,size,attr.normalized));
+      }
+      node.geometry=cleaned;
+    });
+  }
   let dependencies;
   function script(src) {
     return new Promise((resolve, reject) => {
@@ -317,12 +342,13 @@
     dependencies ||= script('https://cdn.jsdelivr.net/npm/fflate@0.8.2/umd/index.js')
       .then(() => script('https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/FBXLoader.js'));
     try { await dependencies; } catch(error){ dependencies=null; throw error; }
-    const archive = 'refs/classic/Meshy_AI_' + files[id] + '_20261125_texture_fbx' + (id === 'classic' ? ' (1)' : '') + '.zip';
+    const archive = 'refs/classic/Meshy_AI_' + files[id] + (id==='knife'||id==='guardian'?'_20261126':'_20261125') + '_texture_fbx' + (id === 'classic' ? ' (1)' : '') + '.zip';
     const response = await fetch(archive);
     if (!response.ok) throw Error(archive);
     const entries = fflate.unzipSync(new Uint8Array(await response.arrayBuffer()));
     const names = Object.keys(entries);
     const mesh = new T.FBXLoader(new T.LoadingManager()).parse(entries[names.find(n => /\.fbx$/i.test(n))].buffer, '');
+    removeLabelBands(mesh,id,T);
     const textureName = names.find(n => /_texture\.png$/i.test(n));
     const url = URL.createObjectURL(new Blob([entries[textureName]], {type:'image/png'}));
     let texture;
@@ -349,7 +375,8 @@
         if(p.y < -.06){sum+=p.z; count++;}
       }
     });
-    if(count && sum<0) body.rotation.y+=Math.PI;
+    if(files[id] && ['knife','bulldog','guardian','warden'].includes(id))body.rotation.y=-Math.PI/2;
+    else if(count && sum<0) body.rotation.y+=Math.PI;
     body.updateMatrixWorld(true);
     const bounds=new T.Box3().setFromObject(body);
     const cap=new T.Box3();
@@ -426,6 +453,16 @@
         -.54+.05*lift+.045*kick);
       pivot.rotation.set(.12+.30*kick+.20*lift+(selected==='classic'?0:.73*liftBarrel+.48*seat),
         .30+pose.inspectYaw*lift-.45*turn+.16*dip+.25*shortyInspect-.56*shortyTurn,-.06-.24*lift-pose.turnRoll*turn-pose.reloadRoll*dip-.22*seat-.47*shortyReload);
+      if(selected==='knife'){
+        const slash=Math.sin(Math.PI*Math.min(1,shot/.33))**2;
+        pivot.position.x-=.20*slash;
+        pivot.rotation.z+=1.14*slash;
+      } else if(catalog[selected]?.canScope){
+        const ads=Math.max(0,Math.min(1,player.adsProgress||0));
+        pivot.position.x*=1-ads;
+        pivot.position.y+=.075*ads;
+        pivot.rotation.y*=1-ads;
+      }
       const photo=document.querySelector('#fps-weapon-sprite-layer .fps-paper-weapon');
       if(photo)photo.style.opacity='0';
       const flash=photo?.nextElementSibling;
