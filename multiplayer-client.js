@@ -334,7 +334,7 @@
         case 'bullet_tag': if(a.player.alive) a.player.taggedAt=performance.now(); break;
         case 'hit': {
           a.showHitmarker(!!data.headshot);
-          if (data.headshot) a.sfx.playHeadshotDing();
+          // No synthesized ding over the round notification audio.
           if(Array.isArray(data.effects))for(const effect of data.effects.slice(0,16)){
             if(Array.isArray(effect?.point)&&effect.point.length===3&&effect.point.every(Number.isFinite))
               a.spawnHitBurst?.(new THREE.Vector3(...effect.point),!!effect.head);

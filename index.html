@@ -14,7 +14,7 @@
   <script src="config.js?v=perf19"></script>
   <script src="host-transport.js?v=armory20"></script>
   <script src="movement-physics.js?v=move25"></script>
-  <script src="multiplayer-client.js?v=visual-event1"></script>
+  <script src="multiplayer-client.js?v=notice-audio2"></script>
   <link rel="stylesheet" href="menu.css" />
   <!-- Three.js r128 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -758,7 +758,7 @@
     <div class="menu-frame">
       <header class="menu-topbar">
         <div class="menu-brand"><span class="menu-brand-symbol">V<span>∕</span></span><span class="menu-brand-copy"><b>VALORANT<span class="menu-brand-mark"> // WEB</span></b><small>TACTICAL SHOOTER · PROJECT ASCENT</small></span></div>
-        <div class="menu-top-actions"><span class="menu-build">BUILD 0.1 · WEB CLIENT</span><div class="menu-network"><span class="menu-network-dot"></span><span id="online-status" role="status">온라인 서버 연결 상태 확인 중...</span></div></div>
+        <div class="menu-top-actions"><span class="menu-build">BUILD 0.1 · WEB CLIENT</span><span id="kill-audio-ready" style="font-size:11px;color:#a8b9c4" role="status">킬 효과음 0/5</span><div class="menu-network"><span class="menu-network-dot"></span><span id="online-status" role="status">온라인 서버 연결 상태 확인 중...</span></div></div>
       </header>
       <main class="menu-main">
         <section class="menu-hero" aria-label="게임 소개">
@@ -2218,7 +2218,9 @@
       let activeKillAudio = null, killAudioGeneration = 0;
       function killTier(count){ return Math.max(1,Math.min(5,Math.floor(count)||1)); }
       const killTiers=[1,2,3,4,5];
-      const killAudioPath=tier=>'audio/kill/kill-'+killTier(tier)+'.mp3';
+      const killAudioPath=tier=>'audio/kill/kill-'+killTier(tier)+'.mp3?v=originals1';
+      const readyKillAudio=new Set();
+      function reportKillAudio(){const el=document.getElementById('kill-audio-ready');if(el)el.textContent='킬 효과음 '+readyKillAudio.size+'/5'+(readyKillAudio.size===5?' 준비 완료':' · 음원 확인 중 또는 누락');}
       async function loadKillAudio(tier){
         tier=killTier(tier);
         if(!sfx.ctx)return null;
@@ -2226,7 +2228,8 @@
           const pending=fetch(killAudioPath(tier))
             .then(r=>{if(!r.ok)throw Error(r.status+' '+killAudioPath(tier));return r.arrayBuffer();})
             .then(bytes=>sfx.ctx.decodeAudioData(bytes))
-            .catch(error=>{console.warn('Notification audio unavailable',error);return null;});
+            .then(buffer=>{readyKillAudio.add(tier);reportKillAudio();return buffer;})
+            .catch(error=>{readyKillAudio.delete(tier);reportKillAudio();console.warn('Notification audio unavailable',error);return null;});
           killAudioBuffers.set(tier,pending);
           pending.then(buffer=>{if(!buffer&&killAudioBuffers.get(tier)===pending)killAudioBuffers.delete(tier);});
         }
@@ -3449,7 +3452,7 @@
               } else if(activeMap==='range')setting('result').textContent=(isHead?'머리':'명중')+' · 피해 '+Math.round(before-targetBot.hp-targetBot.armor)+' · '+firstHit.distance.toFixed(1)+' m';
               spawnHitBurst(endPt,!!isHead);
               showHitmarker(isHead);
-              if (isHead) sfx.playHeadshotDing();
+              // Keep visual feedback; notification audio is handled separately.
 
               if (targetBot.hp <= 0 && targetBot.alive) {
                 targetBot.alive = false;
