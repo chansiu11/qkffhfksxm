@@ -388,7 +388,8 @@ function receive(c,m) {
     p.reserve=p.ammo[item]?.reserve ?? catalog[item].resSize;
     send(c, {type:'inventory',weapon:item,mag:p.mag,reserve:p.reserve});
   }
-  else if(m.type==='move' && r.started && p.alive && ['combat','buy','planted'].includes(r.phase)) {
+  // Keep non-combat inter-round position updates synchronized, using the existing bounds checks.
+  else if(m.type==='move' && r.started && p.alive && ['combat','buy','planted','round_end'].includes(r.phase)) {
     if(planting(r,p)){p.y=p.footY+1.2;return;}
     const x=finite(m.x,-LIMIT,LIMIT,p.x),z=finite(m.z,-LIMIT,LIMIT,p.z),
           footY=finite(m.footY,-5,16,p.footY),y=finite(m.y,-4,20,p.y);

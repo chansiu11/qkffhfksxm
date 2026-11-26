@@ -91,7 +91,7 @@ function make(mp){
   }
   function getWorker(){
     if(worker)return;
-    try{worker=new Worker('host-runtime.js?v=shop-refund1');}catch(_){return;}
+    try{worker=new Worker('host-runtime.js?v=round-wait2');}catch(_){return;}
     worker.onmessage=e=>{
       const m=e.data;lastWorkerAt=performance.now();
       if(m.type==='ready'){workerReady=true;report();}
