@@ -240,15 +240,20 @@
     }
 
     @keyframes valKillPop {
-      0% { opacity: 0; transform: translate(-50%, 20px) scale(0.4); }
-      18% { opacity: 1; transform: translate(-50%, 0px) scale(1.15); }
-      34% { transform: translate(-50%, 0px) scale(1.0); }
-      82% { opacity: 1; transform: translate(-50%, 0px) scale(1.0); }
-      100% { opacity: 0; transform: translate(-50%, -12px) scale(0.85); }
+      0% { opacity: 0; transform: translateY(20px) scale(0.4); }
+      18% { opacity: 1; transform: translateY(0px) scale(1.15); }
+      34% { transform: translateY(0px) scale(1.0); }
+      82% { opacity: 1; transform: translateY(0px) scale(1.0); }
+      100% { opacity: 0; transform: translateY(-12px) scale(0.85); }
     }
     .val-kill-emblem {
       animation: valKillPop 1.55s cubic-bezier(0.16, 1, 0.3, 1) forwards;
     }
+    .round-count-badge {width:64px;height:64px;display:grid;place-items:center;border:2px solid #ece8e1;background:#101923e8;clip-path:polygon(25% 0,75% 0,100% 25%,100% 75%,75% 100%,25% 100%,0 75%,0 25%);color:#ece8e1;font-size:30px;font-weight:900;}
+    .round-count-marks {display:flex;gap:5px;margin-top:6px;}
+    .round-count-marks i {display:block;width:9px;height:4px;background:#617079;}
+    .round-count-marks i.filled {background:#ece8e1;}
+    .round-count-badge[data-tier='5'] {border-color:#e6c78a;color:#e6c78a;}
 
     .modal-scroll {
       touch-action: pan-y !important;
@@ -2174,23 +2179,62 @@
         }, 2300);
       }
 
+      const killAudioBuffers = new Map();
+      let activeKillAudio = null, killAudioGeneration = 0;
+      function killTier(count){ return Math.max(1,Math.min(5,Math.floor(count)||1)); }
+      function loadKillAudio(tier){
+        tier=killTier(tier);
+        if(!sfx.ctx)return Promise.resolve(null);
+        if(!killAudioBuffers.has(tier)){
+          killAudioBuffers.set(tier,fetch('audio/kill/kill-'+tier+'.mp3')
+            .then(r=>r.ok?r.arrayBuffer():null)
+            .then(bytes=>bytes?sfx.ctx.decodeAudioData(bytes):null)
+            .catch(()=>null));
+        }
+        return killAudioBuffers.get(tier);
+      }
+      function stopKillAudio(){
+        ++killAudioGeneration;
+        if(activeKillAudio){try{activeKillAudio.stop();}catch(_){} activeKillAudio=null;}
+      }
+      function resetKillNotice(){
+        roundKillStreak=0; stopKillAudio();
+        document.getElementById('val-kill-banner-slot')?.replaceChildren();
+      }
+      function playKillNotice(tier){
+        stopKillAudio();sfx.init();
+        const generation=killAudioGeneration, requested=performance.now();
+        loadKillAudio(tier).then(buffer=>{
+          if(!buffer||generation!==killAudioGeneration||performance.now()-requested>700||!sfx.ctx)return;
+          const source=sfx.ctx.createBufferSource(), gain=sfx.ctx.createGain();
+          source.buffer=buffer;gain.gain.value=.55;
+          source.connect(gain).connect(sfx.effectsBus||sfx.ctx.destination);
+          activeKillAudio=source;
+          source.onended=()=>{if(activeKillAudio===source)activeKillAudio=null;source.disconnect();gain.disconnect();};
+          source.start();
+        }).catch(()=>{});
+      }
       function triggerValorantKillEmblem(isHead) {
-        roundKillStreak++;
-        const slot = document.getElementById('val-kill-banner-slot');
-        if (!slot) return;
-        slot.innerHTML = '';
-        const wrap = document.createElement('div');
-        wrap.className = 'val-kill-emblem flex flex-col items-center';
-        const label = roundKillStreak >= 5 ? 'ACE // 5 KILLS' : roundKillStreak === 4 ? 'QUADRA KILL' : roundKillStreak === 3 ? 'TRIPLE KILL' : roundKillStreak === 2 ? 'DOUBLE KILL' : (isHead ? 'HEADSHOT KILL' : 'ELIMINATED');
-        wrap.innerHTML = `
-          <div class="w-14 h-14 bg-[#0f1923]/95 border-2 border-[#ff4655] rotate-45 flex items-center justify-center shadow-[0_0_25px_#ff4655]">
-            <div class="w-6 h-6 border-2 border-[#ece8e1] -rotate-45 flex items-center justify-center">
-              <div class="w-2 h-2 bg-[#ff4655]"></div>
-            </div>
-          </div>
-          <div class="mt-2 px-3 py-0.5 bg-[#ff4655] text-[#0f1923] font-num font-black text-[11px] tracking-widest uppercase">${label}</div>
-        `;
-        slot.appendChild(wrap);
+        const tier=killTier(++roundKillStreak);
+        playKillNotice(tier);
+        const slot=document.getElementById('val-kill-banner-slot');
+        if(!slot)return;
+        const wrap=document.createElement('div');
+        wrap.className='val-kill-emblem flex flex-col items-center';
+        const badge=document.createElement('div');
+        badge.className='round-count-badge';
+        badge.dataset.tier=String(tier);
+        const number=document.createElement('span');
+        number.textContent=String(tier)+(roundKillStreak>5?'+':'');
+        badge.appendChild(number);
+        const marks=document.createElement('div');marks.className='round-count-marks';
+        for(let i=1;i<=5;i++){
+          const mark=document.createElement('i');
+          mark.classList.toggle('filled',i<=tier);marks.appendChild(mark);
+        }
+        wrap.append(badge,marks);
+        slot.replaceChildren(wrap);
+        wrap.addEventListener('animationend',()=>wrap.remove(),{once:true});
       }
 
       function addKillFeed(killer, victim, weaponName, isHead) {
@@ -2205,7 +2249,7 @@
         feed.prepend(row);
         if (feed.children.length > 5) feed.lastElementChild.remove();
         setTimeout(() => row.remove(), 4000);
-        if (killer.includes('YOU')) triggerValorantKillEmblem(isHead);
+        if (killer === 'YOU') triggerValorantKillEmblem(isHead);
       }
 
       let lastAlivePortraitSignature = '';
@@ -2316,7 +2360,7 @@
         isSpikeMobileToggleLock = false;
         isSpikeKeyHeld = false;
         document.querySelectorAll('#mob-spike-btn, #slot-spike-bar-btn').forEach(b => b.classList.remove('vm-btn-active-state', 'active-hold'));
-        roundKillStreak = 0;
+        resetKillNotice();
         matchState.phase = 'buy';
         matchState.timer = 16;
         matchState.spikePlanted = false;
@@ -2588,6 +2632,7 @@
           document.getElementById('ingame-hud').classList.remove('hidden');
           document.getElementById('crosshair-wrap').classList.remove('hidden');
 
+          resetKillNotice();
           matchState.inMatch = true;
           matchState.round = 1;
           matchState.allyScore = 0;
@@ -2694,6 +2739,7 @@
         return true;
       }
       function startRangeDrill() {
+        resetKillNotice();
         drill.mode=setting('mode').value;drill.kills=drill.shown=drill.damage=0;
         drill.started=performance.now();drill.finished=false;
         const board=drill.mode==='target';
