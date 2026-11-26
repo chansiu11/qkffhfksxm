@@ -183,7 +183,7 @@ function worldSound(r,p,kind){
       send(q.client,{type:'world_sound',source:p.id,kind,x:p.x,z:p.z,y:movement?p.footY+.12:p.footY+.8});
   }
 }
-function inRing(r,p){return !!r.spike&&Math.abs(p.footY-r.spike.y)<1.25&&Math.hypot(p.x-r.spike.x,p.z-r.spike.z)<=4.5;}
+function inRing(r,p){return !!r.spike&&Math.abs(p.footY-r.spike.y)<1.25&&Math.hypot(p.x-r.spike.x,p.z-r.spike.z)<=2;}
 function defusing(r,p){return p.heldSpike&&p.alive&&p.team==='defense'&&r.phase==='planted'&&inRing(r,p);}
 function planting(r,p){return r.carrier===p.id&&p.heldSpike&&r.phase==='combat'&&p.team==='attack'&&spikeSite(p.x,p.z,p.footY,r.map);}
 function fire(r, p, msg) {

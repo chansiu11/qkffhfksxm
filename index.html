@@ -14,7 +14,7 @@
   <script src="config.js?v=perf19"></script>
   <script src="host-transport.js?v=consent-lock1"></script>
   <script src="movement-physics.js?v=move25"></script>
-  <script src="multiplayer-client.js?v=spike-hold-1s"></script>
+  <script src="multiplayer-client.js?v=defuse-ring2"></script>
   <link rel="stylesheet" href="menu.css" />
   <!-- Three.js r128 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -2021,7 +2021,7 @@
       const activeTracers = [];
 
       const spikeMesh = new THREE.Group();
-      const defuseRadius=4.5;
+      const defuseRadius=2;
       const defuseRing=new THREE.Mesh(new THREE.RingGeometry(defuseRadius-.045,defuseRadius,96),
         new THREE.MeshBasicMaterial({color:0xffffff,side:THREE.DoubleSide,depthWrite:false}));
       defuseRing.rotation.x=-Math.PI/2;defuseRing.position.y=.035;spikeMesh.add(defuseRing);
@@ -5197,8 +5197,15 @@
             heldDevice.rotation.y+=(-.42+.39*center-heldDevice.rotation.y)*blend;
             heldDevice.rotation.z+=(-.15+.13*open-heldDevice.rotation.z)*blend;
           }
-          const age=(now-blastAt)/1000;blast.visible=matchState.inMatch&&age>=0&&age<1.8;
-          if(blast.visible){blast.scale.setScalar(Math.max(.01,35*Math.min(1,age/1.15)));blast.material.opacity=Math.min(.97,(1.8-age)/.65);}
+          const age=(now-blastAt)/1000;
+          const expand=1.15, hold=.42, collapse=.65;
+          blast.visible=matchState.inMatch && age>=0 && age<expand+hold+collapse;
+          if(blast.visible){
+            const t=Math.max(0,Math.min(1,(age-expand-hold)/collapse));
+            const radius=35*Math.min(1,age/expand)*(1-t*t*(3-2*t));
+            blast.scale.setScalar(Math.max(.001,radius));
+            blast.material.opacity=.97;
+          }
           defuseRing.visible=matchState.phase==='planted';
           for(const {item,group,start} of loot.values()){
             const t=Math.min(1,(performance.now()-start)/360),back=(1-t)*1.3;

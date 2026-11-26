@@ -753,7 +753,7 @@
         const site=this.api.gameSpikeSiteAt(p.pos.x,p.pos.z,p.footY);
         const plant=p.alive&&s.phase==='combat'&&side==='attack'&&!!site;
         const defuse=p.alive&&s.phase==='planted'&&side==='defense'&&s.spike&&
-          Math.abs(p.footY-s.spike.y)<1.25&&Math.hypot(p.pos.x-s.spike.x,p.pos.z-s.spike.z)<=4.5;
+          Math.abs(p.footY-s.spike.y)<1.25&&Math.hypot(p.pos.x-s.spike.x,p.pos.z-s.spike.z)<=2;
         const action=this.state.players.find(q=>q.id===this.myId)?.spikeAction;
         const eligible=plant||defuse;
         el.classList.toggle('hidden',!eligible);
