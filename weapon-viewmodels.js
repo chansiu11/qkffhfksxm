@@ -307,7 +307,12 @@
     sheriff: {scale:.61, right:.154, height:-.155, inspectYaw:1.21, turnRoll:.62, reloadDrop:.12, reloadRoll:.86}
   };
   const riflePose={scale:1.04,right:.17,height:-.15,inspectYaw:.85,turnRoll:.66,reloadDrop:.17,reloadRoll:.47};
-  Object.assign(poses,{bulldog:riflePose,warden:riflePose,guardian:riflePose,knife:{...riflePose,scale:.69}});
+  Object.assign(poses,{
+    bulldog:{...riflePose,scale:.875,right:.210,height:-.128,yaw:.32},
+    guardian:{...riflePose,scale:.867,right:.210,height:-.131,yaw:.37},
+    warden:{...riflePose,scale:.939,right:.198,height:-.122,yaw:.34},
+    knife:{...riflePose,scale:.684,right:.106,height:-.158,yaw:1.03}
+  });
   // These FBXs have detached lettering above/below the prop in local Z.
   function removeLabelBands(mesh,id,T){
     if(id!=='knife' && id!=='bulldog')return;
@@ -452,7 +457,7 @@
         pose.height+.048*lift-.08*turn-.26*draw-pose.reloadDrop*dip+.015*seat+.003*move*Math.sin(now*.01),
         -.54+.05*lift+.045*kick);
       pivot.rotation.set(.12+.30*kick+.20*lift+(selected==='classic'?0:.73*liftBarrel+.48*seat),
-        .30+pose.inspectYaw*lift-.45*turn+.16*dip+.25*shortyInspect-.56*shortyTurn,-.06-.24*lift-pose.turnRoll*turn-pose.reloadRoll*dip-.22*seat-.47*shortyReload);
+        (pose.yaw??.30)+pose.inspectYaw*lift-.45*turn+.16*dip+.25*shortyInspect-.56*shortyTurn,-.06-.24*lift-pose.turnRoll*turn-pose.reloadRoll*dip-.22*seat-.47*shortyReload);
       if(selected==='knife'){
         const slash=Math.sin(Math.PI*Math.min(1,shot/.33))**2;
         pivot.position.x-=.20*slash;
