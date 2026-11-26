@@ -57,6 +57,8 @@ function make(mp){
   function stopWorker(){workerProbes.clear();if(worker)worker.terminate();worker=null;workerReady=false;}
   function reset(){epoch++;invitationDismissed=false;requestWasOn=false;withdrawing=false;diagnostics=null;lastProbeRoute=null;mode=false;enabled=false;room=null;early.length=0;for(const id of [...links.keys()])clearLink(id);stopWorker();}
   function hostRequested(){return !!room?.players.find(p=>p.id===room.host)?.direct;}
+  function readyIds(){return [...links.values()].filter(l=>l.dc?.readyState==='open').map(l=>l.id);}
+  function canStart(){return !!room&&!room.started&&isHost()&&(enabled===hostRequested())&&(!hostRequested()||(workerReady&&room.players.every(p=>p.direct&&p.online!==false&&(p.id===mp.myId||readyIds().includes(p.id)))));}
   function report(){
     const requested=hostRequested(),host=isHost(),total=room?.players.length||0;
     const agreed=room?.players.filter(p=>p.direct).length||0;
@@ -70,8 +72,10 @@ function make(mp){
     if(label)label.textContent=host?'방 전체에 직접 연결 요청 (참가자별 동의 필요)':'직접 연결에 동의';
     const invite=document.getElementById('host-consent-invite');
     if(invite)invite.hidden=!room||!!room.started||host||!requested||enabled||invitationDismissed;
+    const start=document.getElementById('online-start-btn');
+    if(start&&room){const allowed=canStart();start.disabled=!allowed;start.style.opacity=allowed?'1':'0.65';start.textContent=!host?'방장의 시작을 기다리는 중':allowed?'경기 시작하기  →':requested||enabled?'P2P 동의 및 연결 대기 중':'설정 확인 중';}
     const detail=document.getElementById('host-consent-detail');
-    if(detail)detail.textContent=requested&&!host&&!enabled&&invitationDismissed?'직접 연결에 동의하지 않았습니다. 원하면 위 옵션으로 동의할 수 있습니다.':requested&&host?'모든 참가자의 동의 및 연결 준비가 필요합니다.':'';
+    if(detail)detail.textContent=requested&&!host&&!enabled&&invitationDismissed?'직접 연결에 동의하지 않았습니다. 원하면 위 옵션으로 동의할 수 있습니다.':requested&&host?'모든 참가자의 동의 및 연결 준비 후 시작할 수 있습니다. Render로 시작하려면 직접 연결 요청을 끄세요.':'';
   }
   function setEnabled(value,explicitConsent=false){
     if(mode||!room||room.started)return false;
@@ -95,11 +99,11 @@ function make(mp){
     worker.onmessage=e=>{
       const m=e.data;lastWorkerAt=performance.now();
       if(m.type==='ready'){workerReady=true;report();}
-      else if(m.type==='failed'){stopWorker();if(mode)raw({type:'host_abort'});}
+      else if(m.type==='failed'){stopWorker();if(mode)raw({type:'host_abort'});report();}
       else if(m.type==='output'&&mode){const data=annotateWorkerProbe(m.to,m.data);if(m.to===mp.myId)mp.receive(data);else route(m.to,{kind:'output',data});}
       else if(m.type==='finished'&&mode){raw({type:'host_finish'});mode=false;stopWorker();report();}
     };
-    worker.onerror=()=>{stopWorker();if(mode)raw({type:'host_abort'});};
+    worker.onerror=()=>{stopWorker();if(mode)raw({type:'host_abort'});report();};
   }
   function isHost(){return room?.host===mp.myId;}
   function route(to,packet){
@@ -187,16 +191,8 @@ function make(mp){
   function fallback(){diagnostics=null;lastProbeRoute=null;mode=false;early.length=0;stopWorker();mp.rtt=null;mp.jitter=0;mp.pingSent.clear();report();}
   function send(m){
     if(m.type==='start'&&!mode&&isHost()){
-      const ready=[...links.values()].filter(l=>l.dc?.readyState==='open').map(l=>l.id);
-      if(hostRequested()){
-        const allAgreed=room.players.every(p=>p.direct&&p.online!==false);
-        const allReady=enabled&&workerReady&&room.players.every(p=>p.id===mp.myId||ready.includes(p.id));
-        if(!allAgreed||!allReady){
-          if(!window.confirm('아직 모든 참가자의 동의 또는 연결 준비가 완료되지 않았습니다. Render 서버로 시작하시겠습니까? 취소를 누르면 대기실에 남습니다.'))return false;
-          return raw({...m,hostReady:false,ready:[]});
-        }
-      }
-      return raw({...m,hostReady:enabled&&workerReady,ready});
+      if(!canStart()){report();return false;}
+      return raw({...m,hostReady:hostRequested()&&workerReady,ready:readyIds()});
     }
     if(!mode||CONTROL.has(m.type))return raw(m);
     if(isHost()){if(!worker)return false;if(m.type==='ping'&&performance.now()-lastWorkerAt<3000)raw({type:'host_alive',run:room.hostRun});noteWorkerProbe(mp.myId,m);worker.postMessage({type:'input',from:mp.myId,data:m});return true;}

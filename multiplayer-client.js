@@ -376,7 +376,6 @@
         document.getElementById('lobby-map-control').hidden = room.host !== this.myId || room.started;
       }
       this.room = room;
-      this.hostTransport?.update(room);
       const a = this.api;
       a.roomState.code = room.code;
       a.roomState.isHost = room.host === this.myId;
@@ -434,6 +433,7 @@
       const start = document.getElementById('online-start-btn');
       if (start) { start.disabled = !a.roomState.isHost; start.style.opacity = a.roomState.isHost ? '1' : '0.65';
         start.textContent = a.roomState.isHost ? '경기 시작하기  →' : '방장의 시작을 기다리는 중'; }
+      this.hostTransport?.update(room);
       this.status(`온라인 ROOM #${room.code} · ${room.players.length}/10명`);
       a.updateHUD();
     },

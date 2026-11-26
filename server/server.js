@@ -164,13 +164,14 @@ function receive(c,m){
     if(++p.signalCount>240)return;
     send(to.client,{type:'host_signal',from:p.id,signal:m.signal});return;
   }
-  if(m.type==='start'&&r.host===p.id&&!r.started&&m.hostReady===true){
+  if(m.type==='start'&&r.host===p.id&&!r.started&&p.direct){
     const members=[...r.players.values()];
-    if(members.every(u=>u.direct&&u.client&&!u.client.closed)&&members.every(u=>u.id===p.id||Array.isArray(m.ready)&&m.ready.includes(u.id))){
+    if(m.hostReady===true&&members.every(u=>u.direct&&u.client&&!u.client.closed)&&members.every(u=>u.id===p.id||Array.isArray(m.ready)&&m.ready.includes(u.id))){
       r.hostMode=true;r.hostRun=crypto.randomUUID();r.hostAliveAt=Date.now();r.started=true;r.phase='buy';
       emitRoom(r,{type:'host_begin',room:lobbyInfo(r)});
       broadcastLobby(r);return;
     }
+    send(c,{type:'error',message:'모든 참가자의 직접 연결 동의와 준비가 완료되어야 시작할 수 있습니다.'});return;
   }
   if(m.type==='host_input'){
     if(r.hostMode&&m.run===r.hostRun&&p.id!==r.host&&m.data&&typeof m.data.type==='string'&&!CONTROL.has(m.data.type)&&!['create','join','resume','leave','start'].includes(m.data.type)){
