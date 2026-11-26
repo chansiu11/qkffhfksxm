@@ -423,6 +423,7 @@
     }
     const set=api.setWeapon, update=api.update, fire=api.fire, inspect=api.inspect, reload=api.beginReload;
     api.setWeapon=(id,time)=>{set(id,time);duration=(time??catalog[id]?.equipTime??.75)*1000;select(api.current);};
+    api.hasRenderedModel=id=>visible && selected===id && !!model;
     api.inspect=()=>{inspect();if(model&&!api.isReloading && performance.now()-equipped>=duration)inspected=performance.now();};
     api.fire=(mode)=>{startModelDraw=false;inspected=-Infinity;fired=performance.now();fire(mode);};
     api.beginReload=()=>{startModelDraw=false;inspected=-Infinity;reloadStarted=performance.now();reload();};
@@ -433,8 +434,10 @@
       const now=performance.now(), age=(now-inspected)/1000;
       if(startModelDraw){equipped=now;startModelDraw=false;}
       const smooth=x=>{x=Math.max(0,Math.min(1,x));return x*x*(3-2*x);};
-      const lift=smooth(age/.34)*(1-smooth((age-2.54)/.38));
-      const turn=smooth((age-1.12)/.42)*(1-smooth((age-2.48)/.40));
+      const aim=Math.max(0,Math.min(1,player.adsProgress||0));
+      if(aim>0 || player.adsRequested) inspected=-Infinity;
+      const lift=(1-aim)*smooth(age/.34)*(1-smooth((age-2.54)/.38));
+      const turn=(1-aim)*smooth((age-1.12)/.42)*(1-smooth((age-2.48)/.40));
       const equip=Math.min(1,(now-equipped)/duration);
       const draw=1-smooth(equip);
       const reloadT=api.isReloading?Math.min(1,(now-reloadStarted)/(1000*(catalog[selected]?.reloadTime||1.1))):1;
@@ -460,13 +463,23 @@
         (pose.yaw??.30)+pose.inspectYaw*lift-.45*turn+.16*dip+.25*shortyInspect-.56*shortyTurn,-.06-.24*lift-pose.turnRoll*turn-pose.reloadRoll*dip-.22*seat-.47*shortyReload);
       if(selected==='knife'){
         const slash=Math.sin(Math.PI*Math.min(1,shot/.33))**2;
-        pivot.position.x-=.20*slash;
+        pivot.position.x-=.20*slash+.045*lift;
+        pivot.rotation.y+=.37*turn;
+        pivot.rotation.x-=.25*turn;
         pivot.rotation.z+=1.14*slash;
       } else if(catalog[selected]?.canScope){
-        const ads=Math.max(0,Math.min(1,player.adsProgress||0));
-        pivot.position.x*=1-ads;
-        pivot.position.y+=.075*ads;
+        pivot.rotation.y+=.32*turn;
+        pivot.position.z+=.045*lift;
+        pivot.rotation.z-=.22*lift;
+        const ads=smooth(aim);
+        pivot.rotation.x*=1-ads;
         pivot.rotation.y*=1-ads;
+        pivot.rotation.z*=1-ads;
+        pivot.position.z+=.075*ads;
+        // Align the actual model tip with the sight line in the overlay camera.
+        model.localToWorld(tip.copy(model.userData.muzzle));
+        pivot.position.x-=tip.x*ads;
+        pivot.position.y-=(tip.y+.014)*ads;
       }
       const photo=document.querySelector('#fps-weapon-sprite-layer .fps-paper-weapon');
       if(photo)photo.style.opacity='0';
@@ -489,6 +502,7 @@
     api.getMuzzleWorldPosition=worldCamera=>{
       if(!visible||!model||!worldCamera)return spriteWorld(worldCamera);
       const {depth}=projectTip();
+      worldCamera.updateWorldMatrix(true,false);
       const ray=new T.Vector3(tip.x,tip.y,.5).unproject(worldCamera);
       worldCamera.worldToLocal(ray);
       return worldCamera.localToWorld(ray.multiplyScalar(-depth/ray.z));
