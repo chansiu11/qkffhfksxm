@@ -4179,7 +4179,7 @@
           const start=offset+(performance.now()-requested)/1000;
           if(start>=buffer.duration)return;
           const source=sfx.ctx.createBufferSource(),gain=sfx.ctx.createGain();
-          source.buffer=buffer;gain.gain.value=.55;
+          source.buffer=buffer;gain.gain.value=.22;
           source.connect(gain);gain.connect(sfx.effectsBus||sfx.ctx.destination);
           source.onended=()=>{source.disconnect();gain.disconnect();if(roundStartSource===source)roundStartSource=null;};
           roundStartSource=source;source.start(0,start);
