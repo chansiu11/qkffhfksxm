@@ -457,7 +457,9 @@
     dependencies ||= script('https://cdn.jsdelivr.net/npm/fflate@0.8.2/umd/index.js')
       .then(() => script('https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/FBXLoader.js'));
     try { await dependencies; } catch(error){ dependencies=null; throw error; }
-    const archive = heldOnlyArchives[id] || 'refs/classic/Meshy_AI_' + files[id] + (id==='knife'||id==='guardian'?'_20261126':'_20261125') + '_texture_fbx' + (id === 'classic' ? ' (1)' : '') + '.zip';
+    const objective=id==='spikeFolded'||id==='spikeOpen';
+    const objectiveArchive=objective?'refs/classic/Meshy_AI_'+(id==='spikeFolded'?'Armored_Teapot_Tank':'Frostspire_Beacon')+'_20261126_texture_fbx.zip':null;
+    const archive = objectiveArchive || heldOnlyArchives[id] || 'refs/classic/Meshy_AI_' + files[id] + (id==='knife'||id==='guardian'?'_20261126':'_20261125') + '_texture_fbx' + (id === 'classic' ? ' (1)' : '') + '.zip';
     const response = await fetch(archive);
     if (!response.ok) throw Error(archive);
     const bytes = new Uint8Array(await response.arrayBuffer());
@@ -480,6 +482,7 @@
     body.add(mesh);
     const box = new T.Box3().setFromObject(body), size = box.getSize(new T.Vector3());
     mesh.position.sub(box.getCenter(new T.Vector3()));
+    if(objective){body.scale.setScalar(1/Math.max(size.x,size.y,size.z));return body;}
     if (size.x > size.z) body.rotation.y = Math.PI / 2;
     body.scale.setScalar(.52 / Math.max(size.x,size.y,size.z));
     // Orient the grip toward the camera using the lower silhouette.
@@ -529,7 +532,7 @@
       return cache.get(id);
     }
     api.remoteModel=async id=>{
-      if(!hasHeldModel(id))return null;
+      if(!hasHeldModel(id)&&id!=='spikeFolded'&&id!=='spikeOpen')return null;
       const asset=await getModel(id);
       return asset?.clone(true);
     };

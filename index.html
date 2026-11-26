@@ -14,7 +14,7 @@
   <script src="config.js?v=perf19"></script>
   <script src="host-transport.js?v=consent-lock1"></script>
   <script src="movement-physics.js?v=move25"></script>
-  <script src="multiplayer-client.js?v=peer-held-no-arms"></script>
+  <script src="multiplayer-client.js?v=objective-death1"></script>
   <link rel="stylesheet" href="menu.css" />
   <!-- Three.js r128 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -25,7 +25,7 @@
   <script src="crosshair-profile.js"></script>
   <script src="crosshair-ui.js" defer></script>
   <script src="ads-system.js?v=armory20"></script>
-  <script src="weapon-viewmodels.js?v=peer-held1"></script>
+  <script src="weapon-viewmodels.js?v=objective-death1"></script>
 
   <style>
     :root {
@@ -89,6 +89,7 @@
       transition: opacity .11s ease-out, visibility .11s ease-out;
       contain: layout style;
     }
+    .carrying-device #fps-weapon-sprite-layer {display:none;}
     #fps-weapon-sprite-layer.weapon-visible { opacity: 1; visibility: visible; }
     .hide-aimed-weapon #fps-weapon-sprite-layer { display: none; }
     #fps-weapon-sprite-layer.weapon-sniper-full { opacity: 0; }
@@ -2010,7 +2011,7 @@
       function getActiveWeapon() {
         if (player.activeSlot === 'primary' && player.primary) return player.primary;
         if (player.activeSlot === 'knife') return player.knife;
-        return player.secondary;
+        return player.secondary || player.knife;
       }
 
       /* =========================================================================
@@ -2029,6 +2030,71 @@
       spikeMesh.visible = false;
       scene.add(spikeMesh);
 
+      let spikeInHand=false,offlineCarrier=true,deathView=null,dropSerial=0;
+      const loot=new Map();
+      const heldDevice=new THREE.Group();
+      heldDevice.position.set(.22,-.19,-.54); camera.add(heldDevice);
+      heldDevice.visible=false;
+      function addDevice(group,id,size,fallback){
+        viewmodel.remoteModel(id).then(model=>{
+          if(!model)return;
+          model.scale.multiplyScalar(size);
+          const box=new THREE.Box3().setFromObject(model);
+          model.position.y-=box.min.y;
+          group.add(model);
+          if(fallback)fallback.visible=false;
+        }).catch(()=>{});
+      }
+      addDevice(heldDevice,'spikeFolded',.32);
+      addDevice(spikeMesh,'spikeOpen',.94,spikeCore);
+      function ownsSpike(){
+        return roomState.playerSide==='attack'&&!matchState.spikePlanted&&
+          (window.MP.active?window.MP.state?.carrier===window.MP.myId:offlineCarrier);
+      }
+      function setSpikeHeld(value){
+        spikeInHand=value;
+        if(value){resetADS();viewmodel.stopReload();}
+        document.documentElement.classList.toggle('carrying-device',value);
+      }
+      function putLoot(item,animate=true){
+        if(loot.has(item.key))return;
+        const group=new THREE.Group();
+        group.position.set(item.x,item.y+.04,item.z);
+        const dispose=item.id==='spike'?addDevice(group,'spikeFolded',.46):viewmodel.createGroundDisplay(item.id,group);
+        scene.add(group);loot.set(item.key,{item,group,dispose,start:animate?performance.now():-Infinity});
+      }
+      function clearLoot(key){
+        const entry=loot.get(key);if(!entry)return;
+        scene.remove(entry.group);entry.dispose?.();loot.delete(key);
+      }
+      function syncLoot(items){
+        for(const key of loot.keys())if(!items.some(item=>item.key===key))clearLoot(key);
+        for(const item of items)putLoot(item);
+      }
+      function dropHeld(){
+        if(!player.alive||!['buy','combat','planted'].includes(matchState.phase))return;
+        const w=getActiveWeapon(),id=spikeInHand?'spike':w.id;
+        if(id==='knife')return;
+        if(window.MP.active){window.MP.send({type:'drop_item',item:id});return;}
+        const x=player.pos.x-Math.sin(player.yaw)*1.3,z=player.pos.z-Math.cos(player.yaw)*1.3;
+        putLoot({key:'local-'+(++dropSerial),id,x,z,y:AscentGround.height(activeMap,x,z),saved:w,yaw:player.yaw});
+        if(spikeInHand){offlineCarrier=false;setSpikeHeld(false);}
+        else{player[w.slot]=null;window.switchWeaponSlot(player.secondary?'secondary':player.primary?'primary':'knife');}
+      }
+      function pickupLoot(){
+        for(const {item} of loot.values()){
+          if(Math.hypot(item.x-player.pos.x,item.y-player.footY,item.z-player.pos.z)>2.2)continue;
+          if(item.id==='spike'?roomState.playerSide!=='attack':player[WEAPON_CATALOG[item.id].slot])continue;
+          if(window.MP.active)window.MP.send({type:'pickup_item',key:item.key});
+          else{
+            if(item.id==='spike')offlineCarrier=true;
+            else player[WEAPON_CATALOG[item.id].slot]=item.saved;
+            clearLoot(item.key);updateHUD();
+          }
+          return true;
+        }
+        return false;
+      }
       const matchState = {
         inMatch: false,
         round: 1,
@@ -2514,7 +2580,8 @@
         const shopCredEl = hudElement('shop-credits-val');
         if (shopCredEl) hudText(shopCredEl, player.credits.toLocaleString());
 
-        const specTarget = !player.alive ? getCurrentSpectatedAlly() : null;
+        const spectating=!player.alive&&deathView&&performance.now()-deathView.at>=1000;
+        const specTarget = spectating ? getCurrentSpectatedAlly() : null;
         const specBanner = hudElement('spectator-banner');
 
         if (!player.alive && specTarget) {
@@ -2522,6 +2589,9 @@
           hudText(hudElement('spec-alive-count'), `ALIVE ALLIES: ${getAliveAllies().length}`);
           hudText(hudElement('spec-target-name'), `SPECTATING // ${specTarget.name}`);
           hudText(hudElement('spec-target-info'), `HP ${Math.ceil(specTarget.hp)} // ${specTarget.weapon.name} // ${specTarget.callout}`);
+        } else if(spectating){
+          hudVisible(specBanner,true);hudText(hudElement('spec-target-name'),'SPECTATING // SPIKE');
+          hudText(hudElement('spec-alive-count'),'ALIVE ALLIES: 0');hudText(hudElement('spec-target-info'),'');
         } else {
           hudVisible(specBanner,false);
         }
@@ -2541,7 +2611,7 @@
         hudClass(hpBar, displayHp <= 30 ? 'h-full bg-[#ff4655] transition-all duration-150' : 'h-full bg-[#38e2c7] transition-all duration-150');
 
         hudText(hudElement('slot-primary-name'), player.primary ? player.primary.name : 'EMPTY');
-        hudText(hudElement('slot-secondary-name'), player.secondary.name);
+        hudText(hudElement('slot-secondary-name'), player.secondary?.name || '—');
 
         const w = specTarget ? specTarget.weapon : getActiveWeapon();
         hudText(hudElement('hud-weapon-title'), w.name);
@@ -2570,6 +2640,7 @@
       let roundTransitionTimer=0,roundTransitionDeadline=0;
       const localShopReceipts={};
       function startNewRound() {
+        syncLoot([]);offlineCarrier=true;deathView=null;setSpikeHeld(false);
         resetRoundStartAudio();
         clearTimeout(roundTransitionTimer);roundTransitionTimer=0;roundTransitionDeadline=0;
         delete localShopReceipts.primary;delete localShopReceipts.secondary;
@@ -2604,8 +2675,8 @@
           player.primary.mag = player.primary.magSize;
           player.primary.reserve = player.primary.resSize;
         }
-        player.secondary.mag = player.secondary.magSize;
-        player.secondary.reserve = player.secondary.resSize;
+        if(player.secondary)player.secondary.mag = player.secondary.magSize;
+        if(player.secondary)player.secondary.reserve = player.secondary.resSize;
 
         spawnTeamsForRound();
         document.getElementById('hud-phase-badge').textContent = 'BUY PHASE — [SHOP] 버튼 또는 [B] 키로 무기를 구매하십시오';
@@ -3403,7 +3474,7 @@
 
       function attemptFire(knifeMode='light') {
         if(matchState.phase==='post_match')return;
-        if(planting())return;
+        if(spikeInHand||planting())return;
         if (!matchState.inMatch || (activeMap==='range' && rangeOptions.open)) return;
         if (window.MP.active) { window.MP.fire(knifeMode); return; }
         if (!player.alive) {
@@ -3615,7 +3686,8 @@
       };
 
       window.switchWeaponSlot = function (slot) {
-        if (slot === 'primary' && !player.primary) return;
+        if (!player[slot]) return;
+        setSpikeHeld(false);
         if (slot !== player.activeSlot || (player.reloading && player.pendingReloadWeapon !== player[slot]?.id)) {
           player.reloadId = (player.reloadId || 0) + 1;
           player.reloading = false;
@@ -3917,8 +3989,12 @@
         if (e.code === 'Digit1') window.switchWeaponSlot('primary');
         if (e.code === 'Digit2') window.switchWeaponSlot('secondary');
         if (e.code === 'Digit3') window.switchWeaponSlot('knife');
-        if (e.code === 'KeyF' && !e.repeat && !window.toggleAscentDoor()) isSpikeKeyHeld=true;
-        if (e.code === 'Digit4') isSpikeKeyHeld=true;
+        if(e.code==='KeyG'&&!e.repeat)dropHeld();
+        if (e.code === 'KeyF' && !e.repeat && !pickupLoot() && !window.toggleAscentDoor()) isSpikeKeyHeld=true;
+        if (e.code === 'Digit4'){
+          if(ownsSpike()&&!e.repeat){window.switchWeaponSlot('knife');setSpikeHeld(true);window.MP.active&&window.MP.send({type:'select_spike'});}
+          isSpikeKeyHeld=true;
+        }
       });
 
       window.addEventListener('keyup', (e) => {
@@ -4325,7 +4401,7 @@
         osc.start(t);osc.stop(t+.33);
       }
       function planting(){
-        return matchState.inMatch&&player.alive&&player.onGround&&isSpikeKeyHeld&&matchState.phase==='combat'&&roomState.playerSide==='attack'&&gameSpikeSiteAt(player.pos.x,player.pos.z,player.footY);
+        return ownsSpike()&&matchState.inMatch&&player.alive&&player.onGround&&isSpikeKeyHeld&&matchState.phase==='combat'&&roomState.playerSide==='attack'&&gameSpikeSiteAt(player.pos.x,player.pos.z,player.footY);
       }
       const radarStaticCache=new Map();
       function drawAscentRadar() {
@@ -4534,6 +4610,7 @@
             player.pos.y = player.footY + EYE_HEIGHT + crouchOffset;
           }
 
+          deathView=null;
           camera.position.copy(player.pos);
           const viewNow = performance.now();
           const visual=updateCameraVisual(heldWeapon,viewNow);
@@ -4547,7 +4624,18 @@
         } else {
           // PLAYER IS DEAD -> LIVE 1ST-PERSON TEAMMATE SPECTATOR CAMERA!
           const specAlly = getCurrentSpectatedAlly();
-          if (specAlly) {
+          if(!deathView){
+            deathView={at:performance.now(),eye:camera.position.clone(),yaw:camera.rotation.y,pitch:camera.rotation.x};
+            if(!window.MP.active&&ownsSpike()){offlineCarrier=false;putLoot({key:'fallen-spike',id:'spike',x:player.pos.x,y:player.footY,z:player.pos.z},false);}
+            setSpikeHeld(false);
+          }
+          const t=Math.min(1,(performance.now()-deathView.at)/1000);
+          if(t<1){
+            const ease=v=>v*v*(3-2*v);
+            const down=ease(Math.min(1,t/.42)),rise=ease(Math.max(0,(t-.32)/.68));
+            camera.position.copy(deathView.eye);camera.position.y+=2.5*rise-.35*down;
+            camera.rotation.set(deathView.pitch+(-1.22-deathView.pitch)*down,deathView.yaw,0,'YXZ');
+          }else if (specAlly) {
             specAlly.group.visible = false;
             const targetEye = new THREE.Vector3(
               specAlly.group.position.x,
@@ -4562,10 +4650,16 @@
             const elevSign = specAlly.footY >= 0 ? '+' : '';
             hudText(hudElement('hud-elevation-badge'), `${elevSign}${specAlly.footY.toFixed(1)}m`);
             hudText(hudElement('hud-map-coordinates'), `X: ${specAlly.group.position.x.toFixed(1)} / Z: ${specAlly.group.position.z.toFixed(1)}`);
-          } else if(roundEndViewAllowed()){
-            if(!roundEndView)roundEndView={yaw:camera.rotation.y,pitch:camera.rotation.x,dx:0,dy:0};
-            camera.rotation.y=THREE.MathUtils.lerp(camera.rotation.y,roundEndView.yaw+roundEndView.dx,Math.min(1,dt*14));
-            camera.rotation.x=THREE.MathUtils.lerp(camera.rotation.x,Math.max(-1.48,Math.min(1.48,roundEndView.pitch+roundEndView.dy)),Math.min(1,dt*14));
+          }else{
+            const state=window.MP.state;
+            const carrier=window.MP.active&&state?.players?.find(p=>p.id===state.carrier);
+            const groundSpike=[...loot.values()].find(e=>e.item.id==='spike')?.item;
+            const point=matchState.spikePlanted?matchState.spikePos:groundSpike||carrier;
+            const spawn=AscentGround.maps[activeMap]?.labels?.['Attacker Side Spawn'];
+            const x=point?.x??spawn?.[0]??player.pos.x,z=point?.z??spawn?.[1]??player.pos.z;
+            const y=point?.footY??point?.y??AscentGround.height(activeMap,x,z);
+            camera.position.set(x,y+3.4,z+3.1);camera.lookAt(x,y+.35,z);
+            hudText(hudElement('hud-callout-name'),'SPECTATING // SPIKE');
           }
         }
 
@@ -5015,14 +5109,20 @@
         // Match rendering is still driven by requestAnimationFrame as before.
         const renderMenu=now-lastMenuRenderAt>=100;
         if(matchState.inMatch||previousRenderWasMatch||renderMenu){
+          if(spikeInHand&&(!player.alive||!ownsSpike()))setSpikeHeld(false);
+          heldDevice.visible=matchState.inMatch&&player.alive&&spikeInHand;
+          for(const {item,group,start} of loot.values()){
+            const t=Math.min(1,(performance.now()-start)/360),back=(1-t)*1.3;
+            group.position.set(item.x+Math.sin(item.yaw||0)*back,item.y+.04+(1-t)*.8+Math.sin(t*Math.PI)*.4,item.z+Math.cos(item.yaw||0)*back);
+          }
           renderer.render(scene,camera);
-          if(matchState.inMatch&&!hideAimedWeapon)viewmodel.renderModel(renderer);
+          if(matchState.inMatch&&!hideAimedWeapon&&!spikeInHand)viewmodel.renderModel(renderer);
           else lastMenuRenderAt=now;
         }
         previousRenderWasMatch=matchState.inMatch;
       }
 
-      window.MP.install({spikeRoundResult,stopSpikeClip,gameSound,afterScopedShot,syncMapObjects,selectMap,resetChat,appendChat,roomState,matchState,player,bots,scene,spikeMesh,barrierGroup,gunGroup,muzzleFlashMesh,viewmodel,gameSpikeSiteAt,sfx,
+      window.MP.install({syncLoot,spikeRoundResult,stopSpikeClip,gameSound,afterScopedShot,syncMapObjects,selectMap,resetChat,appendChat,roomState,matchState,player,bots,scene,spikeMesh,barrierGroup,gunGroup,muzzleFlashMesh,viewmodel,gameSpikeSiteAt,sfx,
         createTacticalBotMesh,setEnemyOutline,spawnBulletTracer,spawnHitBurst,drawLocalShot,recordCameraVisual,
         cloneWeaponInstance,WEAPON_CATALOG,getActiveWeapon,startNewRound,
         updateHUD,flashDamage,showHitmarker,showRoundBanner,addKillFeed,syncCheatPermissionUI,

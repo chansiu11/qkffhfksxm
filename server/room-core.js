@@ -41,6 +41,7 @@ function spawn(p, idx, map, keepWeapons = false) {
   p.reloadWeapon = null;
   p.reloadEndsAt = 0;
   p.reloadSeq = (p.reloadSeq || 0) + 1;
+  p.spikeSelected=false;
   p.heldSpike = false;
   p.actionFrom = 0;
   p.actionBase = 0;
@@ -104,6 +105,8 @@ function resetRound(r) {
   r.phase = 'buy';
   r.until = Date.now() + 16000;
   r.spike = null;
+  r.drops=[]; r.dropSeq=0;
+  r.carrier=roomUsers(r).find(user=>user.team==='attack')?.id??null;
   r.halfDefused = false;
   const users = roomUsers(r);
   users.forEach((p, i) => {
@@ -177,8 +180,9 @@ function worldSound(r,p,kind){
       send(q.client,{type:'world_sound',source:p.id,kind,x:p.x,z:p.z,y:movement?p.footY+.12:p.footY+.8});
   }
 }
-function planting(r,p){return p.heldSpike&&r.phase==='combat'&&p.team==='attack'&&spikeSite(p.x,p.z,p.footY,r.map);}
+function planting(r,p){return r.carrier===p.id&&p.heldSpike&&r.phase==='combat'&&p.team==='attack'&&spikeSite(p.x,p.z,p.footY,r.map);}
 function fire(r, p, msg) {
+  if(p.spikeSelected)return;
   const blockers = ground.maps[r.map].blockers;
   if (r.phase !== 'combat' && r.phase !== 'planted') return;
   if (!p.alive || p.reloading || planting(r,p)) return;
@@ -379,12 +383,36 @@ function receive(c,m) {
     p.team=team; broadcastLobby(r);
   } else if(m.type==='start' && r.host===p.id && !r.started) start(r);
   else if(m.type==='skip' && r.host===p.id && r.phase==='buy')r.until=now;
-  else if(m.type==='equip' && r.started) {
+  else if(m.type==='select_spike' && p.alive && r.carrier===p.id && !r.spike){
+    cancelEquipmentReload(p); p.spikeSelected=true; p.aiming=false;
+  } else if(m.type==='drop_item' && r.started && p.alive && ['combat','buy','planted'].includes(r.phase)){
+    const spike=m.item==='spike', id=spike?'spike':p.weapon;
+    if(spike ? r.carrier!==p.id||r.spike : m.item!==id||id==='knife'||!catalog[id])return;
+    if(!spike && p.inventory[catalog[id].slot]!==id)return;
+    const x=p.x-Math.sin(p.yaw)*1.3,z=p.z-Math.cos(p.yaw)*1.3;
+    r.drops.push({key:'throw-'+(++r.dropSeq),id,x,z,yaw:p.yaw,y:ground.height(r.map,x,z),mag:p.mag,reserve:p.reserve});
+    if(spike){r.carrier=null;p.spikeSelected=false;p.heldSpike=false;p.actionFrom=0;}
+    else{
+      cancelEquipmentReload(p);p.inventory[catalog[id].slot]=null;delete p.ammo[id];delete p.shopReceipts?.[catalog[id].slot];
+      p.weapon=p.inventory.secondary||p.inventory.primary||'knife';
+      p.mag=p.ammo[p.weapon]?.mag??1;p.reserve=p.ammo[p.weapon]?.reserve??0;
+      send(c,{type:'drop_loadout',inventory:p.inventory,weapon:p.weapon,mag:p.mag,reserve:p.reserve});
+    }
+  } else if(m.type==='pickup_item' && p.alive){
+    const item=r.drops?.find(d=>d.key===m.key);
+    if(!item||Math.hypot(item.x-p.x,item.y-p.footY,item.z-p.z)>2.2)return;
+    if(item.id==='spike'){if(p.team!=='attack'||r.carrier||r.spike)return;r.carrier=p.id;}
+    else{const slot=catalog[item.id].slot;if(p.inventory[slot])return;
+      p.inventory[slot]=item.id;p.ammo[item.id]={mag:item.mag,reserve:item.reserve};
+      send(c,{type:'drop_loadout',inventory:p.inventory,weapon:p.weapon,mag:p.mag,reserve:p.reserve});}
+    r.drops=r.drops.filter(d=>d!==item);
+  } else if(m.type==='equip' && r.started) {
     const slot=String(m.slot||'');
     const item=p.inventory?.[slot];
     if(!item||!catalog[item])return;
     if (p.weapon !== item) {cancelEquipmentReload(p);p.bulldogCount=0;p.lastShot=0;p.lastInterval=0;p.equipUntil=now+1000*catalog[item].equipTime;}
     p.aiming=false;
+    p.spikeSelected=false;
     p.weapon=item;
     p.mag=p.ammo[item]?.mag ?? catalog[item].magSize;
     p.reserve=p.ammo[item]?.reserve ?? catalog[item].resSize;
@@ -476,7 +504,7 @@ function receive(c,m) {
     p.inventory[slot]=slot==='secondary'?'classic':null;
     delete p.ammo[receipt.id];
     if(slot==='secondary'&&!p.ammo.classic)p.ammo.classic={mag:catalog.classic.magSize,reserve:catalog.classic.resSize};
-    if(p.weapon===receipt.id)p.weapon=p.inventory.secondary;
+    if(p.weapon===receipt.id)p.weapon=p.inventory.secondary||p.inventory.primary||'knife';
     p.mag=p.ammo[p.weapon].mag;p.reserve=p.ammo[p.weapon].reserve;
     p.credits=clamp(p.credits+receipt.cost,0,9000);
     send(c,{type:'refund_result',slot,inventory:p.inventory,weapon:p.weapon,credits:p.credits,mag:p.mag,reserve:p.reserve});
@@ -531,7 +559,7 @@ function spikeSite(x,z,footY,map) {
 }
 function spikeAction(r,p,now) {
   if(!p.alive) return null;
-  if(r.phase==='combat' && p.team==='attack') {
+  if(r.phase==='combat' && p.team==='attack' && r.carrier===p.id) {
     const site=spikeSite(p.x,p.z,p.footY,r.map);
     return site?{site,mode:'plant',progress:p.heldSpike&&p.actionFrom?clamp((now-p.actionFrom)/4000,0,1):0}:null;
   }
@@ -547,14 +575,23 @@ function snapshot(r) {
   // Quantize positions to centimetres, enough for FPS interpolation and smaller packets.
   const q=n=>Math.round(n*100)/100;
   return {type:'state',objects:r.objects,serverAt:now,code:r.code,round:r.round,phase:r.phase,timer:q(Math.max(0,(r.until-now)/1000)),
-    scores:r.scores,host:r.host,winRounds:r.winRounds,spike:r.spike,
-    players:roomUsers(r).map(p=>({id:p.id,name:p.name,team:p.team,x:q(p.x),y:q(p.y),z:q(p.z),footY:q(p.footY),yaw:q(p.yaw),pitch:q(p.pitch),aiming:!!p.aiming,hp:p.hp,armor:p.armor,alive:p.alive,credits:p.credits,inventory:p.inventory,weapon:p.weapon,mag:p.mag,reserve:p.reserve,reloading:p.reloading,reloadWeapon:p.reloadWeapon,spikeAction:spikeAction(r,p,now)}))};
+    scores:r.scores,host:r.host,winRounds:r.winRounds,spike:r.spike,carrier:r.carrier,drops:r.drops,
+    players:roomUsers(r).map(p=>({id:p.id,name:p.name,team:p.team,x:q(p.x),y:q(p.y),z:q(p.z),footY:q(p.footY),yaw:q(p.yaw),pitch:q(p.pitch),spikeSelected:!!p.spikeSelected,aiming:!!p.aiming,hp:p.hp,armor:p.armor,alive:p.alive,credits:p.credits,inventory:p.inventory,weapon:p.weapon,mag:p.mag,reserve:p.reserve,reloading:p.reloading,reloadWeapon:p.reloadWeapon,spikeAction:spikeAction(r,p,now)}))};
 }
 function broadcastState(r) {
   if(r.started)sendSnapshot(r,snapshot(r));
 }
 function step(r,now){
   if(!r.started)return;
+  if(r.carrier){
+    const carrier=r.players.get(r.carrier);
+    if(!carrier?.alive){
+      const spawn=ground.maps[r.map].labels['Attacker Side Spawn'];
+      const x=carrier?.x??spawn[0],z=carrier?.z??spawn[1];
+      r.drops.push({key:'throw-'+(++r.dropSeq),id:'spike',x,z,y:carrier?.footY??ground.height(r.map,x,z)});
+      r.carrier=null;
+    }
+  }
   if (now>=r.until) {
     if (r.phase==='buy'){r.phase='combat';r.until=now+100000;}
     else if(r.phase==='combat')endRound(r,'defense','TIME EXPIRED');
@@ -580,11 +617,12 @@ function step(r,now){
         if(!p.heldSpike)p.actionFrom=0;
         continue;
       }
-      if(p.team==='attack' && r.phase==='combat') {
+      if(p.team==='attack' && r.phase==='combat' && r.carrier===p.id) {
         const site=spikeSite(p.x,p.z,p.footY,r.map);
         if(!site){p.actionFrom=0;continue;}
         if(!p.actionFrom){p.actionFrom=now;worldSound(r,p,'plant');}
         if(now-p.actionFrom>=4000){
+          p.spikeSelected=false;r.carrier=null;
           r.spike={x:p.x,y:p.footY,z:p.z,site};r.phase='planted';r.until=now+45000;
           p.actionFrom=0;p.heldSpike=false;p.credits=clamp(p.credits+300,0,9000);
           emitRoom(r,{type:'spike_planted',spike:r.spike});

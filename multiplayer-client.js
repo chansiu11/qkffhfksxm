@@ -252,6 +252,16 @@
         case 'state': this.applyState(data); break;
         case 'purchase': this.applyPurchase(data); break;
         case 'refund_result': this.applyRefund(data); break;
+        case 'drop_loadout': {
+          for(const slot of ['primary','secondary']){
+            const id=data.inventory?.[slot];
+            if(a.player[slot]?.id!==id)a.player[slot]=id?a.cloneWeaponInstance(id):null;
+          }
+          const active=a.WEAPON_CATALOG[data.weapon];
+          if(active){a.player.activeSlot=active.slot;a.viewmodel.setWeapon(active.id);}
+          a.player.reloading=false;a.player.pendingReloadWeapon=null;a.viewmodel.stopReload();
+          a.updateHUD();break;
+        }
         case 'inventory':
         case 'ammo_sync': {
           // Equip and combat snapshots must not accidentally finish a running
@@ -463,6 +473,7 @@
         this.peers.clear();
         this.lastRound=state.round;
       }
+      a.syncLoot(state.drops||[]);
       a.roomState.playerSide = me.team;
       a.matchState.phase = state.phase;
       a.matchState.round = state.round;
@@ -555,17 +566,18 @@
         b.footY = rp.footY; b.yaw = rp.yaw; b.pitch = rp.pitch;
         const weaponId = rp.weapon in a.WEAPON_CATALOG ? rp.weapon : 'classic';
         if (!b.weapon || b.weapon.id !== weaponId) b.weapon = a.cloneWeaponInstance(weaponId);
-        if(b.displayWeapon!==weaponId){
-          b.displayWeapon=weaponId;
+        const displayId=rp.spikeSelected?'spikeFolded':weaponId;
+        if(b.displayWeapon!==displayId){
+          b.displayWeapon=displayId;
           if(!b.hold){
             b.hold=new THREE.Group();
             b.group.add(b.hold);
           }
           b.hold.clear();
-          a.viewmodel.remoteModel(weaponId).then(model=>{
-            if(!model||b.displayWeapon!==weaponId||this.peers.get(b.id)!==b)return;
+          a.viewmodel.remoteModel(displayId).then(model=>{
+            if(!model||b.displayWeapon!==displayId||this.peers.get(b.id)!==b)return;
             const pistol=b.weapon.slot==='secondary';
-            model.scale.multiplyScalar(pistol ? .66 : 1.45);
+            model.scale.multiplyScalar(rp.spikeSelected ? .44 : pistol ? .66 : 1.45);
             model.position.z=pistol?-.09:-.21;
             b.hold.add(model);
           }).catch(()=>{});
