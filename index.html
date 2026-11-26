@@ -90,7 +90,7 @@
       contain: layout style;
     }
     #fps-weapon-sprite-layer.weapon-visible { opacity: 1; visibility: visible; }
-    #fps-weapon-sprite-layer.weapon-aiming { opacity: 1; }
+    .hide-aimed-weapon #fps-weapon-sprite-layer { display: none; }
     #fps-weapon-sprite-layer.weapon-sniper-full { opacity: 0; }
     /* Reflex/iron-sight screen used only for rifles, SMGs, and other ADS
        guns without a telescopic scope. It follows the 100ms gun transition. */
@@ -108,8 +108,8 @@
       clip-path:polygon(32% 0,68% 0,88% 30%,100% 100%,0 100%,12% 30%);
       border-radius:11px 11px 0 0; box-shadow:inset 0 0 15px #080b10;
     }
-    #ads-iron-overlay[data-model="true"] .ads-receiver,
-    #ads-iron-overlay[data-model="true"] .ads-rear-notch { display:none; }
+    #ads-iron-overlay .ads-receiver,
+    #ads-iron-overlay .ads-rear-notch { display:none; }
     #ads-iron-overlay .ads-receiver::before {
       content:''; position:absolute;left:47%;top:20px;width:6%;height:250px;
       background:linear-gradient(#5e6970,#18212c);border-radius:3px;
@@ -3647,7 +3647,14 @@
       // engage when the gun reaches the center. Hit detection remains unchanged.
       const GameADS=window.GameADS;
       let adsCrosshairReady=false;
+      let hideAimedWeapon=false;
+      function setAimedWeaponHidden(hidden){
+        if(hidden===hideAimedWeapon)return;
+        hideAimedWeapon=hidden;
+        document.documentElement.classList.toggle('hide-aimed-weapon',hidden);
+      }
       function resetADS(){
+        setAimedWeaponHidden(false);
         player.bulldogCount=0;player.operatorZoom=1;
         GameADS.reset(player);
         adsCrosshairReady=false;
@@ -3661,10 +3668,12 @@
       function updateADSFrame(now){
         const gun=getActiveWeapon();
         if(!matchState.inMatch||!player.alive||!GameADS.isEligible(gun)){
+          setAimedWeaponHidden(false);
           if(player.adsRequested||player.adsProgress||player.isScoped)resetADS();
           return;
         }
         const amount=GameADS.update(player,now);
+        setAimedWeaponHidden(Boolean(player.adsRequested || amount>0));
         const ready=player.isScoped;
         const sniper=GameADS.isSniper(gun);
         const zoomFov=GameADS.fov(gun,75,player.operatorZoom);
@@ -3680,7 +3689,6 @@
         const open=!sniper&&amount>.001;
         iron.style.display=open?'block':'none';
         if(open){
-          iron.dataset.model=String(viewmodel.hasRenderedModel(gun.id));
           if(iron.dataset.weapon!==gun.id){
             const style=GameADS.SIGHTS[gun.id]||GameADS.SIGHTS.vandal;
             iron.dataset.weapon=gun.id;
@@ -5008,7 +5016,7 @@
         const renderMenu=now-lastMenuRenderAt>=100;
         if(matchState.inMatch||previousRenderWasMatch||renderMenu){
           renderer.render(scene,camera);
-          if(matchState.inMatch)viewmodel.renderModel(renderer);
+          if(matchState.inMatch&&!hideAimedWeapon)viewmodel.renderModel(renderer);
           else lastMenuRenderAt=now;
         }
         previousRenderWasMatch=matchState.inMatch;
