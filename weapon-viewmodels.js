@@ -306,6 +306,19 @@
     frenzy: 'Tactical_Shadow_SMG', ghost: 'Shadow_Sentinel',
     bandit: 'Shadowline_Pistol', sheriff: 'Shadowhawk_Revolver'
   };
+  // Extra uploaded archives are first-person cosmetic assets only.
+  const heldOnlyArchives = {
+    "stinger": "refs/classic/Meshy_AI_Shadow_Carbine_20261126_texture_fbx.zip",
+    "spectre": "refs/classic/Meshy_AI_Shadowline_SMG_20261126_texture_fbx.zip",
+    "bucky": "refs/classic/Meshy_AI_Tactical_Shotgun_20261126_texture_fbx.zip",
+    "judge": "refs/classic/Meshy_AI_Drum_Fed_Tactical_Shotgun_20261126_texture_fbx.zip",
+    "marshal": "refs/classic/Meshy_AI_Scoped_Lever_Action_Rifle_20261126_texture_fbx.zip",
+    "operator": "refs/classic/Meshy_AI_Shadowline_Sniper_20261126_texture_fbx.zip",
+    "outlaw": "refs/classic/Meshy_AI_Scoped_Tactical_Rifle_20261126_texture_fbx.zip",
+    "ares": "refs/classic/Meshy_AI_Ares_Combat_Shotgun_20261126_texture_fbx (1).zip",
+    "odin": "refs/classic/Meshy_AI_Shadowbreaker_Cannon_20261126_texture_fbx.zip"
+  };
+  const hasHeldModel=id=>Object.hasOwn(files,id)||Object.hasOwn(heldOnlyArchives,id);
   const poses = {
     classic: {scale:.40, right:.168, height:-.143, inspectYaw:.95, turnRoll:1.04, reloadDrop:.25, reloadRoll:.54},
     shorty:  {scale:.73, right:.146, height:-.143, inspectYaw:.95, turnRoll:1.04, reloadDrop:.12, reloadRoll:.54},
@@ -356,10 +369,13 @@
     dependencies ||= script('https://cdn.jsdelivr.net/npm/fflate@0.8.2/umd/index.js')
       .then(() => script('https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/FBXLoader.js'));
     try { await dependencies; } catch(error){ dependencies=null; throw error; }
-    const archive = 'refs/classic/Meshy_AI_' + files[id] + (id==='knife'||id==='guardian'?'_20261126':'_20261125') + '_texture_fbx' + (id === 'classic' ? ' (1)' : '') + '.zip';
+    const archive = heldOnlyArchives[id] || 'refs/classic/Meshy_AI_' + files[id] + (id==='knife'||id==='guardian'?'_20261126':'_20261125') + '_texture_fbx' + (id === 'classic' ? ' (1)' : '') + '.zip';
     const response = await fetch(archive);
     if (!response.ok) throw Error(archive);
-    const entries = fflate.unzipSync(new Uint8Array(await response.arrayBuffer()));
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    const entries = Object.hasOwn(heldOnlyArchives,id)
+      ? fflate.unzipSync(bytes,{filter:entry=>/\.fbx$|_texture\.png$/i.test(entry.name)})
+      : fflate.unzipSync(bytes);
     const names = Object.keys(entries);
     const mesh = new T.FBXLoader(new T.LoadingManager()).parse(entries[names.find(n => /\.fbx$/i.test(n))].buffer, '');
     removeLabelBands(mesh,id,T);
@@ -421,7 +437,7 @@
       if(!cache.has(id))cache.set(id,loadModel(id,T).catch(err=>{cache.delete(id);throw err;}));
       return cache.get(id);
     }
-    api.preloadJobs=()=>Object.keys(files).map(id=>()=>getModel(id));
+    api.preloadJobs=()=>[...Object.keys(files),...Object.keys(heldOnlyArchives)].map(id=>()=>getModel(id));
     // Cosmetic scene props reuse existing resources and never affect simulation.
     api.createGroundDisplay=(id,group)=>{
       if(!Object.hasOwn(referenceImages,id)||!sourceSize[id])return;
@@ -450,10 +466,10 @@
     };
     function select(id) {
       if(selected===id)return;
-      startModelDraw=!!files[id];
+      startModelDraw=hasHeldModel(id);
       selected=id; equipped=performance.now(); inspected=fired=-Infinity;
       pivot.clear(); model=null; visible=false;
-      if(!files[id])return;
+      if(!hasHeldModel(id))return;
       getModel(id).then(asset=>{if(asset && selected===id){model=asset;pivot.add(asset);}}).catch(err=>console.warn('Pistol model',id,err));
     }
     const set=api.setWeapon, update=api.update, fire=api.fire, inspect=api.inspect, reload=api.beginReload;
@@ -521,7 +537,7 @@
       const aspect=innerWidth/Math.max(1,innerHeight);
       if(camera.aspect!==aspect){camera.aspect=aspect;camera.updateProjectionMatrix();}
       // Reference at 23.5–24.5 s: Classic grip sits below and right of the crosshair.
-      const pose=poses[selected];
+      const pose=poses[selected]||riflePose;
       pivot.scale.setScalar(pose.scale);
       pivot.position.set(pose.right*Math.min(camera.aspect,2.1)/1.78-.013*lift-.087*turn-.033*shortyInspect,
         pose.height+.048*lift-.08*turn-.26*draw-pose.reloadDrop*dip+.015*seat+.003*move*Math.sin(now*.01),
@@ -568,7 +584,7 @@
     }
     api.getMuzzleScreenPosition=()=>visible&&model?projectTip():spriteScreen();
     api.getMuzzleWorldPosition=worldCamera=>{
-      if(!visible||!model||!worldCamera)return spriteWorld(worldCamera);
+      if(!visible||!model||!worldCamera||Object.hasOwn(heldOnlyArchives,selected))return spriteWorld(worldCamera);
       const {depth}=projectTip();
       worldCamera.updateWorldMatrix(true,false);
       const ray=new T.Vector3(tip.x,tip.y,.5).unproject(worldCamera);
