@@ -25,7 +25,7 @@
   <script src="crosshair-profile.js"></script>
   <script src="crosshair-ui.js" defer></script>
   <script src="ads-system.js?v=armory20"></script>
-  <script src="weapon-viewmodels.js?v=ground-display3"></script>
+  <script src="weapon-viewmodels.js?v=ground-display4"></script>
 
   <style>
     :root {
@@ -4764,9 +4764,12 @@
         renderQuality.warmup++;
         if (perfStats) {
           const ping = window.MP?.active ? (window.MP.rtt == null ? '--' : Math.round(window.MP.rtt) + 'ms') : '오프라인';
-          perfStats.textContent = `FPS ${fps} · PING ${ping} · ${window.MP?.active?(window.MP.hostTransport?.label||'RENDER'):''}`;
-          perfStats.style.color = window.MP?.reconnecting ? '#ffd166'
-            : (window.MP?.rtt != null && window.MP.rtt > 100) ? '#ff8585' : '#38e2c7';
+          const net=window.MP;
+          const jitter=net?.active&&net.rtt!=null?' · JITTER '+Math.round(net.jitter||0)+'ms':'';
+          hudText(perfStats,`FPS ${fps} · PING ${ping}${jitter} · ${net?.active?(net.hostTransport?.label||'RENDER'):''}`);
+          hudStyle(perfStats,'color',net?.reconnecting?'#ffd166':net?.rtt!=null&&net.rtt>=90?'#ff8585':'#38e2c7');
+          const queued=net?.socket?.bufferedAmount;
+          perfStats.title=net?.active?'실측 왕복 지연의 이동평균 · 목표 90ms 미만'+(Number.isFinite(queued)?' · 전송 대기 '+queued+' bytes':''):'오프라인 FPS';
         }
         // The fastest recent rAF interval is a rough indication of panel refresh.
         const highRefresh = renderQuality.fastestFrame < 11.0;
@@ -4878,9 +4881,11 @@
           resetCameraEffects();
           if(player.adsRequested||player.adsProgress)resetADS();
           viewmodel.update(dt, player, matchState); // Hide the 2D viewmodel in menus and after a match.
-          const t = now * 0.00022;
-          camera.position.set(Math.cos(t) * 38, 17, Math.sin(t) * 38);
-          camera.lookAt(0, 2, 0);
+          if(now-lastMenuRenderAt>=100||previousRenderWasMatch){
+            const t=now*.00022;
+            camera.position.set(Math.cos(t)*38,17,Math.sin(t)*38);
+            camera.lookAt(0,2,0);
+          }
         }
 
         for (let i = activeTracers.length - 1; i >= 0; i--) {

@@ -518,7 +518,8 @@
       const shortyReload=shorty?smooth(reloadT/.22)*(1-smooth((reloadT-.72)/.28)):0;
       const shot=(now-fired)/1000, kick=selected==='knife'?(shot<.25?Math.sin(Math.PI*Math.min(1,shot/.055)/2)*Math.exp(-shot*18):0):.4*api.getVisualKick(now);
       const move=Math.min(1,Math.hypot(player.vel?.x||0,player.vel?.z||0)/7.6);
-      camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();
+      const aspect=innerWidth/Math.max(1,innerHeight);
+      if(camera.aspect!==aspect){camera.aspect=aspect;camera.updateProjectionMatrix();}
       // Reference at 23.5–24.5 s: Classic grip sits below and right of the crosshair.
       const pose=poses[selected];
       pivot.scale.setScalar(pose.scale);
