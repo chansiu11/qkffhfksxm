@@ -14,7 +14,7 @@
   <script src="config.js?v=perf19"></script>
   <script src="host-transport.js?v=armory20"></script>
   <script src="movement-physics.js?v=move25"></script>
-  <script src="multiplayer-client.js?v=postmatch2"></script>
+  <script src="multiplayer-client.js?v=postmatch3"></script>
   <link rel="stylesheet" href="menu.css" />
   <!-- Three.js r128 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -25,7 +25,7 @@
   <script src="crosshair-profile.js"></script>
   <script src="crosshair-ui.js" defer></script>
   <script src="ads-system.js?v=armory20"></script>
-  <script src="weapon-viewmodels.js?v=ground-display2"></script>
+  <script src="weapon-viewmodels.js?v=ground-display3"></script>
 
   <style>
     :root {
@@ -2368,14 +2368,33 @@
         }
       }
       // Visual-only equipment display at the last known location.
-      const groundDisplays=new Map();
+      const groundDisplays=new Map(), roundMarkers=new Map();
+      function rememberRoundMarker(key,x,y,z,team){
+        if(!key||roundMarkers.has(key)||![x,y,z].every(Number.isFinite)||!['ally','enemy'].includes(team))return;
+        roundMarkers.set(key,{x,y,z,team,mesh:null});
+      }
+      // Abstract, non-graphic marker; only shown in the scene after play ends.
+      function showRoundMarkers(){
+        for(const mark of roundMarkers.values()){
+          if(mark.mesh)continue;
+          const mesh=new THREE.Mesh(new THREE.RingGeometry(.22,.30,24),new THREE.MeshBasicMaterial({color:mark.team==='ally'?0x52aaff:0xff4655,transparent:true,opacity:.85,side:THREE.DoubleSide,depthWrite:false}));
+          mesh.rotation.x=-Math.PI/2;mesh.position.set(mark.x,mark.y+.025,mark.z);
+          scene.add(mesh);mark.mesh=mesh;
+        }
+      }
       function clearGroundDisplays(){
         for(const entry of groundDisplays.values()){entry.dispose?.();scene.remove(entry.group);}
         groundDisplays.clear();
+        for(const mark of roundMarkers.values())if(mark.mesh){scene.remove(mark.mesh);mark.mesh.geometry.dispose();mark.mesh.material.dispose();}
+        roundMarkers.clear();
       }
-      function showGroundDisplay(key,id,x,y,z){
+      function showGroundDisplay(key,id,x,y,z,team){
+        rememberRoundMarker(key,x,y,z,team);
         if(!key||!id||groundDisplays.has(key)||![x,y,z].every(Number.isFinite)||!WEAPON_CATALOG[id]||WEAPON_CATALOG[id].slot==='knife')return;
         const group=new THREE.Group();group.position.set(x,y+.045,z);
+        // Stable pseudo-random yaw per prop, without per-frame changes.
+        let seed=2166136261;for(const ch of key+':'+matchState.round+':'+x+':'+z)seed=Math.imul(seed^ch.charCodeAt(0),16777619);
+        group.rotation.y=(seed>>>0)/4294967296*Math.PI*2;
         try{
           const dispose=viewmodel.createGroundDisplay(id,group);
           if(typeof dispose!=='function')return;
@@ -2385,15 +2404,16 @@
       }
       function showOfflineDisplays(){
         if(window.MP.active||activeMap==='range')return;
-        if(!player.alive)showGroundDisplay('local',player.primary?.id||player.secondary?.id,player.pos.x,player.footY,player.pos.z);
+        if(!player.alive)showGroundDisplay('local',player.primary?.id||player.secondary?.id,player.pos.x,player.footY,player.pos.z,'ally');
         for(const b of bots)if(!b.alive){
           b.group.visible=false;
-          showGroundDisplay(b.id||b.name,b.primary?.id||b.secondary?.id||b.weapon?.id,b.group.position.x,b.footY,b.group.position.z);
+          showGroundDisplay(b.id||b.name,b.primary?.id||b.secondary?.id||b.weapon?.id,b.group.position.x,b.footY,b.group.position.z,b.team);
         }
       }
       function enterPostMatch(){
         showOfflineDisplays();
         matchState.phase='post_match';
+        showRoundMarkers();
         matchState.inMatch=true;
         matchState.spikePlanted=false;
         spikeMesh.visible=false;barrierGroup.visible=false;
@@ -4298,6 +4318,15 @@
           rCtx.fill();
         });
 
+        // Team status history is informational; no extra enemy vision calculation.
+        for(const mark of roundMarkers.values()){
+          if(mark.team==='enemy'&&matchState.phase!=='post_match')continue;
+          const x=toRx(mark.x),z=toRz(mark.z),d=3.5;
+          rCtx.strokeStyle=mark.team==='ally'?'#52aaff':'#ff4655';
+          rCtx.lineWidth=2;rCtx.beginPath();
+          rCtx.moveTo(x-d,z-d);rCtx.lineTo(x+d,z+d);
+          rCtx.moveTo(x+d,z-d);rCtx.lineTo(x-d,z+d);rCtx.stroke();
+        }
         if (matchState.spikePlanted) {
           rCtx.fillStyle = '#f5c542';
           rCtx.beginPath();

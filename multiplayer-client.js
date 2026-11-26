@@ -350,7 +350,7 @@
           if(peer){peer.alive=false;peer.group.visible=false;}
           if(victim){
             const id=victim.inventory?.primary||victim.inventory?.secondary||victim.weapon;
-            a.showGroundDisplay(data.victim,id,victim.x,victim.footY,victim.z);
+            a.showGroundDisplay(data.victim,id,victim.x,victim.footY,victim.z,victim.team===a.roomState.playerSide?'ally':'enemy');
           }
           a.addKillFeed(myKill ? 'YOU' : (killer?.name || 'PLAYER'), victim?.name || 'PLAYER', (data.weapon || '').toUpperCase(), !!data.headshot, {killer:data.killer,victim:data.victim});
           break;
@@ -490,7 +490,7 @@
         if(!rp.alive){
           const equipped=a.WEAPON_CATALOG[rp.weapon];
           const id=rp.inventory?.primary||rp.inventory?.secondary||(equipped?.slot!=='knife'?rp.weapon:null);
-          a.showGroundDisplay(rp.id,id,rp.x,rp.footY,rp.z);
+          a.showGroundDisplay(rp.id,id,rp.x,rp.footY,rp.z,rp.team===me.team?'ally':'enemy');
         }
       }
       a.player.hp = me.hp;

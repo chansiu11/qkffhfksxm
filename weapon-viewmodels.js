@@ -437,11 +437,13 @@
       group.add(sprite);
       if(files[id])getModel(id).then(asset=>{
         if(!active||!asset)return;
-        clone=asset.clone(true);group.add(clone);
+        // Rotate the display as a whole so the broad side faces up.
+        const side=new T.Group();side.rotation.z=Math.PI/2;
+        clone=asset.clone(true);side.add(clone);group.add(side);
         group.updateMatrixWorld(true);
-        const bounds=new T.Box3().setFromObject(clone);
-        if(!Number.isFinite(bounds.min.y)){group.remove(clone);return;}
-        clone.position.y+=group.position.y-bounds.min.y;
+        const bounds=new T.Box3().setFromObject(side);
+        if(!Number.isFinite(bounds.min.y)){group.remove(side);return;}
+        side.position.y+=group.position.y-bounds.min.y;
         sprite.visible=false;
       }).catch(()=>{});
       return ()=>{active=false;group.clear();geometry.dispose();material.dispose();texture.dispose();};
