@@ -25,7 +25,7 @@
   <script src="crosshair-profile.js"></script>
   <script src="crosshair-ui.js" defer></script>
   <script src="ads-system.js?v=armory20"></script>
-  <script src="weapon-viewmodels.js?v=inspect-ads-tip3"></script>
+  <script src="weapon-viewmodels.js?v=visual-continuity1"></script>
 
   <style>
     :root {
@@ -4167,8 +4167,9 @@
           }
 
           camera.position.copy(player.pos);
-          camera.rotation.y = player.yaw + cameraYawRecoil(heldWeapon, performance.now(), dt);
-          camera.rotation.x = Math.min(1.48, player.lookPitch + cameraRecoil(heldWeapon, performance.now()));
+          const viewNow = performance.now();
+          camera.rotation.y = player.yaw + cameraYawRecoil(heldWeapon, viewNow, dt);
+          camera.rotation.x = Math.max(-1.48, Math.min(1.48, player.lookPitch + cameraRecoil(heldWeapon, viewNow)));
 
           document.getElementById('hud-callout-name').textContent = player.callout;
           const elevSign = player.footY >= 0 ? '+' : '';
@@ -4513,20 +4514,27 @@
 
       let prevTime = performance.now();
       // Apply recoil only to the view. Shot directions already include ballistic climb.
-      let recoilStateSeen, recoilShotAt, recoilStart, recoilPeak;
+      let recoilStateSeen, recoilShotAt, recoilStart = 0, recoilPeak = 0, viewPitch = 0;
       let viewYaw = 0, yawStateSeen;
+      // Visual offsets only: never write into the player's input angles.
+      function resetCameraEffects() {
+        recoilStateSeen = yawStateSeen = null;
+        recoilShotAt = undefined;
+        recoilStart = recoilPeak = viewPitch = viewYaw = 0;
+      }
       function cameraYawRecoil(weapon, now, dt) {
         const state = weapon?._spreadState;
         if (!state || state !== yawStateSeen || !weapon.auto) viewYaw = 0;
         yawStateSeen = state;
-        if (!state || !weapon.auto || state.yawWeapon !== weapon.id) return 0;
+        if (!state || !weapon.auto || state.yawWeapon !== weapon.id ||
+            !Number.isFinite(state.at)) return 0;
         const age = Math.max(0, now - state.at);
         const recovery = ShootingSpread.weaponProfile(weapon).recovery;
-        if (age >= recovery) return viewYaw = 0;
         const interval = Math.min((player.lastInterval || weapon.fireRate) * 1000, recovery / 2);
-        const fade = 1 - Math.max(0, (age - interval) / (recovery - interval));
-        const target = (state.yawCenter || 0) * fade;
-        viewYaw += (target - viewYaw) * (1 - Math.exp(-dt / .055));
+        const fade = Math.max(0, 1 - Math.max(0, (age - interval) / (recovery - interval)));
+        const target = (Number.isFinite(state.yawCenter) ? state.yawCenter : 0) * fade;
+        viewYaw += (target - viewYaw) * (1 - Math.exp(-Math.max(0,dt) / .055));
+        if (target === 0 && Math.abs(viewYaw) < .00001) viewYaw = 0;
         return viewYaw;
       }
 
@@ -4534,28 +4542,31 @@
         const state = weapon?._spreadState;
         if (!state || !Number.isFinite(state.at) || state.weapon !== weapon.id) {
           recoilStateSeen = null;
-          return 0;
+          return viewPitch = 0;
         }
+        if (recoilStateSeen !== state) viewPitch = 0;
         const recovery = ShootingSpread.weaponProfile(weapon).recovery;
         const age = Math.max(0, now - state.at);
-        if (age >= recovery) return 0;
+        if (age >= recovery) return viewPitch = 0;
         const interval = (player.lastInterval || weapon.fireRate) * 1000;
         const rise = Math.min(45, interval * .45);
         const hold = Math.min(interval, recovery * .55);
         if (recoilStateSeen !== state || recoilShotAt !== state.at) {
-          const previous = recoilStateSeen === state && state.count > 0 ? recoilPeak : 0;
           const next = ShootingSpread.sample(weapon, {
             ...ShootingSpread.motion(player), shotIndex: Math.min(19, state.count + 1),
             yaw: 0, pitch: 0, seed: 1
           });
-          recoilStart = previous;
+          recoilStart = viewPitch;
           recoilPeak = Math.max(next.recoil, weapon.recoilPitch || 0);
           recoilStateSeen = state;
           recoilShotAt = state.at;
         }
-        if (age < rise) return recoilStart + (recoilPeak - recoilStart) * age / rise;
-        const t = Math.max(0, (age - hold) / (recovery - hold));
-        return recoilPeak * (1 - t*t*(3-2*t));
+        if (age < rise) {
+          const t = age / Math.max(1,rise);
+          return viewPitch = recoilStart + (recoilPeak - recoilStart) * t*t*(3-2*t);
+        }
+        const t = Math.min(1, Math.max(0, (age - hold) / (recovery - hold)));
+        return viewPitch = recoilPeak * (1 - t*t*(3-2*t));
       }
 
       function animate(now) {
@@ -4580,6 +4591,7 @@
           const holdingAnyFire = isMouseFiring || isKeyboardFiring || isLeftTouchFiring || isRightTouchFiring;
           if ((holdingAnyFire || (player.bulldogCount && player.isScoped && getActiveWeapon().id==='bulldog')) && player.alive && getActiveWeapon().auto) attemptFire();
           updateADSFrame(now);
+          if (!player.alive) resetCameraEffects();
           updatePlayerAndSpectatorCamera(dt, heldWeapon);
           window.updateCrosshairErrors?.(ShootingSpread.crosshairError(getActiveWeapon(), player, now), now);
           if(activeMap==='range')updateRange(now);
@@ -4588,6 +4600,7 @@
           window.MP.tick(dt);orientAudio();
           if (now - lastRadarAt > 75) {drawAscentRadar();lastRadarAt = now;}
         } else {
+          resetCameraEffects();
           if(player.adsRequested||player.adsProgress)resetADS();
           viewmodel.update(dt, player, matchState); // Hide the 2D viewmodel in menus and after a match.
           const t = now * 0.00022;
