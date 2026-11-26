@@ -12,9 +12,9 @@
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=Rajdhani:wght@600;700&family=Teko:wght@600;700&display=swap" rel="stylesheet">
   <script src="match-plans.js?v=map-barrier-layout5"></script>
   <script src="config.js?v=perf19"></script>
-  <script src="host-transport.js?v=rtc-diagnostics1"></script>
+  <script src="host-transport.js?v=rtc-diagnostics2"></script>
   <script src="movement-physics.js?v=move25"></script>
-  <script src="multiplayer-client.js?v=postmatch3"></script>
+  <script src="multiplayer-client.js?v=ping-samples2"></script>
   <link rel="stylesheet" href="menu.css" />
   <!-- Three.js r128 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -4769,11 +4769,14 @@
           const direct=net?.hostTransport?.diagnostics;
           const route=net?.hostTransport?.probeRoute;
           const ice=direct?.rtt!=null?' · RTC '+direct.rtt+'ms':'';
+          const sample=net?.active&&net.rtt!=null&&net.lastPingSample&&now-net.lastPingSample.at<6000?net.lastPingSample:null;
+          const worker=sample?.worker!=null?' · WORKER '+sample.worker+'ms':'';
+          const rawPing=sample?' · RAW '+sample.rtt+'ms':'';
           const jitter=net?.active&&net.rtt!=null?' · JITTER '+Math.round(net.jitter||0)+'ms':'';
-          hudText(perfStats,`FPS ${fps} · PING ${ping}${ice}${jitter} · ${net?.active?(net.hostTransport?.label||'RENDER'):''}${route==='RELAY'?' · 중계 응답':''}`);
+          hudText(perfStats,`FPS ${fps} · PING ${ping}${ice}${worker}${rawPing}${jitter} · ${net?.active?(net.hostTransport?.label||'RENDER'):''}${route==='RELAY'?' · 중계 응답':''}`);
           hudStyle(perfStats,'color',net?.reconnecting?'#ffd166':net?.rtt!=null&&net.rtt>=90?'#ff8585':'#38e2c7');
           const queued=net?.socket?.bufferedAmount;
-          perfStats.title=net?.active?'PING: 앱 왕복 응답 평균 · RTC: WebRTC 연결 자체 왕복 지연'+(route?' · 최근 핑 전송 '+route:'')+(direct?.path?' · 연결 유형 '+direct.path:'')+(Number.isFinite(direct?.queued)?' · P2P 대기 '+direct.queued+' bytes':'')+(Number.isFinite(queued)?' · 서버 대기 '+queued+' bytes':''):'오프라인 FPS';
+          perfStats.title=net?.active?'PING: 앱 왕복 응답 평균 · RTC: WebRTC 연결 자체 왕복 지연 · WORKER: 방장 브라우저와 Worker 왕복 · RAW: 최근 앱 실측'+(route?' · 최근 핑 전송 '+route:'')+(direct?.path?' · 연결 유형 '+direct.path:'')+(Number.isFinite(direct?.queued)?' · P2P 대기 '+direct.queued+' bytes':'')+(Number.isFinite(queued)?' · 서버 대기 '+queued+' bytes':''):'오프라인 FPS';
         }
         // The fastest recent rAF interval is a rough indication of panel refresh.
         const highRefresh = renderQuality.fastestFrame < 11.0;

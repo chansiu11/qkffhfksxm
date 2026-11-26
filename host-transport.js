@@ -6,6 +6,18 @@ function make(mp){
   let room=null,worker=null,workerReady=false,mode=false,enabled=false,epoch=0,lastWorkerAt=0;
   const links=new Map(),early=[];
   let diagnostics=null,reading=false,lastRead=0,lastProbeRoute=null;
+  const workerProbes=new Map();
+  function noteWorkerProbe(from,data){
+    if(data?.type!=='ping'||!Number.isFinite(data.seq))return;
+    workerProbes.set(from+':'+data.seq,performance.now());
+    while(workerProbes.size>32)workerProbes.delete(workerProbes.keys().next().value);
+  }
+  function annotateWorkerProbe(to,data){
+    if(data?.type!=='pong')return data;
+    const key=to+':'+data.seq,start=workerProbes.get(key);
+    workerProbes.delete(key);
+    return start===undefined?data:{...data,workerRttMs:Math.round(performance.now()-start)};
+  }
   function selectedPair(stats){
     let pair=null;
     for(const r of stats.values()){
@@ -40,7 +52,7 @@ function make(mp){
   }
   const raw=m=>mp.rawSend(m);
   function clearLink(id){const l=links.get(id);if(!l)return;links.delete(id);try{l.pc.close();}catch(_){}}
-  function stopWorker(){if(worker)worker.terminate();worker=null;workerReady=false;}
+  function stopWorker(){workerProbes.clear();if(worker)worker.terminate();worker=null;workerReady=false;}
   function reset(){epoch++;diagnostics=null;lastProbeRoute=null;mode=false;enabled=false;room=null;early.length=0;for(const id of [...links.keys()])clearLink(id);stopWorker();}
   function report(){const el=document.getElementById('host-transport-status');if(el)el.textContent=mode?'방장 호스트 연결':enabled?'직접 연결 '+[...links.values()].filter(l=>l.dc?.readyState==='open').length+'명':'Render 서버 연결';}
   function setEnabled(value){
@@ -56,7 +68,7 @@ function make(mp){
       const m=e.data;lastWorkerAt=performance.now();
       if(m.type==='ready'){workerReady=true;report();}
       else if(m.type==='failed'){stopWorker();if(mode)raw({type:'host_abort'});}
-      else if(m.type==='output'&&mode){if(m.to===mp.myId)mp.receive(m.data);else route(m.to,{kind:'output',data:m.data});}
+      else if(m.type==='output'&&mode){const data=annotateWorkerProbe(m.to,m.data);if(m.to===mp.myId)mp.receive(data);else route(m.to,{kind:'output',data});}
       else if(m.type==='finished'&&mode){raw({type:'host_finish'});mode=false;stopWorker();report();}
     };
     worker.onerror=()=>{stopWorker();if(mode)raw({type:'host_abort'});};
@@ -76,6 +88,7 @@ function make(mp){
     if(!mode){if(packet.kind==='output'&&early.length<64)early.push([from,packet]);return;}
     if(packet.run!==room?.hostRun)return;
     if(packet.kind==='input'&&isHost()&&room.players.some(p=>p.id===from)&&!CONTROL.has(packet.data.type)){
+      noteWorkerProbe(from,packet.data);
       worker?.postMessage({type:'input',from,data:packet.data});
     }else if(packet.kind==='output'&&!isHost()&&from===room.host&&!CONTROL.has(packet.data.type)&&!['host_begin','host_fallback','hello','joined','resumed','resume_failed'].includes(packet.data.type))mp.receive(packet.data);
   }
@@ -141,7 +154,7 @@ function make(mp){
       return raw({...m,hostReady:enabled&&workerReady,ready});
     }
     if(!mode||CONTROL.has(m.type))return raw(m);
-    if(isHost()){if(!worker)return false;if(m.type==='ping'&&performance.now()-lastWorkerAt<3000)raw({type:'host_alive',run:room.hostRun});worker.postMessage({type:'input',from:mp.myId,data:m});return true;}
+    if(isHost()){if(!worker)return false;if(m.type==='ping'&&performance.now()-lastWorkerAt<3000)raw({type:'host_alive',run:room.hostRun});noteWorkerProbe(mp.myId,m);worker.postMessage({type:'input',from:mp.myId,data:m});return true;}
     return route(room.host,{kind:'input',data:m});
   }
   return {reset,update,signal,begin,fallback,send,setEnabled,sampleDiagnostics,

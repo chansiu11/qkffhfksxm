@@ -166,6 +166,7 @@
             this.pingSent.delete(data.seq);
             const elapsed = performance.now()-start;
             if (elapsed > 0 && elapsed < 30000) {
+              this.lastPingSample={rtt:Math.round(elapsed),worker:Number.isFinite(data.workerRttMs)&&data.workerRttMs>=0?data.workerRttMs:null,at:performance.now()};
               if (this.rtt == null) this.rtt = elapsed;
               else {
                 this.jitter = this.jitter*0.8 + Math.abs(elapsed-this.rtt)*0.2;
