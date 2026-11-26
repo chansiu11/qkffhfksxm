@@ -5,10 +5,43 @@ const CONTROL=new Set(['create','join','resume','leave','host_opt','host_signal'
 function make(mp){
   let room=null,worker=null,workerReady=false,mode=false,enabled=false,epoch=0,lastWorkerAt=0;
   const links=new Map(),early=[];
+  let diagnostics=null,reading=false,lastRead=0,lastProbeRoute=null;
+  function selectedPair(stats){
+    let pair=null;
+    for(const r of stats.values()){
+      if(r.type==='transport'&&r.selectedCandidatePairId){
+        const candidate=stats.get(r.selectedCandidatePairId);
+        if(candidate&&candidate.state==='succeeded'){pair=candidate;break;}
+      }
+    }
+    if(!pair)for(const r of stats.values()){
+      if(r.type==='candidate-pair'&&r.state==='succeeded'&&(r.selected||r.nominated)){pair=r;break;}
+    }
+    if(!pair)return null;
+    const local=stats.get(pair.localCandidateId),remote=stats.get(pair.remoteCandidateId);
+    return {rtt:Number.isFinite(pair.currentRoundTripTime)?Math.round(pair.currentRoundTripTime*1000):null,
+      path:local?.candidateType==='relay'||remote?.candidateType==='relay'?'TURN':local?.candidateType==='host'&&remote?.candidateType==='host'?'HOST/HOST':'ICE',
+      protocol:local?.protocol||null};
+  }
+  async function sampleDiagnostics(){
+    const now=performance.now();
+    if(reading||now-lastRead<1400)return;
+    lastRead=now;
+    const link=mode&&!isHost()?links.get(room?.host):null;
+    if(!link||link.dc?.readyState!=='open'){diagnostics=null;return;}
+    const generation=epoch;
+    reading=true;
+    try{
+      const info=selectedPair(await link.pc.getStats());
+      if(generation===epoch&&mode&&links.get(room?.host)===link)
+        diagnostics={...info,queued:link.dc.bufferedAmount,at:performance.now()};
+    }catch(_){diagnostics=null;}
+    finally{reading=false;}
+  }
   const raw=m=>mp.rawSend(m);
   function clearLink(id){const l=links.get(id);if(!l)return;links.delete(id);try{l.pc.close();}catch(_){}}
   function stopWorker(){if(worker)worker.terminate();worker=null;workerReady=false;}
-  function reset(){epoch++;mode=false;enabled=false;room=null;early.length=0;for(const id of [...links.keys()])clearLink(id);stopWorker();}
+  function reset(){epoch++;diagnostics=null;lastProbeRoute=null;mode=false;enabled=false;room=null;early.length=0;for(const id of [...links.keys()])clearLink(id);stopWorker();}
   function report(){const el=document.getElementById('host-transport-status');if(el)el.textContent=mode?'방장 호스트 연결':enabled?'직접 연결 '+[...links.values()].filter(l=>l.dc?.readyState==='open').length+'명':'Render 서버 연결';}
   function setEnabled(value){
     if(mode||!room||room.started)return;
@@ -33,7 +66,8 @@ function make(mp){
     const link=links.get(to),dc=link?.dc;
     packet={...packet,run:room?.hostRun};
     const encoded=JSON.stringify(packet);
-    if(dc?.readyState==='open'&&dc.bufferedAmount<32768){try{dc.send(encoded);return true;}catch(_){}}
+    if(dc?.readyState==='open'&&dc.bufferedAmount<32768){try{dc.send(encoded);if(packet.data?.type==='ping')lastProbeRoute='P2P';return true;}catch(_){}}
+    if(packet.data?.type==='ping')lastProbeRoute='RELAY';
     if(packet.kind==='input')return raw({type:'host_input',run:packet.run,data:packet.data});
     return raw({type:'host_output',run:packet.run,to,data:packet.data});
   }
@@ -94,13 +128,13 @@ function make(mp){
     }).catch(()=>clearLink(m.from));
   }
   function begin(lobby){
-    room=lobby;mode=true;mp.rtt=null;mp.jitter=0;mp.pingSent.clear();report();
+    room=lobby;mode=true;diagnostics=null;lastProbeRoute=null;mp.rtt=null;mp.jitter=0;mp.pingSent.clear();report();
     if(isHost()){
       if(!workerReady){raw({type:'host_abort'});return;}
       worker.postMessage({type:'init',room:lobby});
     }else for(const [from,p] of early.splice(0))deliver(from,p);
   }
-  function fallback(){mode=false;early.length=0;stopWorker();mp.rtt=null;mp.jitter=0;mp.pingSent.clear();report();}
+  function fallback(){diagnostics=null;lastProbeRoute=null;mode=false;early.length=0;stopWorker();mp.rtt=null;mp.jitter=0;mp.pingSent.clear();report();}
   function send(m){
     if(m.type==='start'&&!mode&&isHost()){
       const ready=[...links.values()].filter(l=>l.dc?.readyState==='open').map(l=>l.id);
@@ -110,7 +144,9 @@ function make(mp){
     if(isHost()){if(!worker)return false;if(m.type==='ping'&&performance.now()-lastWorkerAt<3000)raw({type:'host_alive',run:room.hostRun});worker.postMessage({type:'input',from:mp.myId,data:m});return true;}
     return route(room.host,{kind:'input',data:m});
   }
-  return {reset,update,signal,begin,fallback,send,setEnabled,
+  return {reset,update,signal,begin,fallback,send,setEnabled,sampleDiagnostics,
+    get diagnostics(){return mode&&diagnostics&&performance.now()-diagnostics.at<6000?{...diagnostics,probeRoute:lastProbeRoute}:null;},
+    get probeRoute(){return mode?lastProbeRoute:null;},
     relayInput:m=>deliver(m.from,{kind:'input',run:m.run,data:m.data}),
     relayOutput:m=>deliver(room?.host,{kind:'output',run:m.run,data:m.data}),
     left:id=>{clearLink(id);worker?.postMessage({type:'left',id});},
