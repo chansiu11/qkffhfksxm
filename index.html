@@ -2032,7 +2032,7 @@
       spikeMesh.visible = false;
       scene.add(spikeMesh);
 
-      let spikeInHand=false,offlineCarrier=true,deathView=null,dropSerial=0;
+      let spikeInHand=false,offlineCarrier=false,deathView=null,dropSerial=0;
       const loot=new Map();
       const heldDevice=new THREE.Group();
       heldDevice.position.set(.22,-.19,-.54); camera.add(heldDevice);
@@ -2074,7 +2074,7 @@
       }
       function syncLoot(items){
         for(const key of loot.keys())if(!items.some(item=>item.key===key))clearLoot(key);
-        for(const item of items)putLoot(item);
+        for(const item of items)putLoot(item,item.key!=='spawn-spike');
       }
       function dropHeld(){
         if(!player.alive||!['buy','combat','planted'].includes(matchState.phase))return;
@@ -2116,6 +2116,20 @@
         beepAccum: 0
       };
 
+      const spikeBadgeCanvas=document.createElement('canvas');
+      spikeBadgeCanvas.width=64;spikeBadgeCanvas.height=64;
+      const badgeCtx=spikeBadgeCanvas.getContext('2d');
+      badgeCtx.fillStyle='#ffda38';badgeCtx.strokeStyle='#34290a';badgeCtx.lineWidth=4;
+      badgeCtx.beginPath();badgeCtx.moveTo(32,3);badgeCtx.lineTo(52,29);badgeCtx.lineTo(40,56);badgeCtx.lineTo(24,56);badgeCtx.lineTo(12,29);badgeCtx.closePath();badgeCtx.fill();badgeCtx.stroke();
+      badgeCtx.beginPath();badgeCtx.moveTo(32,15);badgeCtx.lineTo(32,44);badgeCtx.stroke();
+      const spikeBadge=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(spikeBadgeCanvas),depthTest:false,depthWrite:false}));
+      spikeBadge.scale.set(.48,.48,1);spikeBadge.renderOrder=12;spikeBadge.visible=false;scene.add(spikeBadge);
+      function updateSpikeBadge(){
+        const id=window.MP.active&&window.MP.state?.carrier;
+        const carrier=matchState.inMatch&&roomState.playerSide==='attack'&&!matchState.spikePlanted&&id&&bots.find(b=>b.alive&&b.team==='ally'&&b.id===id);
+        spikeBadge.visible=!!carrier&&carrier.group.visible;
+        if(spikeBadge.visible)spikeBadge.position.copy(carrier.group.position).y+=2.05;
+      }
       function createTacticalBotMesh(isAlly) {
         const group = new THREE.Group();
         const suitColor = isAlly ? 0x0d9488 : 0xe11d48;
@@ -2645,7 +2659,7 @@
       let roundTransitionTimer=0,roundTransitionDeadline=0;
       const localShopReceipts={};
       function startNewRound() {
-        blastAt=-Infinity;plantBegan=null;syncLoot([]);offlineCarrier=true;deathView=null;setSpikeHeld(false);
+        blastAt=-Infinity;plantBegan=null;syncLoot([]);offlineCarrier=false;deathView=null;setSpikeHeld(false);
         resetRoundStartAudio();
         clearTimeout(roundTransitionTimer);roundTransitionTimer=0;roundTransitionDeadline=0;
         delete localShopReceipts.primary;delete localShopReceipts.secondary;
@@ -2684,6 +2698,11 @@
         if(player.secondary)player.secondary.reserve = player.secondary.resSize;
 
         spawnTeamsForRound();
+        if(!window.MP.active&&activeMap!=='range'){
+          const [x,spawnZ]=AscentGround.maps[activeMap].labels['Attacker Side Spawn'];
+          const z=spawnZ-1.25;
+          putLoot({key:'spawn-spike',id:'spike',x,z,y:AscentGround.height(activeMap,x,z)},false);
+        }
         document.getElementById('hud-phase-badge').textContent = 'BUY PHASE — [SHOP] 버튼 또는 [B] 키로 무기를 구매하십시오';
         showRoundBanner(`${activeMap.toUpperCase()} // ROUND ${matchState.round}`, 'BUY PHASE');
         updateHUD();
@@ -4417,6 +4436,36 @@
         return ownsSpike()&&matchState.inMatch&&player.alive&&player.onGround&&isSpikeKeyHeld&&matchState.phase==='combat'&&roomState.playerSide==='attack'&&gameSpikeSiteAt(player.pos.x,player.pos.z,player.footY);
       }
       const radarStaticCache=new Map();
+      const spikeRay=new THREE.Raycaster(),spikeEye=new THREE.Vector3(),spikeDir=new THREE.Vector3();
+      function seesDroppedSpike(pos,yaw,pitch,item){
+        spikeDir.set(item.x-pos.x,item.y+.24-pos.y,item.z-pos.z);
+        const distance=spikeDir.length();
+        if(distance<.25)return true;
+        spikeDir.multiplyScalar(1/distance);
+        const forward=-Math.sin(yaw)*spikeDir.x-Math.cos(yaw)*spikeDir.z;
+        const depth=forward*Math.cos(pitch)+spikeDir.y*Math.sin(pitch);
+        const side=spikeDir.x*Math.cos(yaw)-spikeDir.z*Math.sin(yaw);
+        const up=spikeDir.y*Math.cos(pitch)-forward*Math.sin(pitch);
+        const half=Math.tan(75*Math.PI/360);
+        if(depth<=0||Math.abs(side)>depth*half*camera.aspect||Math.abs(up)>depth*half)return false;
+        spikeRay.set(pos,spikeDir);spikeRay.far=Math.max(0,distance-.06);
+        return !spikeRay.intersectObjects(mapTargetMeshes,false).length;
+      }
+      function spikeRadarPoint(){
+        if(matchState.spikePlanted)return matchState.spikePos;
+        let dropped;
+        for(const {item} of loot.values())if(item.id==='spike'){dropped=item;break;}
+        if(roomState.playerSide==='attack'){
+          if(dropped)return dropped;
+          if(ownsSpike())return player.pos;
+          const id=window.MP.active&&window.MP.state?.carrier;
+          return id?bots.find(b=>b.id===id&&b.alive)?.group.position:null;
+        }
+        if(!dropped)return null;
+        if(player.alive&&seesDroppedSpike(player.pos,player.yaw,player.lookPitch??player.pitch,dropped))return dropped;
+        return bots.some(b=>b.alive&&b.team==='ally'&&seesDroppedSpike(
+          spikeEye.set(b.group.position.x,b.footY+EYE_HEIGHT,b.group.position.z),b.yaw||0,b.pitch||0,dropped))?dropped:null;
+      }
       function drawAscentRadar() {
         const w = radarCanvas.width, h = radarCanvas.height;
         rCtx.clearRect(0, 0, w, h);
@@ -4493,13 +4542,6 @@
           rCtx.moveTo(x-d,z-d);rCtx.lineTo(x+d,z+d);
           rCtx.moveTo(x+d,z-d);rCtx.lineTo(x-d,z+d);rCtx.stroke();
         }
-        if (matchState.spikePlanted) {
-          rCtx.fillStyle = '#f5c542';
-          rCtx.beginPath();
-          rCtx.arc(toRx(matchState.spikePos.x), toRz(matchState.spikePos.z), 5, 0, Math.PI * 2);
-          rCtx.fill();
-        }
-
         const specAlly = !player.alive ? getCurrentSpectatedAlly() : null;
         const povX = specAlly ? specAlly.group.position.x : player.pos.x;
         const povZ = specAlly ? specAlly.group.position.z : player.pos.z;
@@ -4516,6 +4558,14 @@
         rCtx.beginPath();
         rCtx.arc(px, pz, 4.4, 0, Math.PI * 2);
         rCtx.fill();
+        const point=spikeRadarPoint();
+        if(point){
+          const x=toRx(point.x),y=toRz(point.z);
+          rCtx.save();rCtx.translate(x,y);rCtx.fillStyle='#ffdc47';rCtx.strokeStyle='#302709';
+          rCtx.lineWidth=1.5;rCtx.beginPath();rCtx.moveTo(0,-7);rCtx.lineTo(5,0);
+          rCtx.lineTo(0,7);rCtx.lineTo(-5,0);rCtx.closePath();rCtx.fill();rCtx.stroke();
+          rCtx.strokeStyle='#ffdc47';rCtx.beginPath();rCtx.arc(0,0,8+2*Math.sin(performance.now()*.005),0,Math.PI*2);rCtx.stroke();rCtx.restore();
+        }
       }
 
       // View-only fallback while a completed round is waiting for its next phase.
@@ -5134,6 +5184,7 @@
             const t=Math.min(1,(performance.now()-start)/360),back=(1-t)*1.3;
             group.position.set(item.x+Math.sin(item.yaw||0)*back,item.y+.04+(1-t)*.8+Math.sin(t*Math.PI)*.4,item.z+Math.cos(item.yaw||0)*back);
           }
+          updateSpikeBadge();
           renderer.render(scene,camera);
           if(matchState.inMatch&&!hideAimedWeapon&&!heldDevice.visible)viewmodel.renderModel(renderer);
           else lastMenuRenderAt=now;

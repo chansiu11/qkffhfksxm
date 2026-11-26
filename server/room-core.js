@@ -106,7 +106,10 @@ function resetRound(r) {
   r.until = Date.now() + 16000;
   r.spike = null;
   r.drops=[]; r.dropSeq=0;
-  r.carrier=roomUsers(r).find(user=>user.team==='attack')?.id??null;
+  r.carrier=null;
+  const [x,spawnZ]=ground.maps[r.map].labels['Attacker Side Spawn'];
+  const z=spawnZ-1.25;
+  r.drops.push({key:'spawn-spike',id:'spike',x,z,y:ground.height(r.map,x,z)});
   r.halfDefused = false;
   const users = roomUsers(r);
   users.forEach((p, i) => {
