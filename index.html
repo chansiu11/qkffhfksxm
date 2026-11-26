@@ -320,11 +320,12 @@
   <div id="asset-loading" style="position:fixed;inset:0;z-index:2147483647;background:#101921;color:white;display:grid;place-content:center;text-align:center;gap:12px;font:600 18px system-ui">
     <span id="asset-status" role="status">모델과 소리 불러오는 중 · 0%</span>
     <progress id="asset-progress" aria-label="로딩 진행률" value="0" max="100" style="width:min(300px,80vw);accent-color:#38e2c7"></progress>
-    <button id="asset-retry" hidden>다시 시도</button>
+    <button id="asset-skip" type="button" style="justify-self:center;padding:9px 22px;border:1px solid #38e2c7;background:#172c34;color:#ece8e1;border-radius:3px;cursor:pointer">로딩 건너뛰기</button>
+    <span style="font-size:12px;color:#b7c6ce">건너뛰면 필요한 모델은 사용 시 불러옵니다.</span>
   </div>
   <script>
     function blockLoadingKeys(event){
-      if(document.getElementById('asset-loading') && event.target.id!=='asset-retry'){
+      if(document.getElementById('asset-loading') && event.target?.id!=='asset-skip'){
         event.stopImmediatePropagation();
         if(event.key!=='Tab')event.preventDefault();
       }
@@ -4833,8 +4834,8 @@
         updateHUD,flashDamage,showHitmarker,showRoundBanner,addKillFeed,syncCheatPermissionUI,
         launchAscentMatchImmediate,openWaitingLobby:window.openWaitingLobby,openEntryScreen:window.openEntryScreen,
         switchWeaponSlot:window.switchWeaponSlot,getSpikeHeld:()=>isSpikeKeyHeld&&(roomState.playerSide!=='attack'||!!planting())});
-      // Lightweight startup: large optional models are loaded by the existing
-      // viewmodel selector only when needed. Never hold the menu for them.
+      // Preload all available 3D models unless the visitor chooses to skip.
+      // Already downloaded models remain in the viewmodel cache.
       let startupStarted=false;
       function settleAsset(job, timeout=3500){
         return new Promise(resolve=>{
@@ -4850,42 +4851,65 @@
         const overlay=document.getElementById('asset-loading');
         const status=document.getElementById('asset-status');
         const progress=document.getElementById('asset-progress');
+        const skip=document.getElementById('asset-skip');
         for(const element of document.body.children)if(element!==overlay && element.tagName!=='SCRIPT')element.inert=true;
-        let remaining=[];
+        let remaining=[], entered=false, skipped=false;
+        function enter(){
+          if(entered)return;
+          entered=true;
+          for(const element of document.body.children)if(element!==overlay && element.tagName!=='SCRIPT')element.inert=false;
+          overlay.remove();
+          window.removeEventListener('keydown',blockLoadingKeys,true);
+          window.removeEventListener('keyup',blockLoadingKeys,true);
+          refreshInputUI();
+          syncCheatPermissionUI();
+          requestAnimationFrame(animate);
+          let next=0;
+          async function warm(){
+            while(next<remaining.length){
+              const job=remaining[next++];
+              await settleAsset(job,8000);
+              await new Promise(resolve=>setTimeout(resolve,30));
+            }
+          }
+          setTimeout(()=>{for(let i=0;i<3;i++)warm();},0);
+        }
+        skip.addEventListener('click',()=>{skipped=true;enter();},{once:true});
         try{
           sfx.init();
+          let initial=[];
           if(sfx.ctx){
             const sounds=MatchSamples.preloadJobs(sfx.ctx);
-            // First menu sound and the five notification clips are started
-            // together; all other small media can finish after menu entry.
-            const initial=[...sounds.slice(0,1),...killTiers.map(tier=>()=>preloadKillAudio(tier))];
+            initial=[...sounds.slice(0,1),...killTiers.map(tier=>()=>preloadKillAudio(tier))];
             const spikeNames=['planting','planted','defuse_start_1','defuse_start_2','defused','boom'];
             remaining=[...sounds.slice(1),...killTiers.map(tier=>()=>preloadKillIcon(tier)),...spikeNames.map(name=>()=>loadSpikeClip(name))];
-            let done=0;
-            await Promise.all(initial.map(async job=>{
-              await settleAsset(job);
-              progress.value=Math.round(++done*100/initial.length);
-              status.textContent='기본 효과음 불러오는 중 · '+progress.value+'%';
-            }));
           }
+          const models=viewmodel.preloadJobs();
+          let nextModel=0, modelDone=0, modelFailed=0, soundDone=0;
+          function showProgress(){
+            if(entered)return;
+            const total=models.length+initial.length;
+            progress.value=total?Math.round((modelDone+soundDone)*100/total):100;
+            status.textContent='3D 모델 '+modelDone+'/'+models.length+' · 기본 효과음 '+soundDone+'/'+initial.length+(modelFailed?' · 모델 실패 '+modelFailed:'');
+          }
+          showProgress();
+          async function modelWorker(){
+            while(!skipped && nextModel<models.length){
+              const job=models[nextModel++];
+              try{if(!await job())modelFailed++;}
+              catch(error){modelFailed++;console.warn('Optional model preload',error);}
+              modelDone++;
+              showProgress();
+              // Give rendering and the skip button a chance to respond between models.
+              if(!skipped)await new Promise(resolve=>setTimeout(resolve,0));
+            }
+          }
+          await Promise.all([
+            ...initial.map(async job=>{await settleAsset(job);soundDone++;showProgress();}),
+            ...Array.from({length:Math.min(2,models.length)},()=>modelWorker())
+          ]);
         }catch(error){console.warn('Optional startup media',error);}
-        for(const element of document.body.children)if(element!==overlay && element.tagName!=='SCRIPT')element.inert=false;
-        overlay.remove();
-        window.removeEventListener('keydown',blockLoadingKeys,true);
-        window.removeEventListener('keyup',blockLoadingKeys,true);
-        refreshInputUI();
-        syncCheatPermissionUI();
-        requestAnimationFrame(animate);
-        // Load small optional assets gradually, with a bounded queue.
-        let next=0;
-        async function warm(){
-          while(next<remaining.length){
-            const job=remaining[next++];
-            await settleAsset(job,8000);
-            await new Promise(resolve=>setTimeout(resolve,30));
-          }
-        }
-        setTimeout(()=>{for(let i=0;i<3;i++)warm();},0);
+        enter();
       }
       if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',prepareAssets,{once:true});
       else prepareAssets();
