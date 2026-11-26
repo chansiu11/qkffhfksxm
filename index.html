@@ -3783,7 +3783,7 @@
           if (e.target?.matches?.('input, textarea, select, [contenteditable]')) return;
           e.preventDefault();
           if (e.repeat) return;
-          if (getActiveWeapon().id === 'classic') {
+          if (getActiveWeapon().slot === 'knife' || getActiveWeapon().id === 'classic') {
             if (gameplayInputAllowed()) secondaryInput();
           } else {
             window.toggleScope();
