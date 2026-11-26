@@ -4168,7 +4168,7 @@
 
           camera.position.copy(player.pos);
           camera.rotation.y = player.yaw;
-          camera.rotation.x = player.lookPitch;
+          camera.rotation.x = Math.min(1.48, player.lookPitch + cameraRecoil(heldWeapon, performance.now()));
 
           document.getElementById('hud-callout-name').textContent = player.callout;
           const elevSign = player.footY >= 0 ? '+' : '';
@@ -4512,6 +4512,36 @@
       }
 
       let prevTime = performance.now();
+      // Apply recoil only to the view. Shot directions already include ballistic climb.
+      let recoilStateSeen, recoilShotAt, recoilStart, recoilPeak;
+      function cameraRecoil(weapon, now) {
+        const state = weapon?._spreadState;
+        if (!state || !Number.isFinite(state.at) || state.weapon !== weapon.id) {
+          recoilStateSeen = null;
+          return 0;
+        }
+        const recovery = ShootingSpread.weaponProfile(weapon).recovery;
+        const age = Math.max(0, now - state.at);
+        if (age >= recovery) return 0;
+        const interval = (player.lastInterval || weapon.fireRate) * 1000;
+        const rise = Math.min(45, interval * .45);
+        const hold = Math.min(interval, recovery * .55);
+        if (recoilStateSeen !== state || recoilShotAt !== state.at) {
+          const previous = recoilStateSeen === state && state.count > 0 ? recoilPeak : 0;
+          const next = ShootingSpread.sample(weapon, {
+            ...ShootingSpread.motion(player), shotIndex: Math.min(19, state.count + 1),
+            yaw: 0, pitch: 0, seed: 1
+          });
+          recoilStart = previous;
+          recoilPeak = Math.max(next.recoil, weapon.recoilPitch || 0);
+          recoilStateSeen = state;
+          recoilShotAt = state.at;
+        }
+        if (age < rise) return recoilStart + (recoilPeak - recoilStart) * age / rise;
+        const t = Math.max(0, (age - hold) / (recovery - hold));
+        return recoilPeak * (1 - t*t*(3-2*t));
+      }
+
       function animate(now) {
         requestAnimationFrame(animate);
         const frameMs = now - prevTime;
