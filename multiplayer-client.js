@@ -345,6 +345,13 @@
           const players = this.state?.players || [];
           const killer = players.find(p => p.id === data.killer), victim = players.find(p => p.id === data.victim);
           const myKill = data.killer === this.myId;
+          // Finish the visual update even if the final state packet is delayed.
+          const peer=this.peers.get(data.victim);
+          if(peer){peer.alive=false;peer.group.visible=false;}
+          if(victim){
+            const id=victim.inventory?.primary||victim.inventory?.secondary||victim.weapon;
+            a.showGroundDisplay(data.victim,id,victim.x,victim.footY,victim.z);
+          }
           a.addKillFeed(myKill ? 'YOU' : (killer?.name || 'PLAYER'), victim?.name || 'PLAYER', (data.weapon || '').toUpperCase(), !!data.headshot, {killer:data.killer,victim:data.victim});
           break;
         }

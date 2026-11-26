@@ -14,7 +14,7 @@
   <script src="config.js?v=perf19"></script>
   <script src="host-transport.js?v=armory20"></script>
   <script src="movement-physics.js?v=move25"></script>
-  <script src="multiplayer-client.js?v=postmatch1"></script>
+  <script src="multiplayer-client.js?v=postmatch2"></script>
   <link rel="stylesheet" href="menu.css" />
   <!-- Three.js r128 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -25,7 +25,7 @@
   <script src="crosshair-profile.js"></script>
   <script src="crosshair-ui.js" defer></script>
   <script src="ads-system.js?v=armory20"></script>
-  <script src="weapon-viewmodels.js?v=ground-display1"></script>
+  <script src="weapon-viewmodels.js?v=ground-display2"></script>
 
   <style>
     :root {
@@ -2375,14 +2375,21 @@
       }
       function showGroundDisplay(key,id,x,y,z){
         if(!key||!id||groundDisplays.has(key)||![x,y,z].every(Number.isFinite)||!WEAPON_CATALOG[id]||WEAPON_CATALOG[id].slot==='knife')return;
-        const group=new THREE.Group();group.position.set(x,y+.045,z);scene.add(group);
-        const dispose=viewmodel.createGroundDisplay(id,group);
-        groundDisplays.set(key,{group,dispose});
+        const group=new THREE.Group();group.position.set(x,y+.045,z);
+        try{
+          const dispose=viewmodel.createGroundDisplay(id,group);
+          if(typeof dispose!=='function')return;
+          scene.add(group);
+          groundDisplays.set(key,{group,dispose});
+        }catch(error){scene.remove(group);console.warn('Scene decoration unavailable',error);}
       }
       function showOfflineDisplays(){
         if(window.MP.active||activeMap==='range')return;
         if(!player.alive)showGroundDisplay('local',player.primary?.id||player.secondary?.id,player.pos.x,player.footY,player.pos.z);
-        for(const b of bots)if(!b.alive)showGroundDisplay(b.id||b.name,b.primary?.id||b.secondary?.id||b.weapon?.id,b.group.position.x,b.footY,b.group.position.z);
+        for(const b of bots)if(!b.alive){
+          b.group.visible=false;
+          showGroundDisplay(b.id||b.name,b.primary?.id||b.secondary?.id||b.weapon?.id,b.group.position.x,b.footY,b.group.position.z);
+        }
       }
       function enterPostMatch(){
         showOfflineDisplays();

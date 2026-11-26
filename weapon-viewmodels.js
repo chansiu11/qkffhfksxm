@@ -295,11 +295,11 @@
       getMuzzleScreenPosition,getMuzzleWorldPosition,
       get isReloading(){return reloading;},get current(){return shown;},styles};
   }
-  window.WeaponViewmodels={create,styles,makeSvg,referenceImages,referencePlacement,
+  window.WeaponViewmodels={create,styles,makeSvg,referenceImages,sourceSize,referencePlacement,
     viewEndpoints,paperProjection,quadToMatrix,muzzleEdgeY,equipPose};
 })();
 (function () {
-  const createSprite = WeaponViewmodels.create;
+  const {create:createSprite,referenceImages,sourceSize}=window.WeaponViewmodels;
   const files = {
     phantom:'Phantom_Rifle', vandal:'Tactical_Rifle_Menu', bulldog:'Bulldog_Rifle', guardian:'Guardian', warden:'Valorant_New_Gun_Warden', knife:'Tactical_Shadow_Blade',
     classic: 'Black_Semi_Automatic_Pistol', shorty: 'Shadowbreaker',
@@ -424,7 +424,7 @@
     api.preloadJobs=()=>Object.keys(files).map(id=>()=>getModel(id));
     // Cosmetic scene props reuse existing resources and never affect simulation.
     api.createGroundDisplay=(id,group)=>{
-      if(!referenceImages[id])return;
+      if(!Object.hasOwn(referenceImages,id)||!sourceSize[id])return;
       let active=true, sprite=null, clone=null;
       const [w,h]=sourceSize[id];
       const texture=new T.TextureLoader().load('assets/weapons/'+referenceImages[id]+'.webp',tex=>{
@@ -438,7 +438,9 @@
       if(files[id])getModel(id).then(asset=>{
         if(!active||!asset)return;
         clone=asset.clone(true);group.add(clone);
+        group.updateMatrixWorld(true);
         const bounds=new T.Box3().setFromObject(clone);
+        if(!Number.isFinite(bounds.min.y)){group.remove(clone);return;}
         clone.position.y+=group.position.y-bounds.min.y;
         sprite.visible=false;
       }).catch(()=>{});
