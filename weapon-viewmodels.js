@@ -568,9 +568,20 @@
     api.enableModelLoading=()=>{modelLoadingEnabled=true;select(api.current);};
     api.setWeapon=(id,time)=>{set(id,time);duration=(time??catalog[id]?.equipTime??.75)*1000;if(modelLoadingEnabled)select(api.current);};
     api.hasRenderedModel=id=>visible && selected===id && !!model;
+    const releasePosition=new T.Vector3(),releaseRotation=new T.Quaternion();
+    let releaseTime=-Infinity,releaseModel=null;
+    function interruptInspect(){
+      if(Number.isFinite(inspected) && model && performance.now()-inspected<=(inspectTracks[selected]?.at(-1)?.[0]??3)*1000){
+        releasePosition.copy(pivot.position);
+        releaseRotation.copy(pivot.quaternion);
+        releaseTime=performance.now();
+        releaseModel=model;
+      }
+      inspected=-Infinity;
+    }
     api.inspect=()=>{inspect();if(model&&!api.isReloading && performance.now()-equipped>=duration)inspected=performance.now();};
-    api.fire=(mode)=>{startModelDraw=false;inspected=-Infinity;fired=performance.now();fire(mode);};
-    api.beginReload=()=>{startModelDraw=false;inspected=-Infinity;reloadStarted=performance.now();reload();};
+    api.fire=(mode)=>{startModelDraw=false;interruptInspect();fired=performance.now();fire(mode);};
+    api.beginReload=()=>{startModelDraw=false;interruptInspect();reloadStarted=performance.now();reload();};
     // Seconds, tip x/y and a second point along the blade or barrel, sampled
     // in the 186 x 104 gameplay rectangle of the 200 px reference frames.
     // Hip-fire muzzle anchors in normalized 16:9 capture coordinates and model scale.
@@ -620,6 +631,10 @@
       warden:[[0,114,61,153,95],[1,47,36,160,79],[2,19,43,151,91],[3,31,13,89,100],[4,82,76,169,100],[5,114,61,153,95]]
     };
     const forward=new T.Vector3(0,0,-1), direction=new T.Vector3(), correction=new T.Quaternion();
+    function readMuzzle(){
+      model.updateWorldMatrix(true,false);
+      return model.localToWorld(tip.copy(model.userData.muzzle));
+    }
     function applyRecordedInspect(track,time){
       const end=track.findIndex(row=>row[0]>=time);
       if(end<=0)return;
@@ -630,11 +645,11 @@
       direction.copy(forward).applyQuaternion(pivot.quaternion);
       const azimuth=Math.atan2(direction.y,direction.x)+Math.atan2(dy,dx)-baseAngle;
       const side=Math.min(1,Math.hypot(direction.x,direction.y)*Math.hypot(dx,dy)/Math.hypot(first[1]-first[3],first[4]-first[2]));
-      model.localToWorld(tip.copy(model.userData.muzzle));
+      readMuzzle();
       const px=tip.x/-tip.z, py=tip.y/-tip.z;
       const target=new T.Vector3(side*Math.cos(azimuth),side*Math.sin(azimuth),-Math.sqrt(1-side*side));
       pivot.quaternion.premultiply(correction.setFromUnitVectors(direction,target));
-      model.localToWorld(tip.copy(model.userData.muzzle));
+      readMuzzle();
       const units=2*Math.tan(camera.fov*Math.PI/360)/104;
       pivot.position.x+=(-tip.z)*(px+(sample(1)-first[1])*units)-tip.x;
       pivot.position.y+=(-tip.z)*(py-(sample(2)-first[2])*units)-tip.y;
@@ -647,7 +662,7 @@
       if(startModelDraw){equipped=now;startModelDraw=false;}
       const smooth=x=>{x=Math.max(0,Math.min(1,x));return x*x*(3-2*x);};
       const aim=Math.max(0,Math.min(1,player.adsProgress||0));
-      if(aim>0 || player.adsRequested) inspected=-Infinity;
+      if(aim>0 || player.adsRequested) interruptInspect();
       const track=inspectTracks[selected];
       const lift=(track?0:1-aim)*smooth(age/.34)*(1-smooth((age-2.54)/.38));
       const turn=(track?0:1-aim)*smooth((age-1.12)/.42)*(1-smooth((age-2.48)/.40));
@@ -675,7 +690,7 @@
       if(frame){
         pivot.rotation.set(.12,pose.yaw??.30,-.06);
         pivot.position.set(pose.right*Math.min(camera.aspect,2.1)/1.78,pose.height,-.54);
-        model.localToWorld(tip.copy(model.userData.muzzle));
+        readMuzzle();
         const halfHeight=-tip.z*Math.tan(camera.fov*Math.PI/360);
         offsetX=(frame[0]-.5)*2*(16/9)*halfHeight-tip.x;
         offsetY=(.5-frame[1])*2*halfHeight-tip.y;
@@ -703,12 +718,17 @@
         pivot.rotation.z*=1-ads;
         pivot.position.z+=.075*ads;
         // Align the actual model tip with the sight line in the overlay camera.
-        model.localToWorld(tip.copy(model.userData.muzzle));
+        readMuzzle();
         pivot.position.x-=tip.x*ads;
         const sightDrop=-tip.z*Math.tan(camera.fov*Math.PI/360)*.055;
         pivot.position.y-=(tip.y+sightDrop)*ads;
       }
       if(track && Number.isFinite(inspected) && aim===0)applyRecordedInspect(track,age);
+      if(model===releaseModel && now-releaseTime<150){
+        const remaining=1-smooth((now-releaseTime)/150);
+        pivot.position.lerp(releasePosition,remaining);
+        pivot.quaternion.slerp(releaseRotation,remaining);
+      }
       const photo=document.querySelector('#fps-weapon-sprite-layer .fps-paper-weapon');
       if(photo)photo.style.opacity='0';
       const flash=photo?.nextElementSibling;
@@ -721,7 +741,7 @@
     const spriteScreen=api.getMuzzleScreenPosition, spriteWorld=api.getMuzzleWorldPosition;
     const tip=new T.Vector3();
     function projectTip(){
-      model.localToWorld(tip.copy(model.userData.muzzle));
+      readMuzzle();
       const depth=-tip.z;
       tip.project(camera);
       return {x:(tip.x+1)*innerWidth/2,y:(1-tip.y)*innerHeight/2,depth};
