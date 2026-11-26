@@ -357,6 +357,94 @@
       node.geometry=cleaned;
     });
   }
+
+  // Strip disconnected decorative islands from the nine newly uploaded display assets.
+  function retainedPropFaces(parts) {
+    let count=0, lo=[Infinity,Infinity,Infinity], hi=[-Infinity,-Infinity,-Infinity];
+    for(const a of parts){count+=a.length/9;for(let i=0;i<a.length;i++) {const k=i%3;lo[k]=Math.min(lo[k],a[i]);hi[k]=Math.max(hi[k],a[i]);}}
+    if(!count||!Number.isInteger(count))return null;
+    const extent=Math.max(...hi.map((v,k)=>v-lo[k]));if(!(extent>0&&Number.isFinite(extent)))return null;
+    const eps=extent*1e-5,parent=new Int32Array(count),rank=new Uint8Array(count),seen=new Map();
+    for(let i=0;i<count;i++)parent[i]=i;
+    function root(i){while(parent[i]!==i){parent[i]=parent[parent[i]];i=parent[i];}return i;}
+    function join(a,b){a=root(a);b=root(b);if(a===b)return;if(rank[a]<rank[b]){const t=a;a=b;b=t;}parent[b]=a;if(rank[a]===rank[b])rank[a]++;}
+    let face=0;
+    for(const a of parts)for(let i=0;i<a.length;i+=9,face++){
+      for(let j=i;j<i+9;j+=3){const key=Math.round((a[j]-lo[0])/eps)+','+Math.round((a[j+1]-lo[1])/eps)+','+Math.round((a[j+2]-lo[2])/eps);const old=seen.get(key);if(old===undefined)seen.set(key,face);else join(face,old);}
+    }
+    seen.clear();
+    const groups=new Map();face=0;
+    for(const a of parts)for(let i=0;i<a.length;i+=9,face++){
+      const r=root(face);let g=groups.get(r);if(!g){g={area:0,lo:[Infinity,Infinity,Infinity],hi:[-Infinity,-Infinity,-Infinity]};groups.set(r,g);}
+      const x=a[i+3]-a[i],y=a[i+4]-a[i+1],z=a[i+5]-a[i+2],u=a[i+6]-a[i],v=a[i+7]-a[i+1],w=a[i+8]-a[i+2];
+      g.area+=Math.hypot(y*w-z*v,z*u-x*w,x*v-y*u)/2;
+      for(let j=i;j<i+9;j++){const k=(j-i)%3;g.lo[k]=Math.min(g.lo[k],a[j]);g.hi[k]=Math.max(g.hi[k],a[j]);}
+    }
+    if(groups.size<=1)return null;
+    let main=null, best=null;for(const [r,g] of groups)if(!best||g.area>best.area){main=r;best=g;}
+    const length=Math.max(...best.hi.map((v,k)=>v-best.lo[k]));if(!(length>0&&best.area>0))return null;
+    const cell=length*.02,grid=new Map(),key=(x,y,z)=>x+','+y+','+z;
+    const cellCoord=(v,k)=>Math.floor((v-best.lo[k])/cell);
+    face=0;
+    for(const a of parts)for(let i=0;i<a.length;i+=9,face++)if(root(face)===main){
+      for(let j=i;j<i+9;j+=3){const k=key(cellCoord(a[j],0),cellCoord(a[j+1],1),cellCoord(a[j+2],2));let bucket=grid.get(k);if(!bucket){bucket=[];grid.set(k,bucket);}bucket.push(a[j],a[j+1],a[j+2]);}
+    }
+    const keep=new Set([main]),distance=new Map();
+    for(const [r,g] of groups)if(r!==main){
+      const gap=g.area>=best.area*.025?length*.02:length*.007;
+      if(g.lo.some((v,k)=>v>best.hi[k]+gap||g.hi[k]<best.lo[k]-gap))continue;
+      distance.set(r,gap*gap);
+    }
+    function near(x,y,z,limit){
+      const cx=cellCoord(x,0),cy=cellCoord(y,1),cz=cellCoord(z,2);
+      for(let a=-1;a<=1;a++)for(let b=-1;b<=1;b++)for(let c=-1;c<=1;c++){
+        const bucket=grid.get(key(cx+a,cy+b,cz+c));if(!bucket)continue;
+        for(let i=0;i<bucket.length;i+=3){const dx=x-bucket[i],dy=y-bucket[i+1],dz=z-bucket[i+2];if(dx*dx+dy*dy+dz*dz<=limit)return true;}
+      }return false;
+    }
+    face=0;
+    for(const a of parts)for(let i=0;i<a.length;i+=9,face++){
+      const r=root(face),limit=distance.get(r);if(limit===undefined||keep.has(r))continue;
+      for(let j=i;j<i+9;j+=3)if(near(a[j],a[j+1],a[j+2],limit)){keep.add(r);break;}
+    }
+    face=0;
+    return parts.map(a=>{const out=[];for(let i=0;i<a.length;i+=9,face++)if(keep.has(root(face)))out.push(i/3,i/3+1,i/3+2);return out;});
+  }
+  function removeDetachedDecorations(mesh,T){
+    mesh.updateMatrixWorld(true);
+    const nodes=[],parts=[],p=new T.Vector3();
+    mesh.traverse(node=>{
+      if(!node.isMesh||!node.geometry?.attributes?.position)return;
+      const src=node.geometry.index?node.geometry.toNonIndexed():node.geometry;
+      const pos=src.attributes.position;
+      if(!pos.count||pos.count%3!==0)return;
+      const world=new Float64Array(pos.count*3);
+      for(let i=0;i<pos.count;i++){
+        p.fromBufferAttribute(pos,i).applyMatrix4(node.matrixWorld);
+        world[i*3]=p.x;world[i*3+1]=p.y;world[i*3+2]=p.z;
+      }
+      nodes.push({node,src});parts.push(world);
+    });
+    const selected=retainedPropFaces(parts);if(!selected)return;
+    for(let n=0;n<nodes.length;n++){
+      const {node,src}=nodes[n],keep=selected[n];
+      if(keep.length===src.attributes.position.count)continue;
+      if(!keep.length){node.parent?.remove(node);continue;}
+      const cleaned=new T.BufferGeometry();
+      for(const [name,attr] of Object.entries(src.attributes)){
+        const size=attr.itemSize;
+        const array=attr.isInterleavedBufferAttribute?attr.data.array:attr.array;
+        const stride=attr.isInterleavedBufferAttribute?attr.data.stride:size;
+        const offset=attr.isInterleavedBufferAttribute?attr.offset:0;
+        const values=new array.constructor(keep.length*size);
+        for(let i=0;i<keep.length;i++)for(let j=0;j<size;j++)values[i*size+j]=array[keep[i]*stride+offset+j];
+        cleaned.setAttribute(name,new T.BufferAttribute(values,size,attr.normalized));
+      }
+      cleaned.computeBoundingBox();cleaned.computeBoundingSphere();
+      node.geometry=cleaned;
+    }
+    mesh.updateMatrixWorld(true);
+  }
   let dependencies;
   function script(src) {
     return new Promise((resolve, reject) => {
@@ -379,6 +467,7 @@
     const names = Object.keys(entries);
     const mesh = new T.FBXLoader(new T.LoadingManager()).parse(entries[names.find(n => /\.fbx$/i.test(n))].buffer, '');
     removeLabelBands(mesh,id,T);
+    if(Object.hasOwn(heldOnlyArchives,id))removeDetachedDecorations(mesh,T);
     const textureName = names.find(n => /_texture\.png$/i.test(n));
     const url = URL.createObjectURL(new Blob([entries[textureName]], {type:'image/png'}));
     let texture;
