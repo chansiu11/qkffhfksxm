@@ -293,7 +293,7 @@
 (function () {
   const createSprite = WeaponViewmodels.create;
   const files = {
-    bulldog:'Bulldog_Rifle', guardian:'Guardian', warden:'Valorant_New_Gun_Warden', knife:'Tactical_Shadow_Blade',
+    phantom:'Phantom_Rifle', vandal:'Tactical_Rifle_Menu', bulldog:'Bulldog_Rifle', guardian:'Guardian', warden:'Valorant_New_Gun_Warden', knife:'Tactical_Shadow_Blade',
     classic: 'Black_Semi_Automatic_Pistol', shorty: 'Shadowbreaker',
     frenzy: 'Tactical_Shadow_SMG', ghost: 'Shadow_Sentinel',
     bandit: 'Shadowline_Pistol', sheriff: 'Shadowhawk_Revolver'
@@ -308,6 +308,7 @@
   };
   const riflePose={scale:1.04,right:.17,height:-.15,inspectYaw:.85,turnRoll:.66,reloadDrop:.17,reloadRoll:.47};
   Object.assign(poses,{
+    phantom:{...riflePose}, vandal:{...riflePose},
     bulldog:{...riflePose,scale:.875,right:.210,height:-.128,yaw:.32},
     guardian:{...riflePose,scale:.867,right:.210,height:-.131,yaw:.37},
     warden:{...riflePose,scale:.939,right:.198,height:-.122,yaw:.34},
@@ -315,7 +316,7 @@
   });
   // These FBXs have detached lettering above/below the prop in local Z.
   function removeLabelBands(mesh,id,T){
-    if(id!=='knife' && id!=='bulldog')return;
+    if(!['knife','bulldog','vandal'].includes(id))return;
     mesh.traverse(node=>{
       if(!node.isMesh)return;
       const src=node.geometry.index?node.geometry.toNonIndexed():node.geometry;
@@ -324,7 +325,7 @@
       const positions=src.attributes.position, keep=[];
       for(let i=0;i<positions.count;i+=3){
         const z=((positions.getZ(i)+positions.getZ(i+1)+positions.getZ(i+2))/3-bottom)/height;
-        if(id==='knife'?z>.36:z>.16 && z<.71)keep.push(i,i+1,i+2);
+        if(id==='knife'?z>.36:id==='vandal'?z<.85:z>.16 && z<.71)keep.push(i,i+1,i+2);
       }
       const cleaned=new T.BufferGeometry();
       for(const [key,attr] of Object.entries(src.attributes)){
@@ -380,7 +381,7 @@
         if(p.y < -.06){sum+=p.z; count++;}
       }
     });
-    if(files[id] && ['knife','bulldog','guardian','warden'].includes(id))body.rotation.y=-Math.PI/2;
+    if(files[id] && ['knife','bulldog','guardian','warden','vandal','phantom'].includes(id))body.rotation.y=-Math.PI/2;
     else if(count && sum<0) body.rotation.y+=Math.PI;
     body.updateMatrixWorld(true);
     const bounds=new T.Box3().setFromObject(body);
