@@ -194,7 +194,14 @@
     let shown='',photo=null,flashNode=null,fireAt=-100000,reloadAt=-100000,
       switchAt=-100000,reloading=false,fireMode='light',lastVisible=false,
       lastTransform='',lastViewport='',muzzleScreen=null;
-    let equipMs=750,combo=0,inspectAt=-Infinity;
+    let equipMs=750,combo=0,inspectAt=-Infinity,visualKickStart=0;
+    // Rendering-only envelope, shared by the sprite and model overlays.
+    function getVisualKick(now=performance.now()){
+      const age=Math.max(0,now-fireAt);
+      const smooth=t=>{t=Math.max(0,Math.min(1,t));return t*t*(3-2*t);};
+      if(age<35)return visualKickStart+(1-visualKickStart)*smooth(age/35);
+      return 1-smooth((age-35)/100);
+    }
     function inspect(){
       const now=performance.now();
       if(shown==='knife' && now-switchAt>=equipMs && now-fireAt>=(fireMode==='heavy'?560:330))inspectAt=now;
@@ -202,7 +209,7 @@
     function setWeapon(id,equipTime){
       id=Object.hasOwn(styles,id)?id:'classic';
       if(id===shown)return;
-      equipMs=Math.max(1,(equipTime??catalog[id]?.equipTime??(id==='knife'?.6:1))*1000);fireAt=-100000;combo=0;
+      equipMs=Math.max(1,(equipTime??catalog[id]?.equipTime??(id==='knife'?.6:1))*1000);fireAt=-100000;visualKickStart=0;combo=0;
       inspectAt=-Infinity;shown=id;switchAt=performance.now();reloading=false;
       const [w,h]=sourceSize[id];
       layer.innerHTML=`<img class="fps-paper-weapon" src="assets/weapons/${referenceImages[id]}.webp" width="${w}" height="${h}" alt="" draggable="false" aria-hidden="true">`+
@@ -216,6 +223,7 @@
       const now=performance.now();
       inspectAt=-Infinity;
       combo=mode==='heavy'||now-fireAt>850?0:(combo+1)%3;
+      visualKickStart=getVisualKick(now);
       fireMode=mode==='heavy'?'heavy':'light';fireAt=now;
     }
     function beginReload(){if(shown!=='knife'){reloadAt=performance.now();reloading=true;}}
@@ -223,7 +231,7 @@
     function update(dt,player,state){
       const visible=!!(player?.alive&&state?.inMatch);
       if(visible!==lastVisible){layer.classList.toggle('weapon-visible',visible);lastVisible=visible;}
-      if(!visible||!photo){inspectAt=-Infinity;return;}
+      if(!visible||!photo){inspectAt=-Infinity;visualKickStart=0;fireAt=-100000;return;}
       const now=performance.now(),w=window.innerWidth||1440,h=window.innerHeight||900;
       const moving=Math.min(1,Math.hypot(player.vel?.x||0,player.vel?.z||0)/7.6);
       const bob=Math.sin(now*.010)*2.8*moving;
@@ -238,7 +246,7 @@
       const stroke=shown==='knife'?Math.sin(Math.PI*phase)**2*scale:0;
       const swing=stroke*(fireMode==='heavy'?-106:[-148,128,-80][combo]);
       const adsT=shown==='knife'?0:Math.max(0,Math.min(1,player.adsProgress||0));
-      const args={recoil:shown==='knife'?0:firing,motionX:bob,
+      const args={recoil:shown==='knife'?0:getVisualKick(now),motionX:bob,
         gripY:stroke*18,motionY:Math.abs(bob)+breath-stroke*(fireMode==='heavy'?48:30),drop,swing,adsProgress:adsT,equipPose:{x:drawPose.x*(1-adsT),y:drawPose.y*(1-adsT),roll:drawPose.roll*(1-adsT)}};
       if(shown==='knife'){
         const age=(now-inspectAt)/1000;
@@ -283,7 +291,7 @@
       return camera.localToWorld(world);
     }
     setWeapon('classic');
-    return {group,flash,setWeapon,inspect,fire,beginReload,stopReload,update,
+    return {group,flash,setWeapon,inspect,fire,beginReload,stopReload,update,getVisualKick,
       getMuzzleScreenPosition,getMuzzleWorldPosition,
       get isReloading(){return reloading;},get current(){return shown;},styles};
   }
@@ -480,7 +488,7 @@
       const shortyInspect=shorty?lift:0;
       const shortyTurn=shorty?turn:0;
       const shortyReload=shorty?smooth(reloadT/.22)*(1-smooth((reloadT-.72)/.28)):0;
-      const shot=(now-fired)/1000, kick=shot<.25?Math.sin(Math.PI*Math.min(1,shot/.055)/2)*Math.exp(-shot*18):0;
+      const shot=(now-fired)/1000, kick=selected==='knife'?0:.4*api.getVisualKick(now);
       const move=Math.min(1,Math.hypot(player.vel?.x||0,player.vel?.z||0)/7.6);
       camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();
       // Reference at 23.5–24.5 s: Classic grip sits below and right of the crosshair.
