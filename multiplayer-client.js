@@ -581,7 +581,7 @@
       const burst=ShootingSpread.burstIndex(burstState,w,nowMs);
       const seed=(Math.random()*4294967296)>>>0;
       const locomotion=ShootingSpread.motion(p);
-      const shotParams={alt,ammo:w.mag,yaw:p.yaw,pitch:p.pitch,...locomotion,shotIndex:burst,seed,scatter:pelletRotation};
+      const shotParams={recoilState:burstState,shotTime:nowMs,alt,ammo:w.mag,yaw:p.yaw,pitch:p.pitch,...locomotion,shotIndex:burst,seed,scatter:pelletRotation};
       const spreadResult=w.slot==='knife'?null:ShootingSpread.directions(w,shotParams,ShotgunPellets);
       // Clients render opponent positions slightly behind the latest server
       // state to smooth 10 Hz snapshots. Send that visual timestamp so the

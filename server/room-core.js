@@ -211,7 +211,7 @@ function fire(r, p, msg) {
     const clientMove=finite(msg.speed,0,8.5,recentMove);
     const speed=Math.max(clientMove,recentMove*.70);
     const roll=ShootingSpread.directions(w, {
-      alt,ammo,yaw,pitch,shotIndex:burst,seed:finite(msg.seed,0,4294967295,0),
+      recoilState:state, shotTime:now, alt,ammo,yaw,pitch,shotIndex:burst,seed:finite(msg.seed,0,4294967295,0),
       speed,airborne:msg.airborne===true,crouched:msg.crouched===true,
       ads:msg.ads===true,scatter:spreadRotation
     }, ShotgunPellets);

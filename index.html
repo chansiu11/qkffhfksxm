@@ -3176,7 +3176,7 @@
         const burst = ShootingSpread.burstIndex(burstState, w, shotAtMs);
         const spreadResult = ShootingSpread.directions(w, {
           alt, ammo, yaw: player.yaw, pitch: player.pitch, ...ShootingSpread.motion(player),
-          shotIndex: burst, seed: (Math.random() * 4294967296) >>> 0,
+          recoilState:burstState, shotTime:shotAtMs, shotIndex: burst, seed: (Math.random() * 4294967296) >>> 0,
           scatter: pelletRotation
         }, ShotgunPellets);
         ShootingSpread.confirmShot(burstState, w, shotAtMs, burst);
