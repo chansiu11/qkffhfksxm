@@ -516,6 +516,10 @@
     const tip=cap.getCenter(new T.Vector3());
     tip.z=bounds.min.z;
     body.userData.muzzle=body.worldToLocal(tip);
+    const grip=bounds.getCenter(new T.Vector3());
+    grip.y-=.20*(bounds.max.y-bounds.min.y);
+    grip.z+=.30*(bounds.max.z-bounds.min.z);
+    body.userData.inspectGrip=body.worldToLocal(grip);
     return body;
   }
   WeaponViewmodels.create = function(T,catalog) {
@@ -656,44 +660,33 @@
       model.updateWorldMatrix(true,false);
       return model.localToWorld(tip.copy(model.userData.muzzle));
     }
-    const cameraAxis = new T.Vector3(0,0,1);
-    const originTip = new T.Vector3(), desiredTip = new T.Vector3();
-    const restAxis = new T.Vector3(), desiredAxis = new T.Vector3();
-    const screenRoll = new T.Quaternion();
+    const cameraAxis=new T.Vector3(0,0,1), verticalAxis=new T.Vector3(0,1,0);
+    const gripBefore=new T.Vector3(), gripAfter=new T.Vector3();
+    const inspectRoll=new T.Quaternion();
     function applyCapture(track,time){
-      const frame = time*30;
+      const frame=time*30;
       if(frame<0 || frame>track.length-1+1e-6)return;
       const i=Math.min(track.length-1,Math.floor(frame));
       const a=track[i], b=track[Math.min(i+1,track.length-1)];
       const value=k=>a[k]+(b[k]-a[k])*(frame-i);
       const [x,y,rearX,rearY]=track.anchor;
-      const units=2*Math.tan(camera.fov*Math.PI/360)/104;
-      originTip.copy(readMuzzle());
-      const depth=-originTip.z, rearDepth=depth*.76;
-      const u=originTip.x/depth, v=originTip.y/depth;
-      const ru=u+(rearX-x)*units, rv=v-(rearY-y)*units;
-      restAxis.set(u*depth-ru*rearDepth,v*depth-rv*rearDepth,rearDepth-depth);
-      const tu=u+(value(1)-x)*units, tv=v-(value(2)-y)*units;
-      const bu=ru+(value(3)-rearX)*units, bv=rv-(value(4)-rearY)*units;
-      // Choose the closer rear depth on its camera ray. At full side view,
-      // move both endpoints towards the camera to preserve the rigid span.
-      const k=1+bu*bu+bv*bv;
-      const center=depth*(1+tu*bu+tv*bv)/k;
-      const span=restAxis.length();
-      desiredAxis.set(tu*depth-bu*center,tv*depth-bv*center,center-depth);
-      const closest=desiredAxis.length();
-      const factor=closest>span ? span/closest : 1;
-      const restCenter=depth*(1+u*ru+v*rv)/(1+ru*ru+rv*rv);
-      const branch=rearDepth<=restCenter ? -1 : 1;
-      const back=center*factor+branch*Math.sqrt(Math.max(0,span*span-closest*closest)/k);
-      desiredTip.set(tu*depth*factor,tv*depth*factor,-depth*factor);
-      desiredAxis.set(desiredTip.x-bu*back,desiredTip.y-bv*back,back-depth*factor).normalize();
-      const roll=Math.atan2(tv-bv,tu-bu)-Math.atan2(v-rv,u-ru);
-      screenRoll.setFromAxisAngle(cameraAxis,roll);
-      restAxis.normalize().applyQuaternion(screenRoll);
-      correction.setFromUnitVectors(restAxis,desiredAxis).multiply(screenRoll);
+      const dx=value(1)-value(3), dy=value(4)-value(2);
+      const baseAngle=Math.atan2(rearY-y,x-rearX);
+      const delta=Math.atan2(dy,dx)-baseAngle;
+      const roll=Math.atan2(Math.sin(delta),Math.cos(delta));
+      const lengthRatio=Math.hypot(dx,dy)/Math.max(1,Math.hypot(x-rearX,rearY-y));
+      const yaw=.78*Math.tanh(lengthRatio-1);
+      model.updateWorldMatrix(true,false);
+      model.localToWorld(gripBefore.copy(model.userData.inspectGrip));
+      inspectRoll.setFromAxisAngle(cameraAxis,.82*Math.tanh(roll));
+      correction.setFromAxisAngle(verticalAxis,yaw).premultiply(inspectRoll);
       pivot.quaternion.premultiply(correction);
-      pivot.position.add(desiredTip.sub(readMuzzle()));
+      model.updateWorldMatrix(true,false);
+      model.localToWorld(gripAfter.copy(model.userData.inspectGrip));
+      pivot.position.add(gripAfter.subVectors(gripBefore,gripAfter));
+      const unit=-gripBefore.z*2*Math.tan(camera.fov*Math.PI/360)/104;
+      pivot.position.x+=unit*7*Math.tanh((value(3)-rearX)/12);
+      pivot.position.y-=unit*5*Math.tanh((value(4)-rearY)/10);
     }
     function applyRecordedInspect(track,time){
       if(track.anchor){applyCapture(track,time);return;}
