@@ -573,7 +573,47 @@
     api.beginReload=()=>{startModelDraw=false;inspected=-Infinity;reloadStarted=performance.now();reload();};
     // Seconds, tip x/y and a second point along the blade or barrel, sampled
     // in the 186 x 104 gameplay rectangle of the 200 px reference frames.
+    // Hip-fire muzzle anchors in normalized 16:9 capture coordinates and model scale.
+    const framing = {
+      classic: [0.631, 0.626, 0.4],
+      shorty: [0.627, 0.617, 0.72],
+      frenzy: [0.646, 0.622, 0.48],
+      ghost: [0.637, 0.612, 0.55],
+      bandit: [0.636, 0.628, 0.5],
+      sheriff: [0.626, 0.605, 0.61],
+      stinger: [0.611, 0.622, 0.85],
+      spectre: [0.604, 0.615, 0.91],
+      bucky: [0.597, 0.624, 0.98],
+      judge: [0.611, 0.619, 1.03],
+      bulldog: [0.609, 0.614, 0.875],
+      guardian: [0.595, 0.61, 0.867],
+      warden: [0.6, 0.603, 0.939],
+      phantom: [0.585, 0.61, 0.99],
+      vandal: [0.594, 0.618, 0.98],
+      marshal: [0.588, 0.592, 1.01],
+      outlaw: [0.579, 0.593, 1.06],
+      operator: [0.572, 0.605, 1.12],
+      ares: [0.555, 0.602, 1.1],
+      odin: [0.547, 0.598, 1.17]
+    };
     const inspectTracks={
+      classic: [[0,117,65,152,96],[1,80,51,144,86],[2,67,63,144,96],[3.1,117,65,152,96]],
+      shorty: [[0,117,64,152,96],[0.7,111,12,159,92],[1.8,96,50,158,95],[3.1,117,64,152,96]],
+      frenzy: [[0,120,65,152,96],[0.9,120,38,163,61],[1.8,98,79,147,49],[3.1,120,65,152,96]],
+      ghost: [[0,118,64,152,96],[0.8,121,19,142,96],[1.9,98,51,159,82],[3.1,118,64,152,96]],
+      bandit: [[0,118,65,152,96],[0.8,106,37,158,69],[1.8,90,67,141,92],[3.1,118,65,152,96]],
+      sheriff: [[0,116,63,152,96],[0.9,106,29,157,64],[2,100,53,160,91],[3.1,116,63,152,96]],
+      stinger: [[0,114,65,152,96],[0.7,104,12,160,93],[1.8,69,60,151,83],[3.1,114,65,152,96]],
+      spectre: [[0,112,64,152,96],[0.8,113,12,162,89],[2,60,44,153,80],[3.1,112,64,152,96]],
+      bucky: [[0,111,65,152,96],[0.8,23,46,144,91],[1.8,9,27,145,89],[3.1,111,65,152,96]],
+      judge: [[0,114,64,152,96],[0.8,17,50,152,85],[2,53,49,155,70],[3.1,114,64,152,96]],
+      phantom: [[0,109,63,152,96],[0.8,26,52,151,81],[2,10,40,147,79],[3.1,109,63,152,96]],
+      vandal: [[0,110,64,152,96],[0.9,24,51,150,87],[2,20,41,152,80],[3.1,110,64,152,96]],
+      marshal: [[0,109,62,152,96],[0.9,18,59,140,83],[1.9,24,49,153,81],[3.1,109,62,152,96]],
+      outlaw: [[0,108,62,152,96],[0.8,15,55,135,69],[2,34,41,153,80],[3.1,108,62,152,96]],
+      operator: [[0,106,63,152,96],[0.8,12,42,143,86],[2,24,36,149,80],[3.1,106,63,152,96]],
+      ares: [[0,103,63,152,96],[0.8,102,16,153,95],[2,33,51,150,89],[3.1,103,63,152,96]],
+      odin: [[0,102,62,152,96],[0.8,45,56,145,76],[2,38,58,151,82],[3.1,102,62,152,96]],
       knife:[[0,96,70,145,91],[1,145,43,143,84],[2,92,66,139,75],[3,96,65,143,91]],
       bulldog:[[0,120,62,150,97],[.5,19,52,117,98],[1,26,42,154,88],[2,148,6,132,82],[3,120,62,150,97]],
       guardian:[[0,115,62,152,97],[.5,34,40,154,80],[1.5,19,44,151,90],[2.5,35,20,88,99],[3.5,115,62,152,97]],
@@ -629,10 +669,22 @@
       if(camera.aspect!==aspect){camera.aspect=aspect;camera.updateProjectionMatrix();}
       // Reference at 23.5–24.5 s: Classic grip sits below and right of the crosshair.
       const pose=poses[selected]||riflePose;
-      pivot.scale.setScalar(pose.scale);
+      const frame=framing[selected];
+      pivot.scale.setScalar(frame ? frame[2] : pose.scale);
+      let offsetX=0, offsetY=0;
+      if(frame){
+        pivot.rotation.set(.12,pose.yaw??.30,-.06);
+        pivot.position.set(pose.right*Math.min(camera.aspect,2.1)/1.78,pose.height,-.54);
+        model.localToWorld(tip.copy(model.userData.muzzle));
+        const halfHeight=-tip.z*Math.tan(camera.fov*Math.PI/360);
+        offsetX=(frame[0]-.5)*2*(16/9)*halfHeight-tip.x;
+        offsetY=(.5-frame[1])*2*halfHeight-tip.y;
+      }
       pivot.position.set(pose.right*Math.min(camera.aspect,2.1)/1.78-.013*lift-.087*turn-.033*shortyInspect,
         pose.height+.048*lift-.08*turn-.26*draw-pose.reloadDrop*dip+.015*seat+.003*move*Math.sin(now*.01),
         -.54+.05*lift+.045*kick);
+      pivot.position.x+=offsetX;
+      pivot.position.y+=offsetY;
       pivot.rotation.set(.12+.30*kick+.20*lift+(selected==='classic'?0:.73*liftBarrel+.48*seat),
         (pose.yaw??.30)+pose.inspectYaw*lift-.45*turn+.16*dip+.25*shortyInspect-.56*shortyTurn,-.06-.24*lift-pose.turnRoll*turn-pose.reloadRoll*dip-.22*seat-.47*shortyReload);
       if(selected==='knife'){
@@ -653,9 +705,10 @@
         // Align the actual model tip with the sight line in the overlay camera.
         model.localToWorld(tip.copy(model.userData.muzzle));
         pivot.position.x-=tip.x*ads;
-        pivot.position.y-=(tip.y+.014)*ads;
+        const sightDrop=-tip.z*Math.tan(camera.fov*Math.PI/360)*.055;
+        pivot.position.y-=(tip.y+sightDrop)*ads;
       }
-      if(track && Number.isFinite(inspected))applyRecordedInspect(track,age);
+      if(track && Number.isFinite(inspected) && aim===0)applyRecordedInspect(track,age);
       const photo=document.querySelector('#fps-weapon-sprite-layer .fps-paper-weapon');
       if(photo)photo.style.opacity='0';
       const flash=photo?.nextElementSibling;
@@ -675,7 +728,7 @@
     }
     api.getMuzzleScreenPosition=()=>visible&&model?projectTip():spriteScreen();
     api.getMuzzleWorldPosition=worldCamera=>{
-      if(!visible||!model||!worldCamera||Object.hasOwn(heldOnlyArchives,selected))return spriteWorld(worldCamera);
+      if(!visible||!model||!worldCamera)return spriteWorld(worldCamera);
       const {depth}=projectTip();
       worldCamera.updateWorldMatrix(true,false);
       const ray=new T.Vector3(tip.x,tip.y,.5).unproject(worldCamera);

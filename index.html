@@ -25,7 +25,7 @@
   <script src="crosshair-profile.js"></script>
   <script src="crosshair-ui.js" defer></script>
   <script src="ads-system.js?v=armory20"></script>
-  <script src="weapon-viewmodels.js?v=held-models-orientation-20261127"></script>
+  <script src="weapon-viewmodels.js?v=capture-view-20261127"></script>
 
   <style>
     :root {
@@ -3675,7 +3675,7 @@
         document.getElementById('scope-overlay').dataset.weapon=gun.id;
         document.getElementById('scope-overlay').classList.toggle('hidden',!sniper||!ready);
         const iron=document.getElementById('ads-iron-overlay');
-        const open=!sniper&&amount>.001&&!viewmodel.hasRenderedModel(gun.id);
+        const open=!sniper&&amount>.001;
         iron.style.display=open?'block':'none';
         if(open){
           if(iron.dataset.weapon!==gun.id){
