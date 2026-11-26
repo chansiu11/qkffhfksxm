@@ -2566,6 +2566,7 @@
       let roundTransitionTimer=0;
       const localShopReceipts={};
       function startNewRound() {
+        resetRoundStartAudio();
         clearTimeout(roundTransitionTimer);roundTransitionTimer=0;
         delete localShopReceipts.primary;delete localShopReceipts.secondary;
         clearGroundDisplays();
@@ -2767,6 +2768,7 @@
       };
 
       window.openEntryScreen = function (e) {
+        resetRoundStartAudio();
         clearTimeout(roundTransitionTimer);roundTransitionTimer=0;
         clearGroundDisplays();
         if(activeMap==='range'){
@@ -2798,6 +2800,7 @@
       };
 
       window.openWaitingLobby = function (e) {
+        resetRoundStartAudio();
         clearTimeout(roundTransitionTimer);roundTransitionTimer=0;
         clearGroundDisplays();
         if(activeMap==='range')return window.openEntryScreen(e);
@@ -4150,6 +4153,35 @@
       const spikeBuffers = new Map();
       const spikeVoices = new Map();
       let countdownRound = null;
+      const roundStartAudioPath='audio/round-start.mp3?v=1';
+      let roundStartBuffer=null,roundStartSource=null,roundStartPlayed=false,roundStartGeneration=0;
+      function loadRoundStartAudio(){
+        if(!sfx.ctx)return Promise.resolve(null);
+        if(!roundStartBuffer)roundStartBuffer=fetch(roundStartAudioPath)
+          .then(r=>{if(!r.ok)throw Error('Round start audio '+r.status);return r.arrayBuffer();})
+          .then(bytes=>sfx.ctx.decodeAudioData(bytes))
+          .catch(error=>{roundStartBuffer=null;console.warn('Countdown audio unavailable',error);return null;});
+        return roundStartBuffer;
+      }
+      function resetRoundStartAudio(){
+        roundStartPlayed=false;++roundStartGeneration;
+        if(roundStartSource){try{roundStartSource.stop();}catch(_){}roundStartSource=null;}
+      }
+      function syncRoundStartAudio(){
+        if(!matchState.inMatch||matchState.phase!=='buy'||roundStartPlayed||matchState.timer>3||matchState.timer<=0)return;
+        roundStartPlayed=true;
+        const generation=roundStartGeneration,requested=performance.now(),offset=Math.max(0,3-matchState.timer);
+        loadRoundStartAudio().then(buffer=>{
+          if(!buffer||generation!==roundStartGeneration||!matchState.inMatch||!sfx.ctx)return;
+          const start=offset+(performance.now()-requested)/1000;
+          if(start>=buffer.duration)return;
+          const source=sfx.ctx.createBufferSource(),gain=sfx.ctx.createGain();
+          source.buffer=buffer;gain.gain.value=.55;
+          source.connect(gain);gain.connect(sfx.effectsBus||sfx.ctx.destination);
+          source.onended=()=>{source.disconnect();gain.disconnect();if(roundStartSource===source)roundStartSource=null;};
+          roundStartSource=source;source.start(0,start);
+        }).catch(error=>console.warn('Countdown audio playback',error));
+      }
       let spikeHalf = false;
 
       function loadSpikeClip(name) {
@@ -4894,6 +4926,7 @@
         if (!action && lastAction) stopSpikeClip(lastAction + '-local');
         lastAction=action;
         syncSpikeCountdown();
+        syncRoundStartAudio();
         if (matchState.inMatch) {
           const holdingAnyFire = isMouseFiring || isKeyboardFiring || isLeftTouchFiring || isRightTouchFiring;
           if ((holdingAnyFire || (player.bulldogCount && player.isScoped && getActiveWeapon().id==='bulldog')) && player.alive && getActiveWeapon().auto) attemptFire();
@@ -4991,7 +5024,7 @@
         });
         try{
           sfx.init();
-          const data=sfx.ctx?[...killTiers.map(tier=>()=>preloadKillAudio(tier)),...MatchSamples.preloadJobs(sfx.ctx),...['planting','planted','defuse_start_1','defuse_start_2','defused','boom'].map(name=>()=>loadSpikeClip(name)),...killTiers.map(tier=>()=>preloadKillIcon(tier))]:[];
+          const data=sfx.ctx?[()=>loadRoundStartAudio(),...killTiers.map(tier=>()=>preloadKillAudio(tier)),...MatchSamples.preloadJobs(sfx.ctx),...['planting','planted','defuse_start_1','defuse_start_2','defused','boom'].map(name=>()=>loadSpikeClip(name)),...killTiers.map(tier=>()=>preloadKillIcon(tier))]:[];
           const models=viewmodel.preloadJobs();
           let dataDone=0, dataFailed=0, modelDone=0, modelFailed=0, nextData=0, nextModel=0;
           function showProgress(){
