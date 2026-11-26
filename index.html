@@ -12,9 +12,9 @@
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=Rajdhani:wght@600;700&family=Teko:wght@600;700&display=swap" rel="stylesheet">
   <script src="match-plans.js?v=map-barrier-layout5"></script>
   <script src="config.js?v=perf19"></script>
-  <script src="host-transport.js?v=room-consent1"></script>
+  <script src="host-transport.js?v=room-consent2"></script>
   <script src="movement-physics.js?v=move25"></script>
-  <script src="multiplayer-client.js?v=ping-samples2"></script>
+  <script src="multiplayer-client.js?v=shop-refund1"></script>
   <link rel="stylesheet" href="menu.css" />
   <!-- Three.js r128 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -952,6 +952,7 @@
         </div>
       </div>
 
+      <div class="flex flex-wrap gap-2 py-2" aria-label="이번 라운드 구매 환불"><button type="button" class="val-cut-sm px-4 py-2 border border-white/25 text-xs" onclick="window.refundShopItem('primary')">주무기 환불</button><button type="button" class="val-cut-sm px-4 py-2 border border-white/25 text-xs" onclick="window.refundShopItem('secondary')">보조무기 환불</button></div>
       <div id="shop-feedback" class="text-xs text-[#38e2c7] font-bold pt-2 border-t border-white/10">
         SELECT ANY WEAPON OR SHIELD TO EQUIP IMMEDIATELY.
       </div>
@@ -2383,7 +2384,10 @@
         }
       }
       function clearGroundDisplays(){
-        for(const entry of groundDisplays.values()){entry.dispose?.();scene.remove(entry.group);}
+        for(const entry of groundDisplays.values()){
+          try{entry.dispose?.();}catch(error){console.warn('Decoration cleanup',error);}
+          scene.remove(entry.group);
+        }
         groundDisplays.clear();
         for(const mark of roundMarkers.values())if(mark.mesh){scene.remove(mark.mesh);mark.mesh.geometry.dispose();mark.mesh.material.dispose();}
         roundMarkers.clear();
@@ -2559,8 +2563,13 @@
         }, 150);
       }
 
+      let roundTransitionTimer=0;
+      const localShopReceipts={};
       function startNewRound() {
+        clearTimeout(roundTransitionTimer);roundTransitionTimer=0;
+        delete localShopReceipts.primary;delete localShopReceipts.secondary;
         clearGroundDisplays();
+        document.getElementById('buy-shop-overlay')?.classList.add('hidden');
         GameMovement.reset(player);resetMovementAudio(player);
         player.reloadId = (player.reloadId || 0) + 1;
         player.reloading = false;
@@ -2758,6 +2767,7 @@
       };
 
       window.openEntryScreen = function (e) {
+        clearTimeout(roundTransitionTimer);roundTransitionTimer=0;
         clearGroundDisplays();
         if(activeMap==='range'){
           document.body.classList.remove('in-range');setting('controls').hidden=true;
@@ -2788,6 +2798,7 @@
       };
 
       window.openWaitingLobby = function (e) {
+        clearTimeout(roundTransitionTimer);roundTransitionTimer=0;
         clearGroundDisplays();
         if(activeMap==='range')return window.openEntryScreen(e);
         if (e) e.stopPropagation();
@@ -3068,6 +3079,18 @@
         tryLockPointerSafe();
       };
 
+      window.refundShopItem = function(slot){
+        const fb=document.getElementById('shop-feedback');
+        if(matchState.phase!=='buy'||!player.alive){if(fb)fb.textContent='구매 단계에서만 환불할 수 있습니다.';return;}
+        if(window.MP.active){window.MP.refund(slot);return;}
+        const receipt=localShopReceipts[slot];
+        if(!receipt||receipt.id!==player[slot]?.id||receipt.cost<=0){if(fb)fb.textContent='이번 라운드 구매 항목만 환불할 수 있습니다.';return;}
+        delete localShopReceipts[slot];
+        player[slot]=slot==='secondary'?cloneWeaponInstance('classic'):null;
+        player.credits=Math.min(9000,player.credits+receipt.cost);
+        if(player.activeSlot===slot)window.switchWeaponSlot('secondary');
+        updateHUD();if(fb)fb.textContent='환불 완료';
+      };
       window.buyItem = function (itemId) {
         if (window.MP.active) { window.MP.buy(itemId); return; }
         const fb = document.getElementById('shop-feedback');
@@ -3099,6 +3122,7 @@
           return;
         }
         player.credits -= spec.cost;
+        if(matchState.phase==='buy'&&(spec.slot==='primary'||spec.slot==='secondary'))localShopReceipts[spec.slot]={id:itemId,cost:spec.cost};
         if (spec.slot === 'primary') {
           player.primary = cloneWeaponInstance(itemId);
           window.switchWeaponSlot('primary');
@@ -3189,7 +3213,10 @@
         }
         updateHUD();
 
-        setTimeout(() => {
+        clearTimeout(roundTransitionTimer);
+        roundTransitionTimer=setTimeout(() => {
+          roundTransitionTimer=0;
+          if(!matchState.inMatch||window.MP.active||matchState.phase!=='round_end')return;
           if (matchState.allyScore >= roomState.winRounds || matchState.enemyScore >= roomState.winRounds) {
             const wonMatch = matchState.allyScore >= roomState.winRounds;
             showRoundBanner('MATCH COMPLETE', wonMatch ? 'VICTORY // MATCH WON' : 'DEFEAT // MATCH OVER');

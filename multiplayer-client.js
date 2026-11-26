@@ -248,9 +248,10 @@
         case 'chat':
           a.appendChat(data.name, data.text, data.channel, !!data.team && data.team !== a.roomState.playerSide);
           break;
-        case 'round': this.lastRound = 0; break;
+        case 'round': break; // The next authoritative snapshot starts the new round once.
         case 'state': this.applyState(data); break;
         case 'purchase': this.applyPurchase(data); break;
+        case 'refund_result': this.applyRefund(data); break;
         case 'inventory':
         case 'ammo_sync': {
           // Equip and combat snapshots must not accidentally finish a running
@@ -448,7 +449,6 @@
       if (!me) return;
       const newRound = this.lastRound !== state.round;
       if (newRound) {
-        this.lastRound = state.round;
         this.lastSpike = false;
         a.startNewRound();
         // Restore the server loadout before rendering or accepting input.
@@ -461,6 +461,7 @@
         a.viewmodel.setWeapon(a.getActiveWeapon().id);
         a.bots.splice(0).forEach(b => a.scene.remove(b.group));
         this.peers.clear();
+        this.lastRound=state.round;
       }
       a.roomState.playerSide = me.team;
       a.matchState.phase = state.phase;
@@ -647,6 +648,18 @@
       a.updateHUD();
     },
     buy(id) { this.send({type:'buy',item:id}); },
+    refund(slot) { this.send({type:'refund',slot}); },
+    applyRefund(data) {
+      const a=this.api,p=a.player,slot=data.slot;
+      if(slot!=='primary'&&slot!=='secondary')return;
+      const id=data.inventory?.[slot];
+      p[slot]=id?a.cloneWeaponInstance(id):null;
+      const current=a.WEAPON_CATALOG[data.weapon];
+      p.activeSlot=current?.slot||'secondary';
+      const item=a.getActiveWeapon();item.mag=data.mag;item.reserve=data.reserve;
+      p.credits=data.credits;a.updateHUD();
+      const fb=document.getElementById('shop-feedback');if(fb)fb.textContent='환불 완료';
+    },
     applyPurchase(data) {
       const a=this.api,p=a.player,id=data.item;
       if (id !== 'light_shield' && id !== 'heavy_shield') {

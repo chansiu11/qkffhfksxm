@@ -29,6 +29,7 @@ function spawn(p, idx, map, keepWeapons = false) {
     p.weapon = 'classic';
     p.inventory = { primary: null, secondary: 'classic', knife: 'knife' };
   }
+  p.shopReceipts = {};
   p.ammo = {};
   for (const id of Object.values(p.inventory).filter(Boolean)) {
     p.ammo[id] = {mag:catalog[id].magSize,reserve:catalog[id].resSize};
@@ -455,8 +456,26 @@ function receive(c,m) {
       if(p.weapon!==id)p.equipUntil=now+w.equipTime*1000;
       p.inventory[w.slot]=id; p.weapon=id; p.mag=w.magSize;p.reserve=w.resSize;p.credits-=w.cost;
       p.ammo[id]={mag:p.mag,reserve:p.reserve};
+      if(w.slot==='primary'||w.slot==='secondary'){
+        p.shopReceipts??={};
+        p.shopReceipts[w.slot]={id,cost:w.cost};
+      }
     }
     send(c,{type:'purchase',item:id,credits:p.credits,armor:p.armor,mag:p.mag,reserve:p.reserve});
+  } else if(m.type==='refund' && r.phase==='buy' && p.alive) {
+    const slot=m.slot;
+    if(slot!=='primary'&&slot!=='secondary')return;
+    const receipt=p.shopReceipts?.[slot];
+    if(!receipt||receipt.id!==p.inventory[slot]||!(receipt.cost>0))return notify(c,'이번 라운드 구매 항목만 환불할 수 있습니다.');
+    delete p.shopReceipts[slot];
+    cancelEquipmentReload(p);
+    p.inventory[slot]=slot==='secondary'?'classic':null;
+    delete p.ammo[receipt.id];
+    if(slot==='secondary'&&!p.ammo.classic)p.ammo.classic={mag:catalog.classic.magSize,reserve:catalog.classic.resSize};
+    if(p.weapon===receipt.id)p.weapon=p.inventory.secondary;
+    p.mag=p.ammo[p.weapon].mag;p.reserve=p.ammo[p.weapon].reserve;
+    p.credits=clamp(p.credits+receipt.cost,0,9000);
+    send(c,{type:'refund_result',slot,inventory:p.inventory,weapon:p.weapon,credits:p.credits,mag:p.mag,reserve:p.reserve});
   } else if(m.type==='reload' && r.started && p.alive) {
     const weaponId=p.weapon, w=catalog[weaponId];
     const requestId = Number.isSafeInteger(m.requestId) ? m.requestId : null;
