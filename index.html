@@ -14,7 +14,7 @@
   <script src="config.js?v=perf19"></script>
   <script src="host-transport.js?v=consent-lock1"></script>
   <script src="movement-physics.js?v=move25"></script>
-  <script src="multiplayer-client.js?v=defuse-ring2"></script>
+  <script src="multiplayer-client.js?v=spike-hold-1s"></script>
   <link rel="stylesheet" href="menu.css" />
   <!-- Three.js r128 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -2049,8 +2049,8 @@
       }
       const foldedHand=new THREE.Group(),openHand=new THREE.Group();
       heldDevice.add(foldedHand,openHand);
-      addDevice(foldedHand,'spikeFolded',.32);
-      addDevice(openHand,'spikeOpen',.32);
+      addDevice(foldedHand,'spikeFolded',.43);
+      addDevice(openHand,'spikeOpen',.46);
       addDevice(spikeMesh,'spikeOpen',.94);
       function ownsSpike(){
         return roomState.playerSide==='attack'&&!matchState.spikePlanted&&
@@ -5176,7 +5176,27 @@
         if(matchState.inMatch||previousRenderWasMatch||renderMenu){
           if(spikeInHand&&(!player.alive||!ownsSpike()))setSpikeHeld(false);
           heldDevice.visible=matchState.inMatch&&player.alive&&(spikeInHand||!!plant);
-          openHand.visible=!!plant&&now-plantBegan>=2000;foldedHand.visible=!openHand.visible;
+          if(heldDevice.visible){
+            const elapsed=plant?(now-plantBegan)/1000:0;
+            openHand.visible=!!plant&&elapsed>=1;
+            foldedHand.visible=!openHand.visible;
+            const ease=(from,to)=>{
+              const t=Math.max(0,Math.min(1,(elapsed-from)/(to-from)));
+              return t*t*(3-2*t);
+            };
+            const center=ease(0,.65),open=ease(.76,1.24),lower=ease(2.65,4);
+            const walking=plant?0:Math.min(1,Math.hypot(player.vel.x,player.vel.z)/5);
+            const blend=1-Math.exp(-18*dt);
+            const x=.25-.13*center-.045*open+.007*walking*Math.sin(now*.009);
+            const y=-.32+.09*center-.08*open-.34*lower+.005*walking*Math.cos(now*.018);
+            const z=-.65-.07*center-.12*lower;
+            heldDevice.position.x+=(x-heldDevice.position.x)*blend;
+            heldDevice.position.y+=(y-heldDevice.position.y)*blend;
+            heldDevice.position.z+=(z-heldDevice.position.z)*blend;
+            heldDevice.rotation.x+=(-.12+.50*center-.27*open+.34*lower-heldDevice.rotation.x)*blend;
+            heldDevice.rotation.y+=(-.42+.39*center-heldDevice.rotation.y)*blend;
+            heldDevice.rotation.z+=(-.15+.13*open-heldDevice.rotation.z)*blend;
+          }
           const age=(now-blastAt)/1000;blast.visible=matchState.inMatch&&age>=0&&age<1.8;
           if(blast.visible){blast.scale.setScalar(Math.max(.01,35*Math.min(1,age/1.15)));blast.material.opacity=Math.min(.97,(1.8-age)/.65);}
           defuseRing.visible=matchState.phase==='planted';

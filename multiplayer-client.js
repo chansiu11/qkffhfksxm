@@ -567,7 +567,8 @@
         const weaponId = rp.weapon in a.WEAPON_CATALOG ? rp.weapon : 'classic';
         if (!b.weapon || b.weapon.id !== weaponId) b.weapon = a.cloneWeaponInstance(weaponId);
         const plantAction=rp.spikeAction?.mode==='plant' ? rp.spikeAction.progress : 0;
-        const displayId=plantAction>=.5?'spikeOpen':rp.spikeSelected||plantAction>0?'spikeFolded':weaponId;
+        b.plantProgress=plantAction;
+        const displayId=plantAction>=.25?'spikeOpen':rp.spikeSelected||plantAction>0?'spikeFolded':weaponId;
         if(b.displayWeapon!==displayId){
           b.displayWeapon=displayId;
           if(!b.hold){
@@ -713,6 +714,13 @@
           const t=b.aimBlend=(b.aimBlend||0)+((b.peerAim?1:0)-(b.aimBlend||0))*alpha;
           b.hold.position.set(.23-.19*t,1.01+.32*t,-.34-.07*t);
           b.hold.rotation.x=(b.pitch||0)-.13*(1-t);
+          if(b.plantProgress>0){
+            const p=b.plantProgress;
+            b.hold.position.x-=.15*Math.min(1,p*4);
+            b.hold.position.y-=.57*p*p;
+            b.hold.position.z-=.15*Math.min(1,p*4);
+            b.hold.rotation.x+=.35*Math.sin(Math.PI*p);
+          }
         }
         if (Number.isFinite(b.targetAt) && Number.isFinite(b.renderAt))
           b.renderAt+=(b.targetAt-b.renderAt)*alpha;
