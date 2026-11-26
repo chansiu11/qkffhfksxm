@@ -4077,7 +4077,7 @@
         rCtx.fill();
       }
 
-      function updatePlayerAndSpectatorCamera(dt) {
+      function updatePlayerAndSpectatorCamera(dt, heldWeapon) {
         const isBuy = matchState.phase === 'buy';
         for(const mesh of barrierGroup.children)mesh.visible=true;
         bots.forEach(b => {
@@ -4580,7 +4580,7 @@
           const holdingAnyFire = isMouseFiring || isKeyboardFiring || isLeftTouchFiring || isRightTouchFiring;
           if ((holdingAnyFire || (player.bulldogCount && player.isScoped && getActiveWeapon().id==='bulldog')) && player.alive && getActiveWeapon().auto) attemptFire();
           updateADSFrame(now);
-          updatePlayerAndSpectatorCamera(dt);
+          updatePlayerAndSpectatorCamera(dt, heldWeapon);
           window.updateCrosshairErrors?.(ShootingSpread.crosshairError(getActiveWeapon(), player, now), now);
           if(activeMap==='range')updateRange(now);
           else {updateBotsAndTeamCombat(dt);updateSpikeAndMatchRules(dt);}
