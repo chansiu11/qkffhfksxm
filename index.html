@@ -25,7 +25,7 @@
   <script src="crosshair-profile.js"></script>
   <script src="crosshair-ui.js" defer></script>
   <script src="ads-system.js?v=armory20"></script>
-  <script src="weapon-viewmodels.js?v=tilted-inspect2"></script>
+  <script src="weapon-viewmodels.js?v=ground-scale3"></script>
 
   <style>
     :root {
@@ -2072,7 +2072,7 @@
         if(loot.has(item.key))return;
         const group=new THREE.Group();
         group.position.set(item.x,item.y+.04,item.z);
-        const dispose=item.id==='spike'?addDevice(group,'spikeFolded',.46):viewmodel.createGroundDisplay(item.id,group);
+        const dispose=item.id==='spike'?addDevice(group,'spikeFolded',.42):viewmodel.createGroundDisplay(item.id,group);
         const marker=new THREE.Mesh(lootTriangle,item.id==='spike'?lootColors.spike:lootColors.gun);
         marker.rotation.x=-Math.PI/2;marker.position.set(item.x,item.y+.015,item.z);
         scene.add(group,marker);loot.set(item.key,{item,group,marker,dispose,start:animate?performance.now():-Infinity});
