@@ -15,6 +15,12 @@ function lobbyInfo(r) { return { map:r.map, code: r.code, host: r.host, winRound
   players: roomUsers(r).map(p => ({ id: p.id, name: p.name, team: p.team, online: !!p.client, direct:!!p.direct })) }; }
 function broadcastLobby(r) { emitRoom(r, { type: 'lobby', room: lobbyInfo(r) }); }
 function notify(c, message) { send(c, { type: 'error', message }); }
+function dropDefeatedWeapon(r,p){
+  const id=p.inventory.primary||p.inventory.secondary;
+  if(!id)return;
+  const ammo=id===p.weapon?p:p.ammo[id];
+  r.drops.push({key:'death-'+(++r.dropSeq),id,x:p.x,y:p.footY,z:p.z,yaw:p.yaw,mag:ammo.mag,reserve:ammo.reserve});
+}
 function spawn(p, idx, map, keepWeapons = false) {
   const atk = p.team === 'attack';
   const [x,z]=ground.maps[map].labels[atk?'Attacker Side Spawn':'Defender Side Spawn'];
@@ -270,7 +276,7 @@ function fire(r, p, msg) {
       target.hp=Math.max(0,target.hp-(damage-armorDamage));
       send(p.client,{type:'hit',headshot:false,damage:damage-armorDamage,pelletsHit:1});
       if(target.hp===0){
-        target.alive=false;p.credits=clamp(p.credits+200,0,9000);
+        target.alive=false;dropDefeatedWeapon(r,target);p.credits=clamp(p.credits+200,0,9000);
         emitRoom(r,{type:'kill',killer:p.id,victim:target.id,weapon:'knife',headshot:false});
         if(!roomUsers(r).some(q=>q.team===target.team&&q.alive)&&!r.spike)
           endRound(r,p.team,'TEAM ELIMINATED');
@@ -312,7 +318,7 @@ function fire(r, p, msg) {
       totalDamage += damage; hitCount++; anyHeadshot ||= headshot;
       effects.push({point:[ox+dx*best,oy+dy*best,oz+dz*best],head:!!headshot});
       if (hit.hp === 0) {
-        hit.alive = false; p.credits = clamp(p.credits + 200, 0, 9000);
+        hit.alive = false; dropDefeatedWeapon(r,hit); p.credits = clamp(p.credits + 200, 0, 9000);
         emitRoom(r, {type:'kill', killer:p.id, victim:hit.id, weapon:p.weapon, headshot});
         if (!roomUsers(r).some(q => q.team === hit.team && q.alive) && !r.spike)
           endRound(r, p.team, 'TEAM ELIMINATED');
