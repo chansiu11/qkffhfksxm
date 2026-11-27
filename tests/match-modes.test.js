@@ -107,6 +107,15 @@ test('arena enforces the four-player limit and maps switch with the mode', () =>
 test('all arena routes have clearance through the teams’ shared collision geometry', () => {
   for(const id of ['arenaA','arenaB','arenaC']){
     const map=ground.maps[id];
+    assert.equal(ground.gates[id].length,2);
+    for(const [axis,line,start,end,team] of ground.gates[id]){
+      const direction=team==='attack'?-1:1;
+      const x=(start+end)/2;
+      const next={x,z:line+direction};
+      assert.equal(axis,'z');
+      ground.stopAtGate(id,team,x,line-direction,next,.62);
+      assert.ok(Math.abs(next.z-(line-direction*.62))<.001);
+    }
     for(const path of map.routes.attack){
       for(let i=1;i<path.length;i++){
         const [x1,z1]=path[i-1], [x2,z2]=path[i];

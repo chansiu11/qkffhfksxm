@@ -26,6 +26,7 @@ if (typeof window !== "undefined") window.GAME_SERVER_URL = 'https://qkffhfksxm-
     arenaA: {
       outline: [[-10,-21],[10,-21],[16,-15],[16,15],[10,21],[-10,21],[-16,15],[-16,-15]],
       attack: [0,17], defense: [0,-17],
+      gates: [['z',12,-16,16,'attack'], ['z',-12,-16,16,'defense']],
       landmarks: {'Left Lane':[-11,0], 'Center Lane':[0,0], 'Right Lane':[11,0]},
       routes: [[[-11,13],[-11,-13]],[[0,0]],[[11,13],[11,-13]]],
       cover: [
@@ -37,6 +38,7 @@ if (typeof window !== "undefined") window.GAME_SERVER_URL = 'https://qkffhfksxm-
     arenaB: {
       outline: [[-22,-9],[-12,-9],[-12,-16],[12,-16],[12,-12],[22,-12],[22,8],[13,8],[13,16],[-12,16],[-12,12],[-22,12]],
       attack: [0,13], defense: [0,-13],
+      gates: [['z',10,-22,13,'attack'], ['z',-10,-12,22,'defense']],
       landmarks: {'West Yard':[-15,0], 'Mid Bend':[2,0], 'East Yard':[15,0]},
       routes: [[[-8,9],[-18,5],[-18,-4],[-10,-7],[-10,-10.5],[0,-10.5]],[[11.5,9],[11.5,6.4],[18,5],[18,-6],[10,-9]]],
       cover: [
@@ -48,6 +50,7 @@ if (typeof window !== "undefined") window.GAME_SERVER_URL = 'https://qkffhfksxm-
     arenaC: {
       outline: [[-9,-23],[9,-23],[19,-13],[19,13],[9,23],[-9,23],[-19,13],[-19,-13]],
       attack: [0,19], defense: [0,-19],
+      gates: [['z',14,-18,18,'attack'], ['z',-14,-18,18,'defense']],
       landmarks: {'West Loop':[-10,0], 'East Loop':[10,0]},
       routes: [[[-10,13],[-10,-13]],[[10,13],[10,-13]]],
       cover: [
@@ -59,10 +62,10 @@ if (typeof window !== "undefined") window.GAME_SERVER_URL = 'https://qkffhfksxm-
     }
   };
   for(const [id,arena] of Object.entries(arenas)){
-    const {outline,attack,defense,landmarks,routes,cover}=arena;
+    const {outline,attack,defense,landmarks,routes,cover,gates}=arena;
     const paths=routes.map(points=>[attack,...points,defense]);
     maps[id]={outlines:[outline],labels:{'Attacker Side Spawn':attack,'Defender Side Spawn':defense,...landmarks},
-      sites:{},plant:{},gates:[],floor:{'Attacker Side Spawn':0,'Defender Side Spawn':0},
+      sites:{},plant:{},gates,floor:{'Attacker Side Spawn':0,'Defender Side Spawn':0},
       routes:{attack:paths,defense:paths.map(path=>path.slice().reverse())}};
     fixtures[id]=cover;
   }

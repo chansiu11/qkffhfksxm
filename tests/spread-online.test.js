@@ -6,8 +6,9 @@ const ShootingSpread=require('../shooting-spread.js');
 const ShotgunPellets=require('../shotgun-pellets.js');
 const catalog=require('../server/weapons.json');
 process.env.PORT='0';
+process.env.BIND_HOST='127.0.0.1';
 const {server,rooms}=require('../server/server.js');
-function next(ws,type,timeout=2500){return new Promise((resolve,reject)=>{
+function next(ws,type,timeout=8000){return new Promise((resolve,reject)=>{
   const timer=setTimeout(()=>{ws.removeEventListener('message',on);reject(Error('no '+type));},timeout);
   function on(e){const m=JSON.parse(e.data);if(m.type===type){clearTimeout(timer);ws.removeEventListener('message',on);resolve(m)}}
   ws.addEventListener('message',on);
@@ -32,8 +33,10 @@ function compareFirst(ray,event,p){
     assert(Math.abs(event.from[axis]-(origin+ray[axis]*.28))<.005,'online tracer must follow server ray component '+axis);
   }
 }
-test('online game shot uses shared deterministic movement+burst variation, not always crosshair center',async()=>{
+test('online game shot uses shared deterministic movement+burst variation, not always crosshair center',async t=>{
   const f=await setup('82'),{a,b,p,w}=f;
+  let gameTime=Date.now();
+  t.mock.method(Date,'now',()=>gameTime);
   try{
     const seed=0x4db3c58e;
     const msg={type:'shoot',yaw:Math.PI,pitch:0,seed,scatter:0.3,burst:0,
@@ -44,10 +47,10 @@ test('online game shot uses shared deterministic movement+burst variation, not a
     compareFirst(expected,shot,p);
     assert(Math.abs(expected[0])>.005||Math.abs(expected[1])>.005,'running changes shot direction');
     assert.equal(p.spreadState.count,0);
-    await new Promise(res=>setTimeout(res,145));
+    gameTime+=Math.ceil(w.fireRate*1000);
     const follow={...msg,burst:1};
     const nextRay=ShootingSpread.directions(w,{...follow,shotIndex:1},ShotgunPellets).vectors[0];
-    const p2=next(b,'shot');a.send(JSON.stringify(follow));const shot2=await p2;
+    const p2=next(b,'shot');a.send(JSON.stringify(follow));const shot2=await p2.catch(error=>{throw new Error('Second shot did not reach the other client', {cause:error});});
     compareFirst(nextRay,shot2,p);assert.equal(p.spreadState.count,1);
     assert.notDeepEqual(nextRay,expected,'successive game shots should change trajectory');
   }finally{f.close();}

@@ -14,11 +14,11 @@ async function connect() {
   return ws;
 }
 
-function message(ws, type) {
+function message(ws, type, matches = () => true) {
   return new Promise((resolve, reject) => {
     const listener = event => {
       const data = JSON.parse(event.data);
-      if (data.type !== type) return;
+      if (data.type !== type || !matches(data)) return;
       clearTimeout(timer);
       ws.removeEventListener('message', listener);
       resolve(data);
@@ -70,4 +70,40 @@ for (const [index, id] of ['bandit','outlaw','ares','odin','warden'].entries()) 
     assert.deepEqual([result.weapon,result.mag,result.reserve], [id,weapon.magSize,weapon.resSize-1]);
   });
 }
+test('two clients see the selected mode, map and match start over WebSocket', async t => {
+  const host = await connect();
+  t.after(() => host.close());
+  const guest = await connect();
+  t.after(() => guest.close());
+  const code = '96';
+  await exchange(host, {type:'create', code, mode:'swift', map:'haven'}, 'joined');
+  const joined = await exchange(guest, {type:'join', code}, 'joined');
+  assert.equal(joined.room.mode,'swift');
+  assert.equal(joined.room.map,'haven');
+  assert.equal(joined.room.winRounds,5);
+
+  const arenaLobby = await exchange(host, {type:'set_mode', mode:'duel'}, 'lobby', guest);
+  assert.equal(arenaLobby.room.mode,'duel');
+  assert.equal(arenaLobby.room.map,'arenaA');
+  const arenaC = await exchange(host, {type:'set_map', map:'arenaC'}, 'lobby', guest);
+  assert.equal(arenaC.room.map,'arenaC');
+  assert.equal(arenaC.room.winRounds,10);
+
+  const guestStarts = message(guest, 'started');
+  await exchange(host, {type:'start'}, 'started');
+  await guestStarts;
+  const [hostState, guestState] = await Promise.all([message(host,'state'),message(guest,'state')]);
+  for(const state of [hostState, guestState]){
+    assert.equal(state.mode,'duel');
+    assert.equal(state.phase,'buy');
+    assert.equal(state.winRounds,10);
+    assert.equal(state.players.length,2);
+    assert.deepEqual(state.drops,[]);
+    assert.deepEqual(state.players.map(p=>p.z).sort((a,b)=>a-b),[-19,19]);
+  }
+  const combat = message(guest, 'state', state => state.phase === 'combat');
+  host.send(JSON.stringify({type:'skip'}));
+  await combat;
+});
+
 after(() => new Promise(resolve => server.close(resolve)));
