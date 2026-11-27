@@ -11,10 +11,10 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=Rajdhani:wght@600;700&family=Teko:wght@600;700&display=swap" rel="stylesheet">
   <script src="match-plans.js?v=map-barrier-layout5"></script>
-  <script src="config.js?v=perf19"></script>
-  <script src="host-transport.js?v=consent-lock1"></script>
+  <script src="config.js?v=game-modes1"></script>
+  <script src="host-transport.js?v=game-modes1"></script>
   <script src="movement-physics.js?v=move25"></script>
-  <script src="multiplayer-client.js?v=ko-pickup1"></script>
+  <script src="multiplayer-client.js?v=game-modes1"></script>
   <link rel="stylesheet" href="menu.css" />
   <!-- Three.js r128 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -773,7 +773,7 @@
                   class="mt-2 mb-3 px-4 py-2 text-sm font-bold border border-[#38e2c7]/60 text-[#38e2c7] hover:bg-[#38e2c7]/10 cursor-pointer">감도 · 조준점 설정</button>
 
           <div class="menu-feature-row"><span>◈ &nbsp; REALTIME 5 VS 5</span><span>◈ &nbsp; CUSTOM ROOMS</span><span>◈ &nbsp; CROSS PLATFORM</span></div>
-          <label class="menu-setting">온라인 경기 맵 <select id="map-choice" onchange="document.querySelector('.menu-hero-title em').textContent=this.value.toUpperCase()" style="color:white;background:#182530;padding:6px"><option value="ascent">어센트</option><option value="haven">헤이븐</option></select></label>
+          <label class="menu-setting">게임 모드 <select id="mode-choice" style="color:white;background:#182530;padding:6px" onchange="setModeMaps(this.value,document.getElementById('map-choice'));document.getElementById('map-choice').onchange()"><option value="normal">일반전</option><option value="swift">신속플레이</option><option value="deathmatch">데스매치</option><option value="duel1">난투 1대1</option><option value="duel2">난투 2대2</option></select></label><label class="menu-setting">온라인 경기 맵 <select id="map-choice" onchange="document.querySelector('.menu-hero-title em').textContent=this.value.toUpperCase()" style="color:white;background:#182530;padding:6px"><option value="ascent">어센트</option><option value="haven">헤이븐</option></select></label>
           <button type="button" class="menu-practice-btn" onclick="window.quickStartMatch(event)"><span class="menu-practice-icon">↗</span><span><b>혼자 연습하기</b><small>OFFLINE · 사격 연습장</small></span><span class="menu-practice-arrow">→</span></button>
           <div class="menu-hero-foot"><span>ASCENT / HAVEN</span><span>MOVE WITH PURPOSE.</span></div>
         </section>
@@ -820,7 +820,7 @@
         <div class="room-grid"><section class="room-teams" aria-label="참가자와 팀 선택"><div class="room-section-top"><div><span class="menu-kicker">팀 선택</span><h2>팀 선택</h2></div><span class="room-team-hint">버튼을 눌러 팀 변경</span></div>
             <div class="room-team-controls"><div class="room-team-control attack"><div><span class="room-team-num">01 / 공격</span><strong>공격팀</strong></div><button type="button" onclick="window.switchTeam('attack')" id="btn-team-attack">공격팀 선택 ↗</button></div><div class="room-team-control defense"><div><span class="room-team-num">02 / 수비</span><strong>수비팀</strong></div><button type="button" onclick="window.switchTeam('defense')" id="btn-team-defense">수비팀 선택 ↗</button></div></div>
             <div id="online-roster" class="room-roster-grid" aria-live="polite"><div class="room-roster-list"><div class="room-roster-top">공격팀<span>0/5</span></div><div class="room-slot empty">플레이어를 기다리는 중</div></div><div class="room-roster-list"><div class="room-roster-top">수비팀<span>0/5</span></div><div class="room-slot empty">플레이어를 기다리는 중</div></div></div>
-          </section><aside class="room-info" aria-label="방 정보 및 게임 시작"><div class="room-map-card"><div class="room-map-card-head"><span>선택한 맵</span><span>01 / 01</span></div><div class="room-map-graphic" aria-hidden="true"><span class="room-map-a">A</span><span class="room-map-b">B</span><div class="room-map-lines"></div></div><h3>ASCENT</h3><p>전략적인 진입 · 스파이크 설치 · 폭파 저지</p></div><div class="room-match-rules"><div><small>대전 유형</small><b>사용자 설정 · 일반전</b></div><div><small>팀 인원</small><b>5 VS 5</b></div><div><small>승리 조건</small><b id="room-win-target">13라운드</b></div><div><small>서버</small><b id="host-transport-status">Render 서버 연결</b></div></div><label id="lobby-map-control" hidden>경기 맵 <select id="lobby-map-select" style="padding:6px;color:white;background:#182530" onchange="window.MP.send({type:'set_map',map:this.value})"><option value="ascent">어센트</option><option value="haven">헤이븐</option></select></label><button type="button" id="lobby-cheat-perm-btn" onclick="window.toggleHostCheatPermission(event)" class="room-cheat-btn">방장 치트: 꺼짐</button><label style="display:block;margin:8px 0;font-size:12px"><input type="checkbox" id="host-transport-opt" onchange="window.MP.hostTransport?.setEnabled(this.checked)"> <span id="host-transport-label">신뢰하는 방에서 직접 연결(P2P) 허용</span></label><section id="host-consent-invite" hidden aria-labelledby="host-consent-title" style="padding:12px;border:1px solid #74848e;margin:8px 0;font-size:12px"><strong id="host-consent-title">방장이 직접 연결을 요청했습니다.</strong><p style="margin:8px 0">직접 연결을 허용하면 신뢰하는 방장과 네트워크 주소가 공유될 수 있습니다. 연결이 끊기면 경기가 재시작될 수 있습니다. 동의하지 않아도 됩니다. 방장이 직접 연결 요청을 끄면 Render 방식으로 시작할 수 있습니다.</p><button type="button" style="padding:8px;min-height:44px" onclick="window.MP.hostTransport?.respondToInvitation(true)">동의</button> <button type="button" style="padding:8px;min-height:44px" onclick="window.MP.hostTransport?.respondToInvitation(false)">동의하지 않음</button></section><p id="host-consent-detail" aria-live="polite" style="font-size:12px;margin:4px 0"></p><button type="button" id="online-start-btn" onclick="window.startMatchFromLobby(event)" class="menu-action-btn room-start-btn">경기 시작하기 <span>→</span></button><div class="room-start-help">방장만 경기를 시작할 수 있습니다.</div></aside></div>
+          </section><aside class="room-info" aria-label="방 정보 및 게임 시작"><div class="room-map-card"><div class="room-map-card-head"><span>선택한 맵</span><span>01 / 01</span></div><div class="room-map-graphic" aria-hidden="true"><span class="room-map-a">A</span><span class="room-map-b">B</span><div class="room-map-lines"></div></div><h3>ASCENT</h3><p>전략적인 진입 · 스파이크 설치 · 폭파 저지</p></div><div class="room-match-rules"><div><small>대전 유형</small><b>사용자 설정 · 일반전</b></div><div><small>팀 인원</small><b>5 VS 5</b></div><div><small>승리 조건</small><b id="room-win-target">13라운드</b></div><div><small>서버</small><b id="host-transport-status">Render 서버 연결</b></div></div><label id="lobby-mode-control" hidden>게임 모드 <select id="lobby-mode" style="color:white;background:#182530;padding:6px" onchange="MP.send({type:'set_mode',mode:this.value})"><option value="normal">일반전</option><option value="swift">신속플레이</option><option value="deathmatch">데스매치</option><option value="duel1">난투 1대1</option><option value="duel2">난투 2대2</option></select></label><label id="lobby-map-control" hidden>경기 맵 <select id="lobby-map-select" style="padding:6px;color:white;background:#182530" onchange="window.MP.send({type:'set_map',map:this.value})"><option value="ascent">어센트</option><option value="haven">헤이븐</option></select></label><button type="button" id="lobby-cheat-perm-btn" onclick="window.toggleHostCheatPermission(event)" class="room-cheat-btn">방장 치트: 꺼짐</button><label style="display:block;margin:8px 0;font-size:12px"><input type="checkbox" id="host-transport-opt" onchange="window.MP.hostTransport?.setEnabled(this.checked)"> <span id="host-transport-label">신뢰하는 방에서 직접 연결(P2P) 허용</span></label><section id="host-consent-invite" hidden aria-labelledby="host-consent-title" style="padding:12px;border:1px solid #74848e;margin:8px 0;font-size:12px"><strong id="host-consent-title">방장이 직접 연결을 요청했습니다.</strong><p style="margin:8px 0">직접 연결을 허용하면 신뢰하는 방장과 네트워크 주소가 공유될 수 있습니다. 연결이 끊기면 경기가 재시작될 수 있습니다. 동의하지 않아도 됩니다. 방장이 직접 연결 요청을 끄면 Render 방식으로 시작할 수 있습니다.</p><button type="button" style="padding:8px;min-height:44px" onclick="window.MP.hostTransport?.respondToInvitation(true)">동의</button> <button type="button" style="padding:8px;min-height:44px" onclick="window.MP.hostTransport?.respondToInvitation(false)">동의하지 않음</button></section><p id="host-consent-detail" aria-live="polite" style="font-size:12px;margin:4px 0"></p><button type="button" id="online-start-btn" onclick="window.startMatchFromLobby(event)" class="menu-action-btn room-start-btn">경기 시작하기 <span>→</span></button><div class="room-start-help">방장만 경기를 시작할 수 있습니다.</div></aside></div>
       </main><footer class="menu-footer"><span>TACTICAL FPS // CUSTOM MATCH</span><span>PLAY TOGETHER. STAY SHARP.</span></footer>
     </div>
   </div>
@@ -1787,7 +1787,7 @@
           ascentGroup.add(new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(points),plantMark));
         }
         if(id==='ascent')addAscentLandmarks();
-        else addHavenSkyline();
+        else if(id==='haven')addHavenSkyline();
         registerMapObjects(id);
         buildRoundObjects(id);
       }
@@ -1872,12 +1872,17 @@
           part.indicator.color.setHex(part.hp>330?0x53e2ce:part.hp>165?0xffc85c:0xf55745);
         }
       }
+window.setModeMaps=function(mode,select,wanted){
+  const list=mode.startsWith('duel')?[['arenaA','난투 A'],['arenaB','난투 B'],['arenaC','난투 C']]:[['ascent','어센트'],['haven','헤이븐']];
+  select.replaceChildren(...list.map(([value,label])=>new Option(label,value)));
+  select.value=list.some(([v])=>v===wanted)?wanted:list[0][0];
+};
       let activeMap = 'ascent';
       buildMatchMap('ascent');
       function selectMap(id) {
-        const next = ['haven','range'].includes(id) ? id : 'ascent';
+        const next = ['haven','range','arenaA','arenaB','arenaC'].includes(id) ? id : 'ascent';
         document.querySelector('.room-map-card h3').textContent = next.toUpperCase();
-        document.querySelector('.room-map-card p').textContent = next === 'haven' ? 'A · B · C 사이트 / 헤이븐' : 'A · B 사이트 / 어센트';
+        document.querySelector('.room-map-card p').textContent = next.startsWith('arena')?'난투 '+next.slice(-1):next === 'haven' ? 'A · B · C 사이트 / 헤이븐' : 'A · B 사이트 / 어센트';
         for(const id of ['radar-map-name','room-map-name']) document.getElementById(id).textContent=next.toUpperCase();
         document.querySelector('.room-map-graphic').hidden=next==='haven';
         document.querySelector('[onclick^="window.teleportTo"]').parentElement.parentElement.hidden=next==='haven';
@@ -2464,12 +2469,14 @@
         document.getElementById('msb-enemy-score').textContent=matchState.enemyScore;
         document.getElementById('msb-round').textContent=matchState.round;
         for(const [ally,id] of [[true,'msb-ally'],[false,'msb-enemy']]){
-          const section=document.getElementById(id), team=data.filter(p=>p.ally===ally).sort((a,b)=>b.k-a.k||a.d-b.d||a.name.localeCompare(b.name));
-          const label=document.createElement('div');label.className='msb-team-label';label.textContent=ally?'아군':'적군';
+          const dm=online&&mp.state.mode==='deathmatch';
+          const section=document.getElementById(id);section.hidden=dm&&!ally;
+          const team=data.filter(p=>dm?ally:p.ally===ally).sort((a,b)=>b.k-a.k||a.d-b.d||a.name.localeCompare(b.name));
+          const label=document.createElement('div');label.className='msb-team-label';label.textContent=dm?'개인 순위 · 40킬 선승':ally?'아군':'적군';
           const frag=document.createDocumentFragment();frag.appendChild(label);
           for(const p of team){
             const row=document.createElement('div');row.className='msb-grid msb-row'+(p.me?' me':'')+(p.alive===false?' dead':'');
-            for(const value of [p.name+(p.me&&p.name!=='YOU'?' (YOU)':''),'—',clean(p.k),clean(p.d),clean(p.a),p.loadout?String(p.loadout).toUpperCase():'—',clean(p.credits),clean(p.ping)]){
+            for(const value of [(dm?(team.indexOf(p)+1)+'. ':'')+p.name+(p.me&&p.name!=='YOU'?' (YOU)':''),'—',clean(p.k),clean(p.d),clean(p.a),p.loadout?String(p.loadout).toUpperCase():'—',clean(p.credits),clean(p.ping)]){
               const cell=document.createElement('span');cell.textContent=value;row.appendChild(cell);
             }
             frag.appendChild(row);
@@ -3172,7 +3179,7 @@
           tryLockPointerSafe();
           return;
         }
-        const canBuy = activeMap==='range' || matchState.phase === 'buy' || (roomState.allowCheats && cheats.buyAnywhere);
+        const canBuy = window.MP.state?.mode==='deathmatch' || activeMap==='range' || matchState.phase === 'buy' || (roomState.allowCheats && cheats.buyAnywhere);
         if (!canBuy) {
           showRoundBanner('구매 단계 종료', '구매 페이즈에만 상점을 열 수 있습니다');
           return;

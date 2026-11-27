@@ -69,7 +69,7 @@
       this.disconnecting = false;
       this.active = true;
       this.initialDeadline=performance.now()+120000;
-      this.connectRequest = {type,code,winRounds,map:document.getElementById('map-choice')?.value};
+      this.connectRequest = {type,code,winRounds,mode:document.getElementById('mode-choice')?.value,map:document.getElementById('map-choice')?.value};
       this.roomCode = code;
       this.status('서버 연결 중... (최초 접속은 시간이 걸릴 수 있습니다)');
       this.openSocket(this.connectRequest, false);
@@ -374,7 +374,7 @@
         case 'round_end': a.spikeRoundResult(data.reason); a.showRoundBanner(data.reason, data.team === a.roomState.playerSide ? '라운드 WON' : '라운드 LOST'); break;
         case 'match_end':
           a.resetChat();
-          a.showRoundBanner('대전 종료', 'MATCH FINISHED');
+          a.showRoundBanner('대전 종료',data.winner?'데스매치 1위 · '+data.winner:'경기 종료');
           this.started = false; this.lastRound = 0;
           a.enterPostMatch();
           break;
@@ -385,12 +385,20 @@
       this.api.selectMap?.(room.map);
       const mapSelect = document.getElementById('lobby-map-select');
       if (mapSelect) {
-        mapSelect.value = room.map || 'ascent';
+        const mode=room.mode||'normal';
+        document.getElementById('lobby-mode').value=mode;
+        document.getElementById('lobby-mode-control').hidden=room.host!==this.myId||room.started;
+        window.setModeMaps(mode,mapSelect,room.map);
+        document.querySelectorAll('#buy-shop-overlay button[onclick*="buyItem"] > span:last-child').forEach(price=>{
+          price.dataset.original??=price.textContent;
+          price.textContent=(mode.startsWith('duel')||mode==='deathmatch')?'무료':price.dataset.original;
+        });
         document.getElementById('lobby-map-control').hidden = room.host !== this.myId || room.started;
       }
       this.room = room;
       const a = this.api;
       a.roomState.code = room.code;
+      a.roomState.winRounds=room.winRounds;
       a.roomState.isHost = room.host === this.myId;
       const me = room.players.find(p => p.id === this.myId);
       if (me) a.roomState.playerSide = me.team;
@@ -408,10 +416,10 @@
           const title = document.createElement('strong');
           title.textContent = side === 'attack' ? '공격팀' : '수비팀';
           const count = document.createElement('span');
-          count.textContent = `${people.length} / 5`;
+          count.textContent = `${people.length} / ${room.mode==='duel1'?1:room.mode==='duel2'?2:5}`;
           heading.append(title, count);
           col.appendChild(heading);
-          for (let i = 0; i < 5; i++) {
+          for (let i = 0; i < (room.mode==='duel1'?1:room.mode==='duel2'?2:5); i++) {
             const p = people[i];
             const row = document.createElement('div');
             row.className = 'room-slot' + (p ? '' : ' empty');
@@ -442,12 +450,13 @@
         button.disabled = selected;
       }
       const rounds = document.getElementById('room-win-target');
-      if (rounds) rounds.textContent = `${room.winRounds || a.roomState.winRounds} 라운드`;
+      if (rounds) rounds.textContent = room.mode==='deathmatch'?'40킬 또는 9분':`${room.winRounds || a.roomState.winRounds}선승`;
       const start = document.getElementById('online-start-btn');
-      if (start) { start.disabled = !a.roomState.isHost; start.style.opacity = a.roomState.isHost ? '1' : '0.65';
+      if (start) { const required=room.mode==='duel1'?1:room.mode==='duel2'?2:0;
+        start.disabled = !a.roomState.isHost || !!required&&['attack','defense'].some(t=>room.players.filter(p=>p.team===t).length!==required); start.style.opacity = a.roomState.isHost ? '1' : '0.65';
         start.textContent = a.roomState.isHost ? '경기 시작하기  →' : '방장의 시작을 기다리는 중'; }
       this.hostTransport?.update(room);
-      this.status(`온라인 ROOM #${room.code} · ${room.players.length}/10명`);
+      this.status(`온라인 ROOM #${room.code} · ${room.players.length}/${room.mode==='duel1'?2:room.mode==='duel2'?4:10}명`);
       a.updateHUD();
     },
     applyState(state) {
@@ -539,7 +548,8 @@
         a.viewmodel.stopReload();
       }
       // Honor server spawn on round start and server corrections for abnormal movement.
-      if (newRound) {
+      if (newRound || state.mode==='deathmatch'&&this.lastLife!==me.life) {
+        this.lastLife=me.life;
         a.player.pos.set(me.x, me.y, me.z);
         a.player.footY = me.footY;
         window.GameMovement?.reset(a.player);
@@ -554,7 +564,7 @@
         if (rp.id === this.myId) continue;
         present.add(rp.id);
         let b = this.peers.get(rp.id);
-        const isAlly = rp.team === me.team;
+        const isAlly = state.mode!=='deathmatch' && rp.team === me.team;
         if (!b) {
           const m = a.createTacticalBotMesh(isAlly);
           b = { id: rp.id, name: rp.name, team: isAlly ? 'ally' : 'enemy', alive: rp.alive, hp: rp.hp, armor: rp.armor,

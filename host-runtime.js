@@ -1,7 +1,7 @@
 /* Dedicated browser worker: uses the same room engine as Render. */
 'use strict';
 self.window=self;
-importScripts('match-plans.js?v=audio22','config.js?v=audio22','shotgun-pellets.js','shooting-spread.js?v=armory20','melee-rules.js','server/room-core.js?v=round-wait2');
+importScripts('match-plans.js?v=audio22','config.js?v=game-modes1','shotgun-pellets.js','shooting-spread.js?v=armory20','melee-rules.js','server/room-core.js?v=game-modes1');
 self.module={exports:{}};
 importScripts('server/hit-registry.js');
 const registry=self.module.exports;
@@ -22,7 +22,7 @@ onmessage=ev=>{
   const m=ev.data;
   if(!core)return;
   if(m.type==='init'&&!room){
-    const l=m.room;room={code:l.code,map:l.map,host:l.host,winRounds:l.winRounds,players:new Map(),
+    const l=m.room;room={code:l.code,map:l.map,mode:l.mode,host:l.host,winRounds:l.winRounds,players:new Map(),
       started:false,hostMode:true,hostRun:l.hostRun,phase:'waiting',round:1,scores:{attack:0,defense:0},until:0,spike:null,halfDefused:false};
     rooms.set(l.code,room);
     l.players.forEach((u,i)=>{

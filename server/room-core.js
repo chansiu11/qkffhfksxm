@@ -6,12 +6,39 @@
 'use strict';
 const {rooms,send,close,crypto,catalog,ground,ShotgunPellets,ShootingSpread,MeleeRules,recordPosition,samplePosition,rayCharacter,MAX_REWIND_MS,sendSnapshot}=deps;
 const LIMIT=ground.limit;
+const modes=['normal','swift','deathmatch','duel1','duel2'];
+const duel=r=>r.mode==='duel1'||r.mode==='duel2';
+const capacity=r=>r.mode==='duel1'?2:r.mode==='duel2'?4:10;
+const mapsFor=r=>duel(r)?['arenaA','arenaB','arenaC']:['ascent','haven'];
+function configure(r,mode,map){
+  r.mode=modes.includes(mode)?mode:'normal';
+  r.map=mapsFor(r).includes(map)?map:mapsFor(r)[0];
+  r.winRounds=duel(r)?10:r.mode==='swift'?5:r.normalRounds;
+}
+function dmSpawn(r,p){
+  const labels=ground.maps[r.map].labels;
+  const points=Object.values(labels).map(([x,z])=>{
+    const pos={x,z};ground.resolve(r.map,pos,ground.height(r.map,x,z),.62);
+    const distance=Math.min(Infinity,...roomUsers(r).filter(q=>q!==p&&q.alive).map(q=>Math.hypot(q.x-pos.x,q.z-pos.z)));
+    return {...pos,distance};
+  }).sort((a,b)=>b.distance-a.distance);
+  const safe=points.filter(pt=>pt.distance>=14);
+  const point=safe.length?safe[Math.floor(Math.random()*safe.length)]:points[0];
+  p.x=point.x;p.z=point.z;p.footY=ground.height(r.map,p.x,p.z);p.y=p.footY+1.65;p.life=(p.life||0)+1;p.positionHistory=[];recordPosition(p);
+}
+function dmKill(r,killer,victim){
+  killer.kills++;victim.deaths++;victim.respawnAt=Date.now()+1500;
+}
+function finishDM(r){
+  const ranking=roomUsers(r).sort((a,b)=>b.kills-a.kills||a.deaths-b.deaths);
+  r.started=false;r.phase='waiting';emitRoom(r,{type:'match_end',winner:ranking[0]?.name});broadcastLobby(r);
+}
 function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
 function finite(v, lo, hi, fallback) { return typeof v === 'number' && Number.isFinite(v) ? clamp(v, lo, hi) : fallback; }
 function otherTeam(t) { return t === 'attack' ? 'defense' : 'attack'; }
 function roomUsers(r) { return [...r.players.values()]; }
 function emitRoom(r, m) { for (const p of r.players.values()) send(p.client, m); }
-function lobbyInfo(r) { return { map:r.map, code: r.code, host: r.host, winRounds: r.winRounds, started: r.started, phase: r.phase, hostMode:!!r.hostMode, hostRun:r.hostMode?r.hostRun:null,
+function lobbyInfo(r) { return { mode:r.mode,map:r.map, code: r.code, host: r.host, winRounds: r.winRounds, started: r.started, phase: r.phase, hostMode:!!r.hostMode, hostRun:r.hostMode?r.hostRun:null,
   players: roomUsers(r).map(p => ({ id: p.id, name: p.name, team: p.team, online: !!p.client, direct:!!p.direct })) }; }
 function broadcastLobby(r) { emitRoom(r, { type: 'lobby', room: lobbyInfo(r) }); }
 function notify(c, message) { send(c, { type: 'error', message }); }
@@ -68,12 +95,13 @@ function createRoom(c, msg) {
   let r = rooms.get(code);
   if (creating && r) return notify(c, '이미 사용 중인 코드입니다. 다른 코드를 선택하세요.');
   if (!creating && !r) return notify(c, '해당 코드의 방이 없습니다.');
-  if (r && r.players.size >= 10) return notify(c, '방 정원이 가득 찼습니다.');
+  if (r && r.players.size >= capacity(r)) return notify(c, '방 정원이 가득 찼습니다.');
   if (r && r.started) return notify(c, '진행 중인 경기는 참가할 수 없습니다.');
   if (!r) {
     r = { code, map:msg.map==='haven'?'haven':'ascent', host: c.id, winRounds: msg.winRounds === 5 ? 5 : 13,
       players: new Map(), started: false, phase: 'waiting', round: 1,
       scores: { attack: 0, defense: 0 }, until: 0, spike: null, halfDefused: false };
+    r.normalRounds=r.winRounds;configure(r,msg.mode,msg.map);
     rooms.set(code, r);
   }
   const team = roomUsers(r).filter(p => p.team === 'attack').length <= roomUsers(r).filter(p => p.team === 'defense').length ? 'attack' : 'defense';
@@ -115,17 +143,27 @@ function resetRound(r) {
   r.carrier=null;
   const [x,spawnZ]=ground.maps[r.map].labels['Attacker Side Spawn'];
   const z=spawnZ-1.25;
-  r.drops.push({key:'spawn-spike',id:'spike',x,z,y:ground.height(r.map,x,z)});
+  if(!duel(r)&&r.mode!=='deathmatch')r.drops.push({key:'spawn-spike',id:'spike',x,z,y:ground.height(r.map,x,z)});
   r.halfDefused = false;
   const users = roomUsers(r);
   users.forEach((p, i) => {
-    spawn(p, i, r.map,p.alive && r.round !== 1 && r.round !== r.winRounds);
+    spawn(p, i, r.map,p.alive && r.round !== 1 && (duel(r)||r.round !== r.winRounds));
     if (r.round === 1) p.credits = 800;
+    if(r.mode==='swift'){
+      const halfRound=r.round===9?3:(r.round-1)%4;
+      p.credits=[800,2400,4250,6000][halfRound]+(halfRound===1&&p.wonLast?600:0);
+    }
+    if(duel(r)){p.armor=50;p.credits=0;}
+    if(r.mode==='deathmatch'){p.kills=0;p.deaths=0;p.armor=50;p.credits=9000;dmSpawn(r,p);}
+  
   });
+  if(r.mode==='deathmatch'){r.phase='combat';r.until=Date.now()+540000;}
   emitRoom(r, { type: 'round', round: r.round });
 }
 function endRound(r, team, reason) {
   if (r.phase === 'round_end' || !r.started) return;
+  if(r.mode==='deathmatch')return;
+  for(const p of roomUsers(r))p.wonLast=p.team===team;
   r.scores[team]++;
   r.phase = 'round_end';
   r.until = Date.now() + 3500;
@@ -133,6 +171,7 @@ function endRound(r, team, reason) {
   emitRoom(r, { type: 'round_end', team, reason });
 }
 function start(r) {
+  if(duel(r)&&['attack','defense'].some(t=>roomUsers(r).filter(p=>p.team===t).length!==capacity(r)/2))return notify(r.players.get(r.host).client,'양 팀 인원을 채워 주세요.');
   r.started = true;
   r.round = 1;
   r.scores.attack = r.scores.defense = 0;
@@ -245,7 +284,7 @@ function fire(r, p, msg) {
   const shotAt=finite(msg.seenAt,now-MAX_REWIND_MS,now,now);
   if (w.id === 'knife') {
     emitRoom(r, {type:'knife_swing', shooter:p.id, mode:meleeMode, x:ox, y:oy, z:oz});
-    const candidates = [...r.players.values()].filter(target => target.alive && target.team !== p.team)
+    const candidates = [...r.players.values()].filter(target => target.alive && target!==p && (r.mode==='deathmatch'||target.team!==p.team))
       .map(target => Object.assign({player: target, alive: true}, samplePosition(target, shotAt)));
     const meleeHit = MeleeRules.selectTarget({x: ox,y: oy,z: oz}, yaw,pitch,meleeMode,candidates,
       (target, info) => {
@@ -276,7 +315,7 @@ function fire(r, p, msg) {
       target.hp=Math.max(0,target.hp-(damage-armorDamage));
       send(p.client,{type:'hit',headshot:false,damage:damage-armorDamage,pelletsHit:1});
       if(target.hp===0){
-        target.alive=false;dropDefeatedWeapon(r,target);p.credits=clamp(p.credits+200,0,9000);
+        target.alive=false;if(r.mode==='deathmatch')dmKill(r,p,target);else dropDefeatedWeapon(r,target);p.credits=clamp(p.credits+200,0,9000);
         emitRoom(r,{type:'kill',killer:p.id,victim:target.id,weapon:'knife',headshot:false});
         if(!roomUsers(r).some(q=>q.team===target.team&&q.alive)&&!r.spike)
           endRound(r,p.team,'TEAM ELIMINATED');
@@ -294,7 +333,7 @@ function fire(r, p, msg) {
     const [dx,dy,dz]=directions[0];
     const wall=mapImpact(r,ox,oy,oz,dx,dy,dz,w.range);
     const near=wall.impactDistance<=8 || [...r.players.values()].some(target=>{
-      if (!target.alive || target.team===p.team) return false;
+      if (!target.alive || target===p || (r.mode!=='deathmatch'&&target.team===p.team)) return false;
       const hit=rayCharacter(ox,oy,oz,dx,dy,dz,target,shotAt);
       return hit && hit.distance<=8;
     });
@@ -305,7 +344,7 @@ function fire(r, p, msg) {
     let {impactDistance,struck}=mapImpact(r,ox,oy,oz,dx,dy,dz,w.range-travel);
     let best = impactDistance, hit = null, headshot = false, legshot = false;
     for (const target of r.players.values()) {
-      if (!target.alive || target.team === p.team) continue;
+      if (!target.alive || target===p || (r.mode!=='deathmatch'&&target.team === p.team)) continue;
       const intersection=rayCharacter(ox,oy,oz,dx,dy,dz,target,shotAt);
       if(intersection && intersection.distance<best) {
         best=intersection.distance;hit=target;headshot=intersection.headshot;legshot=intersection.legshot;
@@ -318,7 +357,7 @@ function fire(r, p, msg) {
       totalDamage += damage; hitCount++; anyHeadshot ||= headshot;
       effects.push({point:[ox+dx*best,oy+dy*best,oz+dz*best],head:!!headshot});
       if (hit.hp === 0) {
-        hit.alive = false; dropDefeatedWeapon(r,hit); p.credits = clamp(p.credits + 200, 0, 9000);
+        hit.alive = false; if(r.mode==='deathmatch')dmKill(r,p,hit);else dropDefeatedWeapon(r,hit); p.credits = clamp(p.credits + 200, 0, 9000);
         emitRoom(r, {type:'kill', killer:p.id, victim:hit.id, weapon:p.weapon, headshot});
         if (!roomUsers(r).some(q => q.team === hit.team && q.alive) && !r.spike)
           endRound(r, p.team, 'TEAM ELIMINATED');
@@ -371,8 +410,13 @@ function receive(c,m) {
         Math.hypot(p.x-item.switchAt[0],p.z-item.switchAt[1])<=3) door.closed=true;
     return;
   }
+  if(m.type==='set_mode'){
+    if(r.host!==p.id||r.started||!modes.includes(m.mode))return;
+    if(roomUsers(r).length>capacity({mode:m.mode}))return notify(c,'방 인원이 모드 정원을 초과합니다.');
+    configure(r,m.mode,r.map);broadcastLobby(r);return;
+  }
   if (m.type === 'set_map') {
-    if (r.host !== p.id || r.started || !['ascent','haven'].includes(m.map)) return;
+    if (r.host !== p.id || r.started || !mapsFor(r).includes(m.map)) return;
     r.map = m.map;
     broadcastLobby(r);
     return;
@@ -390,7 +434,7 @@ function receive(c,m) {
   }
   if (m.type==='team' && !r.started) {
     const team=m.team==='defense'?'defense':'attack';
-    if (roomUsers(r).filter(q=>q.team===team).length >= 5) return notify(c,'해당 팀이 가득 찼습니다.');
+    if (roomUsers(r).filter(q=>q.team===team).length >= capacity(r)/2) return notify(c,'해당 팀이 가득 찼습니다.');
     p.team=team; broadcastLobby(r);
   } else if(m.type==='start' && r.host===p.id && !r.started) start(r);
   else if(m.type==='skip' && r.host===p.id && r.phase==='buy')r.until=now;
@@ -498,21 +542,22 @@ function receive(c,m) {
     }
     p.lastPosAt=now;
   } else if(m.type==='shoot' && r.started) fire(r,p,m);
-  else if(m.type==='buy' && r.phase==='buy' && p.alive) {
+  else if(m.type==='buy' && (r.phase==='buy'||r.mode==='deathmatch'&&r.phase==='combat') && p.alive) {
     const id=String(m.item||'');const w=catalog[id];
     if(id==='light_shield'||id==='heavy_shield'){
       const cost=id==='light_shield'?400:1000,armor=id==='light_shield'?25:50;
       if(p.armor>=armor||p.credits<cost)return notify(c,'방어구 구매 조건이 맞지 않습니다.');
       p.armor=armor;p.credits-=cost;
     }else{
-      if(!w||p.credits<w.cost||w.id==='knife')return notify(c,'구매할 수 없습니다.');
+      const cost=duel(r)||r.mode==='deathmatch'?0:w?.cost;
+      if(!w||p.credits<cost||w.id==='knife')return notify(c,'구매할 수 없습니다.');
       cancelEquipmentReload(p);
       if(p.weapon!==id)p.equipUntil=now+w.equipTime*1000;
-      p.inventory[w.slot]=id; p.weapon=id; p.mag=w.magSize;p.reserve=w.resSize;p.credits-=w.cost;
+      p.inventory[w.slot]=id; p.weapon=id; p.mag=w.magSize;p.reserve=w.resSize;p.credits-=cost;
       p.ammo[id]={mag:p.mag,reserve:p.reserve};
       if(w.slot==='primary'||w.slot==='secondary'){
         p.shopReceipts??={};
-        p.shopReceipts[w.slot]={id,cost:w.cost};
+        p.shopReceipts[w.slot]={id,cost};
       }
     }
     send(c,{type:'purchase',item:id,credits:p.credits,armor:p.armor,mag:p.mag,reserve:p.reserve});
@@ -597,15 +642,20 @@ function snapshot(r) {
   const now=Date.now();
   // Quantize positions to centimetres, enough for FPS interpolation and smaller packets.
   const q=n=>Math.round(n*100)/100;
-  return {type:'state',objects:r.objects,serverAt:now,code:r.code,round:r.round,phase:r.phase,timer:q(Math.max(0,(r.until-now)/1000)),
+  return {type:'state',mode:r.mode,objects:r.objects,serverAt:now,code:r.code,round:r.round,phase:r.phase,timer:q(Math.max(0,(r.until-now)/1000)),
     scores:r.scores,host:r.host,winRounds:r.winRounds,spike:r.spike,carrier:r.carrier,drops:r.drops,
-    players:roomUsers(r).map(p=>({id:p.id,name:p.name,team:p.team,x:q(p.x),y:q(p.y),z:q(p.z),footY:q(p.footY),yaw:q(p.yaw),pitch:q(p.pitch),spikeSelected:!!p.spikeSelected,aiming:!!p.aiming,hp:p.hp,armor:p.armor,alive:p.alive,credits:p.credits,inventory:p.inventory,weapon:p.weapon,mag:p.mag,reserve:p.reserve,reloading:p.reloading,reloadWeapon:p.reloadWeapon,spikeAction:spikeAction(r,p,now)}))};
+    players:roomUsers(r).map(p=>({id:p.id,kills:r.mode==='deathmatch'?p.kills:undefined,deaths:r.mode==='deathmatch'?p.deaths:undefined,life:p.life,name:p.name,team:p.team,x:q(p.x),y:q(p.y),z:q(p.z),footY:q(p.footY),yaw:q(p.yaw),pitch:q(p.pitch),spikeSelected:!!p.spikeSelected,aiming:!!p.aiming,hp:p.hp,armor:p.armor,alive:p.alive,credits:p.credits,inventory:p.inventory,weapon:p.weapon,mag:p.mag,reserve:p.reserve,reloading:p.reloading,reloadWeapon:p.reloadWeapon,spikeAction:spikeAction(r,p,now)}))};
 }
 function broadcastState(r) {
   if(r.started)sendSnapshot(r,snapshot(r));
 }
 function step(r,now){
   if(!r.started)return;
+  if(r.mode==='deathmatch'){
+    if(now>=r.until||roomUsers(r).some(p=>p.kills>=40)){finishDM(r);return;}
+    for(const p of roomUsers(r))if(!p.alive&&now>=p.respawnAt){spawn(p,0,r.map,true);p.armor=50;dmSpawn(r,p);}
+    broadcastState(r);return;
+  }
   if(r.carrier){
     const carrier=r.players.get(r.carrier);
     if(!carrier?.alive){
@@ -624,7 +674,7 @@ function step(r,now){
         r.started=false;r.phase='waiting';emitRoom(r,{type:'match_end',scores:r.scores});broadcastLobby(r);return;
       }
       r.round++;
-      if(r.round === r.winRounds) {
+      if(!duel(r)&&r.round === r.winRounds) {
         for(const p of r.players.values()) {p.team=otherTeam(p.team);p.credits=800;}
         const previousAttackScore=r.scores.attack;
         r.scores.attack=r.scores.defense; r.scores.defense=previousAttackScore;

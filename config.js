@@ -22,6 +22,17 @@ if (typeof window !== "undefined") window.GAME_SERVER_URL = 'https://qkffhfksxm-
       ['deck',2,10.7,6,3,1.1],['wood',-19,-12,2,2,1.6]
     ]
   };
+  for(const [id,width,depth,cover] of [
+    ['arenaA',15,18,[[-6,-4],[6,4],[0,0]]],
+    ['arenaB',20,14,[[-9,0],[9,0],[-2,5],[2,-5]]],
+    ['arenaC',17,21,[[-8,-7],[8,7],[6,-4],[-6,4],[0,0]]]
+  ]){
+    const a=[0,depth-3],b=[0,3-depth];
+    maps[id]={outlines:[[[-width,-depth],[width,-depth],[width,depth],[-width,depth]]],
+      labels:{'Attacker Side Spawn':a,'Defender Side Spawn':b},sites:{},plant:{},gates:[],
+      floor:{'Attacker Side Spawn':0,'Defender Side Spawn':0},routes:{attack:[[a,[0,0],b]],defense:[[b,[0,0],a]]}};
+    fixtures[id]=cover.map(([x,z])=>['crate',x,z,3,2.5,2.4]);
+  }
   function height(map,x,z) {
     if(!maps[map]) return 0;
     const grid=maps[map].grid;
@@ -429,7 +440,7 @@ if (typeof window !== "undefined") window.GAME_SERVER_URL = 'https://qkffhfksxm-
           box('tiles',x,z+side*d/4,w+1,d/2+.5,h+1.15,h+1.55,0,-side*.35);
         }
       }
-    }else{
+    }else if(id==='haven'){
       for(const [x,z,w,h] of [[-62,-32,10,12],[63,-40,12,16],[30,-70,9,18]]){
         box('temple',x,z,w,w,-4,h);
         for(let level=0;level<2;level++){
@@ -466,9 +477,9 @@ if (typeof window !== "undefined") window.GAME_SERVER_URL = 'https://qkffhfksxm-
       A_DOOR:panel(40.835,-25,3.95,.64,0,3.6,{switchAt:[43.6,-27.08],switchHeight:1.15,lift:3.6,hp:500}),
       B_DOOR:panel(3,-34,.44,4.5,0,3.6,{switchAt:[-10.8,-35.2],switchHeight:1.09,lift:4.2,hp:500}),
       GARDEN_GLASS:panel(39.6,-42.3,2.8,.15,1.42,2.2,{hp:1,raisedFrame:true})
-    }:{
+    }:id==='haven'?{
       GARAGE_LEFT:panel(-18.05,3.05,.22,1.65,0,2.95,{hp:400}),GARAGE_RIGHT:panel(-13.95,3.05,.22,1.65,0,2.95,{hp:400})
-    };
+    }:{};
   }
   function stopAtGate(map,team,oldX,oldZ,pos,radius) {
     for (const [axis,line,start,end,side] of gates[map] || []) {
