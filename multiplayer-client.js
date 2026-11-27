@@ -391,7 +391,7 @@
         window.setModeMaps(mode,mapSelect,room.map);
         document.querySelectorAll('#buy-shop-overlay button[onclick*="buyItem"] > span:last-child').forEach(price=>{
           price.dataset.original??=price.textContent;
-          price.textContent=(mode.startsWith('duel')||mode==='deathmatch')?'무료':price.dataset.original;
+          price.textContent=(mode==='duel'||mode==='deathmatch')?'무료':price.dataset.original;
         });
         document.getElementById('lobby-map-control').hidden = room.host !== this.myId || room.started;
       }
@@ -416,10 +416,10 @@
           const title = document.createElement('strong');
           title.textContent = side === 'attack' ? '공격팀' : '수비팀';
           const count = document.createElement('span');
-          count.textContent = `${people.length} / ${room.mode==='duel1'?1:room.mode==='duel2'?2:5}`;
+          count.textContent = `${people.length} / ${5}`;
           heading.append(title, count);
           col.appendChild(heading);
-          for (let i = 0; i < (room.mode==='duel1'?1:room.mode==='duel2'?2:5); i++) {
+          for (let i = 0; i < (5); i++) {
             const p = people[i];
             const row = document.createElement('div');
             row.className = 'room-slot' + (p ? '' : ' empty');
@@ -452,11 +452,14 @@
       const rounds = document.getElementById('room-win-target');
       if (rounds) rounds.textContent = room.mode==='deathmatch'?'40킬 또는 9분':`${room.winRounds || a.roomState.winRounds}선승`;
       const start = document.getElementById('online-start-btn');
-      if (start) { const required=room.mode==='duel1'?1:room.mode==='duel2'?2:0;
-        start.disabled = !a.roomState.isHost || !!required&&['attack','defense'].some(t=>room.players.filter(p=>p.team===t).length!==required); start.style.opacity = a.roomState.isHost ? '1' : '0.65';
-        start.textContent = a.roomState.isHost ? '경기 시작하기  →' : '방장의 시작을 기다리는 중'; }
+      if (start) {
+        const overLimit=room.mode==='duel'&&room.players.length>4;
+        start.disabled = !a.roomState.isHost || !!room.started || overLimit;
+        start.style.opacity = start.disabled ? '0.65' : '1';
+        start.textContent = !a.roomState.isHost ? '방장의 시작을 기다리는 중' : overLimit ? '난투는 4명 이하만 가능합니다.' : '경기 시작하기  →';
+      }
       this.hostTransport?.update(room);
-      this.status(`온라인 ROOM #${room.code} · ${room.players.length}/${room.mode==='duel1'?2:room.mode==='duel2'?4:10}명`);
+      this.status(`온라인 ROOM #${room.code} · ${room.players.length}/${room.mode==='duel'?4:10}명`);
       a.updateHUD();
     },
     applyState(state) {

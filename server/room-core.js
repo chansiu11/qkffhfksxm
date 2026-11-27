@@ -6,9 +6,9 @@
 'use strict';
 const {rooms,send,close,crypto,catalog,ground,ShotgunPellets,ShootingSpread,MeleeRules,recordPosition,samplePosition,rayCharacter,MAX_REWIND_MS,sendSnapshot}=deps;
 const LIMIT=ground.limit;
-const modes=['normal','swift','deathmatch','duel1','duel2'];
-const duel=r=>r.mode==='duel1'||r.mode==='duel2';
-const capacity=r=>r.mode==='duel1'?2:r.mode==='duel2'?4:10;
+const modes=['normal','swift','deathmatch','duel'];
+const duel=r=>r.mode==='duel';
+const capacity=()=>10;
 const mapsFor=r=>duel(r)?['arenaA','arenaB','arenaC']:['ascent','haven'];
 function configure(r,mode,map){
   r.mode=modes.includes(mode)?mode:'normal';
@@ -171,7 +171,7 @@ function endRound(r, team, reason) {
   emitRoom(r, { type: 'round_end', team, reason });
 }
 function start(r) {
-  if(duel(r)&&['attack','defense'].some(t=>roomUsers(r).filter(p=>p.team===t).length!==capacity(r)/2))return notify(r.players.get(r.host).client,'양 팀 인원을 채워 주세요.');
+  if(duel(r)&&roomUsers(r).length>4)return notify(r.players.get(r.host).client,'난투는 4명 이하만 가능합니다.');
   r.started = true;
   r.round = 1;
   r.scores.attack = r.scores.defense = 0;
@@ -412,7 +412,6 @@ function receive(c,m) {
   }
   if(m.type==='set_mode'){
     if(r.host!==p.id||r.started||!modes.includes(m.mode))return;
-    if(roomUsers(r).length>capacity({mode:m.mode}))return notify(c,'방 인원이 모드 정원을 초과합니다.');
     configure(r,m.mode,r.map);broadcastLobby(r);return;
   }
   if (m.type === 'set_map') {

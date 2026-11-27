@@ -166,6 +166,7 @@ function receive(c,m){
   }
   if(m.type==='start'&&r.host===p.id&&!r.started&&p.direct){
     const members=[...r.players.values()];
+    if(r.mode==='duel'&&members.length>4){send(c,{type:'error',message:'난투는 4명 이하만 가능합니다.'});return;}
     if(m.hostReady===true&&members.every(u=>u.direct&&u.client&&!u.client.closed)&&members.every(u=>u.id===p.id||Array.isArray(m.ready)&&m.ready.includes(u.id))){
       r.hostMode=true;r.hostRun=crypto.randomUUID();r.hostAliveAt=Date.now();r.started=true;r.phase='buy';
       emitRoom(r,{type:'host_begin',room:lobbyInfo(r)});

@@ -58,7 +58,8 @@ function make(mp){
   function reset(){epoch++;invitationDismissed=false;requestWasOn=false;withdrawing=false;diagnostics=null;lastProbeRoute=null;mode=false;enabled=false;room=null;early.length=0;for(const id of [...links.keys()])clearLink(id);stopWorker();}
   function hostRequested(){return !!room?.players.find(p=>p.id===room.host)?.direct;}
   function readyIds(){return [...links.values()].filter(l=>l.dc?.readyState==='open').map(l=>l.id);}
-  function canStart(){return !!room&&!room.started&&isHost()&&(enabled===hostRequested())&&(!hostRequested()||(workerReady&&room.players.every(p=>p.direct&&p.online!==false&&(p.id===mp.myId||readyIds().includes(p.id)))));}
+  function overDuelLimit(){return room?.mode==='duel'&&room.players.length>4;}
+  function canStart(){return !!room&&!room.started&&isHost()&&!overDuelLimit()&&(enabled===hostRequested())&&(!hostRequested()||(workerReady&&room.players.every(p=>p.direct&&p.online!==false&&(p.id===mp.myId||readyIds().includes(p.id)))));}
   function report(){
     const requested=hostRequested(),host=isHost(),total=room?.players.length||0;
     const agreed=room?.players.filter(p=>p.direct).length||0;
@@ -73,7 +74,7 @@ function make(mp){
     const invite=document.getElementById('host-consent-invite');
     if(invite)invite.hidden=!room||!!room.started||host||!requested||enabled||invitationDismissed;
     const start=document.getElementById('online-start-btn');
-    if(start&&room){const allowed=canStart();start.disabled=!allowed;start.style.opacity=allowed?'1':'0.65';start.textContent=!host?'방장의 시작을 기다리는 중':allowed?'경기 시작하기  →':requested||enabled?'P2P 동의 및 연결 대기 중':'설정 확인 중';}
+    if(start&&room){const allowed=canStart();start.disabled=!allowed;start.style.opacity=allowed?'1':'0.65';start.textContent=!host?'방장의 시작을 기다리는 중':overDuelLimit()?'난투는 4명 이하만 가능합니다.':allowed?'경기 시작하기  →':requested||enabled?'P2P 동의 및 연결 대기 중':'설정 확인 중';}
     const detail=document.getElementById('host-consent-detail');
     if(detail)detail.textContent=requested&&!host&&!enabled&&invitationDismissed?'직접 연결에 동의하지 않았습니다. 원하면 위 옵션으로 동의할 수 있습니다.':requested&&host?'모든 참가자의 동의 및 연결 준비 후 시작할 수 있습니다. Render로 시작하려면 직접 연결 요청을 끄세요.':'';
   }
@@ -95,7 +96,7 @@ function make(mp){
   }
   function getWorker(){
     if(worker)return;
-    try{worker=new Worker('host-runtime.js?v=game-modes1');}catch(_){return;}
+    try{worker=new Worker('host-runtime.js?v=duel-cap2');}catch(_){return;}
     worker.onmessage=e=>{
       const m=e.data;lastWorkerAt=performance.now();
       if(m.type==='ready'){workerReady=true;report();}
