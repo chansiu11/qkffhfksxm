@@ -2063,20 +2063,27 @@
         if(value){resetADS();viewmodel.stopReload();}
         document.documentElement.classList.toggle('carrying-device',value);
       }
+      const lootTriangle=new THREE.CircleGeometry(.56,3);
+      const lootColors={
+        spike:new THREE.MeshBasicMaterial({color:0xff8b24,side:THREE.DoubleSide,depthWrite:false}),
+        gun:new THREE.MeshBasicMaterial({color:0x389aff,side:THREE.DoubleSide,depthWrite:false})
+      };
       function putLoot(item,animate=true){
         if(loot.has(item.key))return;
         const group=new THREE.Group();
         group.position.set(item.x,item.y+.04,item.z);
         const dispose=item.id==='spike'?addDevice(group,'spikeFolded',.46):viewmodel.createGroundDisplay(item.id,group);
-        scene.add(group);loot.set(item.key,{item,group,dispose,start:animate?performance.now():-Infinity});
+        const marker=new THREE.Mesh(lootTriangle,item.id==='spike'?lootColors.spike:lootColors.gun);
+        marker.rotation.x=-Math.PI/2;marker.position.set(item.x,item.y+.015,item.z);
+        scene.add(group,marker);loot.set(item.key,{item,group,marker,dispose,start:animate?performance.now():-Infinity});
       }
       function clearLoot(key){
         const entry=loot.get(key);if(!entry)return;
-        scene.remove(entry.group);entry.dispose?.();loot.delete(key);
+        scene.remove(entry.group,entry.marker);entry.dispose?.();loot.delete(key);
       }
       function syncLoot(items){
         for(const key of loot.keys())if(!items.some(item=>item.key===key))clearLoot(key);
-        for(const item of items)putLoot(item,item.key!=='spawn-spike');
+        for(const item of items)putLoot(item,item.key.startsWith('throw-'));
       }
       function dropHeld(){
         if(!player.alive||!['buy','combat','planted'].includes(matchState.phase))return;
@@ -2471,7 +2478,7 @@
         }
       }
       // Visual-only equipment display at the last known location.
-      const groundDisplays=new Map(), roundMarkers=new Map();
+      const groundDisplays=new Set(), roundMarkers=new Map();
       function rememberRoundMarker(key,x,y,z,team){
         if(!key||roundMarkers.has(key)||![x,y,z].every(Number.isFinite)||!['ally','enemy'].includes(team))return;
         roundMarkers.set(key,{x,y,z,team,mesh:null});
@@ -2486,27 +2493,17 @@
         }
       }
       function clearGroundDisplays(){
-        for(const entry of groundDisplays.values()){
-          try{entry.dispose?.();}catch(error){console.warn('Decoration cleanup',error);}
-          scene.remove(entry.group);
-        }
         groundDisplays.clear();
         for(const mark of roundMarkers.values())if(mark.mesh){scene.remove(mark.mesh);mark.mesh.geometry.dispose();mark.mesh.material.dispose();}
         roundMarkers.clear();
       }
       function showGroundDisplay(key,id,x,y,z,team){
         rememberRoundMarker(key,x,y,z,team);
-        if(!key||!id||groundDisplays.has(key)||![x,y,z].every(Number.isFinite)||!WEAPON_CATALOG[id]||WEAPON_CATALOG[id].slot==='knife')return;
-        const group=new THREE.Group();group.position.set(x,y+.045,z);
-        // Stable pseudo-random yaw per prop, without per-frame changes.
-        let seed=2166136261;for(const ch of key+':'+matchState.round+':'+x+':'+z)seed=Math.imul(seed^ch.charCodeAt(0),16777619);
-        group.rotation.y=(seed>>>0)/4294967296*Math.PI*2;
-        try{
-          const dispose=viewmodel.createGroundDisplay(id,group);
-          if(typeof dispose!=='function')return;
-          scene.add(group);
-          groundDisplays.set(key,{group,dispose});
-        }catch(error){scene.remove(group);console.warn('Scene decoration unavailable',error);}
+        if(window.MP.active||!key||groundDisplays.has(key)||!WEAPON_CATALOG[id]||WEAPON_CATALOG[id].slot==='knife')return;
+        groundDisplays.add(key);
+        const actor=key==='local'?player:bots.find(b=>(b.id||b.name)===key);
+        const weapon=[actor?.primary,actor?.secondary,actor?.weapon].find(w=>w?.id===id);
+        putLoot({key:'death-'+(++dropSerial),id,x,y,z,saved:weapon?{...weapon}:cloneWeaponInstance(id)},false);
       }
       function showOfflineDisplays(){
         if(window.MP.active||activeMap==='range')return;
