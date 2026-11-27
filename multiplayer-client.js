@@ -3,7 +3,7 @@
   'use strict';
   const MP = {
     active: false, started: false, myId: null, socket: null, api: null,
-    state: null, room: null, lastRound: 0, lastSent: 0, lastSpike: null,
+    state: null, room: null, lastLife: null, lastRound: 0, lastSent: 0, lastSpike: null,
     token: null, roomCode: null, retries: 0, reconnecting: false, reconnectTimer: null,
     disconnecting: false, pingSeq: 0, pingSent: new Map(), rtt: null, jitter: 0,
     lastPing: 0, connectRequest: null, reconnectStarted: 0,
@@ -53,7 +53,7 @@
         ws.onclose = null; try { ws.close(); } catch (_) {}
       }
       this.active = false; this.started = false; this.myId = null;
-      this.state = null; this.lastRound = 0; this.lastSpike = null;
+      this.state = null; this.lastRound = 0; this.lastLife = null; this.lastSpike = null;
       this.lastMoveKey = null;
       this.token = null; this.roomCode = null; this.rtt = null;
       this.pingSent.clear(); this.retries = 0;
@@ -246,7 +246,7 @@
           }
           break;
         case 'chat':
-          a.appendChat(data.name, data.text, data.channel, !!data.team && data.team !== a.roomState.playerSide);
+          a.appendChat(data.name, data.text, data.channel, this.room?.mode==='deathmatch' ? true : !!data.team && data.team !== a.roomState.playerSide);
           break;
         case 'round': break; // The next authoritative snapshot starts the new round once.
         case 'state': this.applyState(data); break;
@@ -363,7 +363,7 @@
           // Finish the visual update even if the final state packet is delayed.
           const peer=this.peers.get(data.victim);
           if(peer){peer.alive=false;peer.group.visible=false;}
-          if(victim){
+          if(victim&&this.room?.mode!=='deathmatch'){
             const id=victim.inventory?.primary||victim.inventory?.secondary||victim.weapon;
             a.showGroundDisplay(data.victim,id,victim.x,victim.footY,victim.z,victim.team===a.roomState.playerSide?'ally':'enemy');
           }
@@ -382,10 +382,11 @@
     },
     renderLobby(room) {
       if (!room) return;
+      const mode=room.mode||'normal';
+      const dm=mode==='deathmatch', duel=mode==='duel';
       this.api.selectMap?.(room.map);
       const mapSelect = document.getElementById('lobby-map-select');
       if (mapSelect) {
-        const mode=room.mode||'normal';
         document.getElementById('lobby-mode').value=mode;
         document.getElementById('lobby-mode-control').hidden=room.host!==this.myId||room.started;
         window.setModeMaps(mode,mapSelect,room.map);
@@ -396,6 +397,14 @@
         document.getElementById('lobby-map-control').hidden = room.host !== this.myId || room.started;
       }
       this.room = room;
+      const modeName=document.querySelector(`#lobby-mode option[value="${mode}"]`)?.textContent || '일반전';
+      document.getElementById('room-mode-label').textContent=modeName;
+      document.getElementById('room-match-mode').textContent=modeName;
+      document.getElementById('room-team-format').textContent=dm?'개인전 · 최대 10명':duel?'팀전 · 최대 4명':'5 VS 5';
+      document.getElementById('room-team-controls').hidden=dm;
+      document.getElementById('room-team-title').textContent=dm?'참가자':'팀 선택';
+      document.getElementById('room-team-hint').hidden=dm;
+      const teamCapacity=duel&&room.players.length<=4?2:5;
       const a = this.api;
       a.roomState.code = room.code;
       a.roomState.winRounds=room.winRounds;
@@ -407,19 +416,21 @@
       const board = document.getElementById('online-roster');
       if (board) {
         board.replaceChildren();
-        for (const side of ['attack', 'defense']) {
+        board.classList.toggle('individual-roster',dm);
+        for (const side of dm ? ['all'] : ['attack', 'defense']) {
           const col = document.createElement('div');
           col.className = 'room-roster-list ' + side;
-          const people = room.players.filter(p => p.team === side);
+          const people = dm ? room.players : room.players.filter(p => p.team === side);
+          const slots = dm ? 10 : Math.max(teamCapacity,people.length);
           const heading = document.createElement('div');
           heading.className = 'room-roster-top';
           const title = document.createElement('strong');
-          title.textContent = side === 'attack' ? '공격팀' : '수비팀';
+          title.textContent = dm ? '개인전' : side === 'attack' ? '공격팀' : '수비팀';
           const count = document.createElement('span');
-          count.textContent = `${people.length} / ${5}`;
+          count.textContent = `${people.length} / ${slots}`;
           heading.append(title, count);
           col.appendChild(heading);
-          for (let i = 0; i < (5); i++) {
+          for (let i = 0; i < slots; i++) {
             const p = people[i];
             const row = document.createElement('div');
             row.className = 'room-slot' + (p ? '' : ' empty');
@@ -447,7 +458,7 @@
         const selected = a.roomState.playerSide === side;
         button.classList.toggle('is-selected', selected);
         button.textContent = selected ? '선택됨 ✓' : '팀 참가 ↗';
-        button.disabled = selected;
+        button.disabled = selected || room.started || room.players.filter(p=>p.team===side).length>=teamCapacity;
       }
       const rounds = document.getElementById('room-win-target');
       if (rounds) rounds.textContent = room.mode==='deathmatch'?'40킬 또는 9분':`${room.winRounds || a.roomState.winRounds}선승`;
@@ -472,10 +483,18 @@
       const a = this.api;
       const me = state.players.find(p => p.id === this.myId);
       if (!me) return;
+      const dm=state.mode==='deathmatch';
       const newRound = this.lastRound !== state.round;
+      const respawned=dm&&this.lastLife!==me.life;
+      a.roomState.playerSide = me.team;
       if (newRound) {
         this.lastSpike = false;
         a.startNewRound();
+        a.bots.splice(0).forEach(b => a.scene.remove(b.group));
+        this.peers.clear();
+        this.lastRound=state.round;
+      }
+      if(newRound||respawned){
         // Restore the server loadout before rendering or accepting input.
         const equipped = a.WEAPON_CATALOG[me.weapon];
         for (const slot of ['primary','secondary']) {
@@ -484,17 +503,13 @@
         }
         a.player.activeSlot = equipped?.slot || 'secondary';
         a.viewmodel.setWeapon(a.getActiveWeapon().id);
-        a.bots.splice(0).forEach(b => a.scene.remove(b.group));
-        this.peers.clear();
-        this.lastRound=state.round;
       }
       a.syncLoot(state.drops||[]);
-      a.roomState.playerSide = me.team;
       a.matchState.phase = state.phase;
       a.matchState.round = state.round;
       a.matchState.timer = state.timer;
-      a.matchState.allyScore = state.scores[me.team];
-      a.matchState.enemyScore = state.scores[me.team === 'attack' ? 'defense' : 'attack'];
+      a.matchState.allyScore = dm ? me.kills : state.scores[me.team];
+      a.matchState.enemyScore = dm ? Math.max(0,...state.players.filter(p=>p.id!==me.id).map(p=>p.kills)) : state.scores[me.team === 'attack' ? 'defense' : 'attack'];
       a.matchState.spikePlanted = !!state.spike;
       if (state.spike) {
         a.matchState.spikePos.set(state.spike.x, state.spike.y, state.spike.z);
@@ -508,14 +523,14 @@
       const cheat = document.getElementById('hud-cheat-btn');
       if (cheat) cheat.classList.add('hidden');
       const badge = document.getElementById('hud-phase-badge');
-      if (badge) badge.textContent = state.phase === 'buy' ? '구매 단계 — B 키로 무기 구매' : state.phase === 'combat' ? '전투 단계 — 온라인' : state.phase === 'planted' ? '스파이크 설치 완료 — 온라인' : '라운드 종료';
+      if (badge) badge.textContent = dm ? '데스매치 · B 키로 장비 선택' : state.phase === 'buy' ? '구매 단계 — B 키로 무기 구매' : state.phase === 'combat' ? '전투 단계 — 온라인' : state.phase === 'planted' ? '스파이크 설치 완료 — 온라인' : '라운드 종료';
       // Snapshot HP/armor may change before a hit event arrives. Flash only
       // for live damage (not the initial round reset or spectator transitions).
       if (a.matchState.inMatch && a.player.alive && me.alive && state.phase !== 'buy' &&
           (me.hp < a.player.hp || me.armor < a.player.armor)) a.flashDamage();
       // Use snapshot coordinates, not interpolated positions, for scene decorations.
       for(const rp of state.players){
-        if(!rp.alive){
+        if(!rp.alive&&!dm){
           const equipped=a.WEAPON_CATALOG[rp.weapon];
           const id=rp.inventory?.primary||rp.inventory?.secondary||(equipped?.slot!=='knife'?rp.weapon:null);
           a.showGroundDisplay(rp.id,id,rp.x,rp.footY,rp.z,rp.team===me.team?'ally':'enemy');
@@ -551,13 +566,14 @@
         a.viewmodel.stopReload();
       }
       // Honor server spawn on round start and server corrections for abnormal movement.
-      if (newRound || state.mode==='deathmatch'&&this.lastLife!==me.life) {
+      if (newRound || respawned) {
         this.lastLife=me.life;
         a.player.pos.set(me.x, me.y, me.z);
         a.player.footY = me.footY;
         window.GameMovement?.reset(a.player);
         a.player.audioAirTime=0;a.player.audioJumped=false;a.player.audioPeak=me.footY;a.player.audioGrounded=true;
         a.player.yaw = me.yaw;
+        a.player.lookPitch = me.pitch;
       } else if (Math.hypot(a.player.pos.x - me.x, a.player.pos.z - me.z) > 2.5) {
         a.player.pos.x = me.x; a.player.pos.z = me.z;
         a.player.vel.x=0;a.player.vel.z=0;
@@ -567,7 +583,7 @@
         if (rp.id === this.myId) continue;
         present.add(rp.id);
         let b = this.peers.get(rp.id);
-        const isAlly = state.mode!=='deathmatch' && rp.team === me.team;
+        const isAlly = !dm && rp.team === me.team;
         if (!b) {
           const m = a.createTacticalBotMesh(isAlly);
           b = { id: rp.id, name: rp.name, team: isAlly ? 'ally' : 'enemy', alive: rp.alive, hp: rp.hp, armor: rp.armor,
@@ -609,7 +625,10 @@
           b.targetAt=state.serverAt;
           if (!b.hasServerPosition) b.renderAt=b.targetAt;
         }
-        if (!b.hasServerPosition) { b.group.position.copy(b.targetPosition); b.hasServerPosition=true; }
+        if (!b.hasServerPosition || dm && b.life!==rp.life) {
+          b.group.position.copy(b.targetPosition); b.hasServerPosition=true; b.renderAt=b.targetAt;
+        }
+        b.life=rp.life;
         b.group.rotation.y = rp.yaw;
         b.group.visible = rp.alive && state.phase !== 'buy';
       }

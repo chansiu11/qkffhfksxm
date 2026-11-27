@@ -9,6 +9,11 @@ const LIMIT=ground.limit;
 const modes=['normal','swift','deathmatch','duel'];
 const duel=r=>r.mode==='duel';
 const capacity=()=>10;
+const teamCapacity=r=>duel(r)&&r.players.size<=4?2:capacity(r)/2;
+const deathmatch=r=>r.mode==='deathmatch';
+const DEATHMATCH_KILL_GOAL=40;
+const DEATHMATCH_DURATION_MS=9*60*1000;
+const RESPAWN_DELAY_MS=1500;
 const mapsFor=r=>duel(r)?['arenaA','arenaB','arenaC']:['ascent','haven'];
 function configure(r,mode,map){
   r.mode=modes.includes(mode)?mode:'normal';
@@ -16,22 +21,29 @@ function configure(r,mode,map){
   r.winRounds=duel(r)?10:r.mode==='swift'?5:r.normalRounds;
 }
 function dmSpawn(r,p){
-  const labels=ground.maps[r.map].labels;
+  const {labels}=ground.maps[r.map];
+  const opponents=roomUsers(r).filter(q=>q!==p&&q.alive);
   const points=Object.values(labels).map(([x,z])=>{
     const pos={x,z};ground.resolve(r.map,pos,ground.height(r.map,x,z),.62);
-    const distance=Math.min(Infinity,...roomUsers(r).filter(q=>q!==p&&q.alive).map(q=>Math.hypot(q.x-pos.x,q.z-pos.z)));
+    const distance=Math.min(Infinity,...opponents.map(q=>Math.hypot(q.x-pos.x,q.z-pos.z)));
     return {...pos,distance};
   }).sort((a,b)=>b.distance-a.distance);
   const safe=points.filter(pt=>pt.distance>=14);
   const point=safe.length?safe[Math.floor(Math.random()*safe.length)]:points[0];
-  p.x=point.x;p.z=point.z;p.footY=ground.height(r.map,p.x,p.z);p.y=p.footY+1.65;p.life=(p.life||0)+1;p.positionHistory=[];recordPosition(p);
+  p.x=point.x;p.z=point.z;p.footY=ground.height(r.map,p.x,p.z);p.y=p.footY+1.65;
+  const [ax,az]=labels['Attacker Side Spawn'],[dx,dz]=labels['Defender Side Spawn'];
+  p.yaw=Math.atan2(p.x-(ax+dx)/2,p.z-(az+dz)/2);
+  p.pitch=0;p.alive=true;p.respawnAt=null;p.life=(p.life||0)+1;
+  p.positionHistory=[];recordPosition(p);
 }
 function dmKill(r,killer,victim){
-  killer.kills++;victim.deaths++;victim.respawnAt=Date.now()+1500;
+  killer.kills++;victim.deaths++;victim.respawnAt=Date.now()+RESPAWN_DELAY_MS;
 }
 function finishDM(r){
   const ranking=roomUsers(r).sort((a,b)=>b.kills-a.kills||a.deaths-b.deaths);
-  r.started=false;r.phase='waiting';emitRoom(r,{type:'match_end',winner:ranking[0]?.name});broadcastLobby(r);
+  broadcastState(r);
+  r.started=false;r.phase='waiting';
+  emitRoom(r,{type:'match_end',winner:ranking[0]?.name});broadcastLobby(r);
 }
 function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
 function finite(v, lo, hi, fallback) { return typeof v === 'number' && Number.isFinite(v) ? clamp(v, lo, hi) : fallback; }
@@ -51,7 +63,8 @@ function dropDefeatedWeapon(r,p){
 function spawn(p, idx, map, keepWeapons = false) {
   const atk = p.team === 'attack';
   const [x,z]=ground.maps[map].labels[atk?'Attacker Side Spawn':'Defender Side Spawn'];
-  p.x=x+(idx%5-2)*1.15;p.z=z;
+  const lane=map.startsWith('arena')?(idx%2-.5):(idx%5-2);
+  p.x=x+lane*1.15;p.z=z;
   p.footY=ground.height(map,p.x,z);p.y=p.footY+1.65;
   p.yaw = atk ? 0 : Math.PI;
   p.pitch = 0;
@@ -146,23 +159,27 @@ function resetRound(r) {
   if(!duel(r)&&r.mode!=='deathmatch')r.drops.push({key:'spawn-spike',id:'spike',x,z,y:ground.height(r.map,x,z)});
   r.halfDefused = false;
   const users = roomUsers(r);
+  const slots={attack:0,defense:0};
   users.forEach((p, i) => {
-    spawn(p, i, r.map,p.alive && r.round !== 1 && (duel(r)||r.round !== r.winRounds));
+    spawn(p, duel(r)?slots[p.team]++:i, r.map,p.alive && r.round !== 1 && (duel(r)||r.round !== r.winRounds));
     if (r.round === 1) p.credits = 800;
     if(r.mode==='swift'){
-      const halfRound=r.round===9?3:(r.round-1)%4;
+      const halfRound=Math.min(3,r.round<=4?r.round-1:r.round-5);
       p.credits=[800,2400,4250,6000][halfRound]+(halfRound===1&&p.wonLast?600:0);
     }
     if(duel(r)){p.armor=50;p.credits=0;}
-    if(r.mode==='deathmatch'){p.kills=0;p.deaths=0;p.armor=50;p.credits=9000;dmSpawn(r,p);}
-  
+    if(deathmatch(r)){p.kills=0;p.deaths=0;p.armor=50;p.credits=9000;p.alive=false;}
   });
-  if(r.mode==='deathmatch'){r.phase='combat';r.until=Date.now()+540000;}
+  if(deathmatch(r)){
+    for(const p of users)dmSpawn(r,p);
+    r.phase='combat';
+    r.until=Date.now()+DEATHMATCH_DURATION_MS;
+  }
   emitRoom(r, { type: 'round', round: r.round });
 }
 function endRound(r, team, reason) {
   if (r.phase === 'round_end' || !r.started) return;
-  if(r.mode==='deathmatch')return;
+  if(deathmatch(r))return;
   for(const p of roomUsers(r))p.wonLast=p.team===team;
   r.scores[team]++;
   r.phase = 'round_end';
@@ -172,6 +189,12 @@ function endRound(r, team, reason) {
 }
 function start(r) {
   if(duel(r)&&roomUsers(r).length>4)return notify(r.players.get(r.host).client,'난투는 4명 이하만 가능합니다.');
+  if(duel(r)){
+    for(const team of ['attack','defense']){
+      const members=roomUsers(r).filter(p=>p.team===team);
+      for(const player of members.slice(2))player.team=otherTeam(team);
+    }
+  }
   r.started = true;
   r.round = 1;
   r.scores.attack = r.scores.defense = 0;
@@ -423,7 +446,7 @@ function receive(c,m) {
   if (m.type === 'chat') {
     if (!r.started || typeof m.text !== 'string' || m.text.length > 180) return;
     const text = m.text.replace(/\s+/gu, ' ').trim();
-    const channel=m.channel===undefined?'all':m.channel;
+    const channel=deathmatch(r)||m.channel===undefined?'all':m.channel;
     if (!text || (channel!=='team' && channel!=='all')) return;
     const message={type:'chat',channel,team:p.team,name:p.name,text};
     for (const recipient of r.players.values()) {
@@ -431,9 +454,10 @@ function receive(c,m) {
     }
     return;
   }
-  if (m.type==='team' && !r.started) {
+  if (m.type==='team' && !r.started && !deathmatch(r)) {
     const team=m.team==='defense'?'defense':'attack';
-    if (roomUsers(r).filter(q=>q.team===team).length >= capacity(r)/2) return notify(c,'해당 팀이 가득 찼습니다.');
+    if(p.team===team)return;
+    if (roomUsers(r).filter(q=>q.team===team).length >= teamCapacity(r)) return notify(c,'해당 팀이 가득 찼습니다.');
     p.team=team; broadcastLobby(r);
   } else if(m.type==='start' && r.host===p.id && !r.started) start(r);
   else if(m.type==='skip' && r.host===p.id && r.phase==='buy')r.until=now;
@@ -540,7 +564,11 @@ function receive(c,m) {
       recordPosition(p,now);
     }
     p.lastPosAt=now;
-  } else if(m.type==='shoot' && r.started) fire(r,p,m);
+  } else if(m.type==='shoot' && r.started) {
+    if(deathmatch(r)&&now>=r.until){finishDM(r);return;}
+    fire(r,p,m);
+    if(deathmatch(r)&&p.kills>=DEATHMATCH_KILL_GOAL)finishDM(r);
+  }
   else if(m.type==='buy' && (r.phase==='buy'||r.mode==='deathmatch'&&r.phase==='combat') && p.alive) {
     const id=String(m.item||'');const w=catalog[id];
     if(id==='light_shield'||id==='heavy_shield'){
@@ -615,7 +643,7 @@ function receive(c,m) {
       send(pl.client,{type:'reload_done',weapon:weaponId,requestId,mag:pl.mag,reserve:pl.reserve});
       send(pl.client,{type:'inventory',weapon:weaponId,mag:pl.mag,reserve:pl.reserve});
     },duration);
-  } else if (m.type==='spike' && r.started) {
+  } else if (m.type==='spike' && r.started && !duel(r) && !deathmatch(r)) {
     p.heldSpike=!!m.held;
     if(defusing(r,p)){cancelEquipmentReload(p);p.weapon='knife';p.aiming=false;p.mag=p.ammo.knife.mag;p.reserve=p.ammo.knife.reserve;p.y=p.footY+1.2;}
     if(!p.heldSpike) {p.actionFrom=0;p.actionBase=0;}
@@ -643,7 +671,7 @@ function snapshot(r) {
   const q=n=>Math.round(n*100)/100;
   return {type:'state',mode:r.mode,objects:r.objects,serverAt:now,code:r.code,round:r.round,phase:r.phase,timer:q(Math.max(0,(r.until-now)/1000)),
     scores:r.scores,host:r.host,winRounds:r.winRounds,spike:r.spike,carrier:r.carrier,drops:r.drops,
-    players:roomUsers(r).map(p=>({id:p.id,kills:r.mode==='deathmatch'?p.kills:undefined,deaths:r.mode==='deathmatch'?p.deaths:undefined,life:p.life,name:p.name,team:p.team,x:q(p.x),y:q(p.y),z:q(p.z),footY:q(p.footY),yaw:q(p.yaw),pitch:q(p.pitch),spikeSelected:!!p.spikeSelected,aiming:!!p.aiming,hp:p.hp,armor:p.armor,alive:p.alive,credits:p.credits,inventory:p.inventory,weapon:p.weapon,mag:p.mag,reserve:p.reserve,reloading:p.reloading,reloadWeapon:p.reloadWeapon,spikeAction:spikeAction(r,p,now)}))};
+    players:roomUsers(r).map(p=>({id:p.id,kills:r.mode==='deathmatch'?p.kills:undefined,deaths:r.mode==='deathmatch'?p.deaths:undefined,life:p.life,respawnIn:p.respawnAt&&!p.alive?q(Math.max(0,(p.respawnAt-now)/1000)):undefined,name:p.name,team:p.team,x:q(p.x),y:q(p.y),z:q(p.z),footY:q(p.footY),yaw:q(p.yaw),pitch:q(p.pitch),spikeSelected:!!p.spikeSelected,aiming:!!p.aiming,hp:p.hp,armor:p.armor,alive:p.alive,credits:p.credits,inventory:p.inventory,weapon:p.weapon,mag:p.mag,reserve:p.reserve,reloading:p.reloading,reloadWeapon:p.reloadWeapon,spikeAction:spikeAction(r,p,now)}))};
 }
 function broadcastState(r) {
   if(r.started)sendSnapshot(r,snapshot(r));
@@ -651,8 +679,12 @@ function broadcastState(r) {
 function step(r,now){
   if(!r.started)return;
   if(r.mode==='deathmatch'){
-    if(now>=r.until||roomUsers(r).some(p=>p.kills>=40)){finishDM(r);return;}
-    for(const p of roomUsers(r))if(!p.alive&&now>=p.respawnAt){spawn(p,0,r.map,true);p.armor=50;dmSpawn(r,p);}
+    if(now>=r.until||roomUsers(r).some(p=>p.kills>=DEATHMATCH_KILL_GOAL)){finishDM(r);return;}
+    for(const p of roomUsers(r)){
+      if(!p.alive&&p.respawnAt!==null&&now>=p.respawnAt){
+        spawn(p,0,r.map,true);p.armor=50;dmSpawn(r,p);
+      }
+    }
     broadcastState(r);return;
   }
   if(r.carrier){

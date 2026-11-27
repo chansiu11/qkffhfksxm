@@ -11,10 +11,10 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=Rajdhani:wght@600;700&family=Teko:wght@600;700&display=swap" rel="stylesheet">
   <script src="match-plans.js?v=map-barrier-layout5"></script>
-  <script src="config.js?v=game-modes1"></script>
-  <script src="host-transport.js?v=duel-cap2"></script>
+  <script src="config.js?v=match-modes3"></script>
+  <script src="host-transport.js?v=match-modes3"></script>
   <script src="movement-physics.js?v=move25"></script>
-  <script src="multiplayer-client.js?v=duel-cap2"></script>
+  <script src="multiplayer-client.js?v=match-modes3"></script>
   <link rel="stylesheet" href="menu.css" />
   <!-- Three.js r128 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -266,6 +266,12 @@
     .msb-top{display:flex;align-items:center;justify-content:center;gap:24px;font-size:36px;font-weight:800;padding:0 0 12px}
     .msb-top .ally{color:#54d8c7}.msb-top .enemy{color:#ff6574}
     .msb-top small{font-size:12px;letter-spacing:.17em;color:#ece8e1b0}
+    #room-team-controls[hidden], #normal-win-target[hidden] { display:none; }
+    #online-roster.individual-roster { grid-template-columns:1fr; }
+    #match-scoreboard.deathmatch .msb-grid { grid-template-columns:minmax(100px,2.5fr) repeat(2,1fr) 1.6fr .9fr; }
+    #match-scoreboard.deathmatch .msb-grid > :is(:nth-child(2),:nth-child(5),:nth-child(7)) { display:none; }
+    #ingame-hud[data-mode="deathmatch"] :is(#hud-allies-alive,#hud-enemies-alive),
+    #ingame-hud:is([data-mode="deathmatch"],[data-mode="duel"]) :is(#mob-spike-btn,#slot-spike-bar-btn) { display:none; }
     .msb-grid{display:grid;grid-template-columns:minmax(100px,2.5fr) .9fr .9fr .9fr .9fr .9fr 1.1fr .8fr;align-items:center;gap:0}
     .msb-grid>*{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:center;padding:0 8px}
     .msb-grid>*:first-child{text-align:left;padding-left:18px}
@@ -668,7 +674,7 @@
 
     <div id="match-scoreboard" hidden aria-label="경기 점수판">
       <div class="msb-panel">
-        <div class="msb-top"><span class="ally" id="msb-ally-score">0</span><small>라운드<span id="msb-round">1</span></small><span class="enemy" id="msb-enemy-score">0</span></div>
+        <div class="msb-top"><span class="ally" id="msb-ally-score">0</span><small><span id="msb-context">라운드</span><span id="msb-round">1</span></small><span class="enemy" id="msb-enemy-score">0</span></div>
         <div class="msb-grid msb-head"><span>이름</span><span>궁극기</span><span>K</span><span>D</span><span>A</span><span>장비</span><span>크레드</span><span>PING</span></div>
         <div id="msb-ally" class="msb-team ally"></div>
         <div id="msb-enemy" class="msb-team enemy"></div>
@@ -773,7 +779,7 @@
                   class="mt-2 mb-3 px-4 py-2 text-sm font-bold border border-[#38e2c7]/60 text-[#38e2c7] hover:bg-[#38e2c7]/10 cursor-pointer">감도 · 조준점 설정</button>
 
           <div class="menu-feature-row"><span>◈ &nbsp; REALTIME 5 VS 5</span><span>◈ &nbsp; CUSTOM ROOMS</span><span>◈ &nbsp; CROSS PLATFORM</span></div>
-          <label class="menu-setting">게임 모드 <select id="mode-choice" style="color:white;background:#182530;padding:6px" onchange="setModeMaps(this.value,document.getElementById('map-choice'));document.getElementById('map-choice').onchange()"><option value="normal">일반전</option><option value="swift">신속플레이</option><option value="deathmatch">데스매치</option><option value="duel">난투</option></select></label><label class="menu-setting">온라인 경기 맵 <select id="map-choice" onchange="document.querySelector('.menu-hero-title em').textContent=this.value.toUpperCase()" style="color:white;background:#182530;padding:6px"><option value="ascent">어센트</option><option value="haven">헤이븐</option></select></label>
+          <label class="menu-setting">게임 모드 <select id="mode-choice" style="color:white;background:#182530;padding:6px" onchange="const map=document.getElementById('map-choice');setModeMaps(this.value,map,map.value);map.onchange();document.getElementById('normal-win-target').hidden=this.value!=='normal'"><option value="normal">일반전</option><option value="swift">신속플레이</option><option value="deathmatch">데스매치</option><option value="duel">난투</option></select></label><label class="menu-setting">온라인 경기 맵 <select id="map-choice" onchange="document.querySelector('.menu-hero-title em').textContent=this.value.toUpperCase()" style="color:white;background:#182530;padding:6px"><option value="ascent">어센트</option><option value="haven">헤이븐</option></select></label>
           <button type="button" class="menu-practice-btn" onclick="window.quickStartMatch(event)"><span class="menu-practice-icon">↗</span><span><b>혼자 연습하기</b><small>OFFLINE · 사격 연습장</small></span><span class="menu-practice-arrow">→</span></button>
           <div class="menu-hero-foot"><span>ASCENT / HAVEN</span><span>MOVE WITH PURPOSE.</span></div>
         </section>
@@ -785,7 +791,7 @@
               <div class="menu-card-title"><span class="menu-card-graphic">＋</span><div><h3>새로운 방 만들기</h3><p>최대 10명 · 온라인 사설전</p></div></div>
               <label class="menu-field-label" for="create-code-input">방 코드<span>00 — 99</span></label>
               <div class="menu-code-group"><input id="create-code-input" class="menu-code-input" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="2" value="07" aria-label="생성할 두 자리 방 코드"><button type="button" class="menu-shuffle" onclick="window.randomizeCreateCode()" title="무작위 방 코드">↻ <span>랜덤</span></button></div>
-              <div class="menu-setting"><div><strong>승리 라운드</strong><small>승리 조건</small></div><div class="menu-segment"><button type="button" id="win-target-13" onclick="window.setCreateWinTarget(13)" class="menu-segment-active">13 R</button><button type="button" id="win-target-5" onclick="window.setCreateWinTarget(5)">5 R</button></div></div>
+              <div id="normal-win-target" class="menu-setting"><div><strong>승리 라운드</strong><small>승리 조건</small></div><div class="menu-segment"><button type="button" id="win-target-13" onclick="window.setCreateWinTarget(13)" class="menu-segment-active">13 R</button><button type="button" id="win-target-5" onclick="window.setCreateWinTarget(5)">5 R</button></div></div>
               <div class="menu-setting menu-setting-last"><div><strong>연습 치트</strong><small>온라인 방에서는 사용 안 함</small></div><button type="button" id="create-cheat-toggle-btn" onclick="window.setCreateCheatPerm(!window.roomState.allowCheats)" class="menu-cheat-toggle">치트: 켜짐</button></div>
               <button type="button" class="menu-action-btn menu-action-primary" onclick="window.createCustomRoom(event)"><span>방 생성하고 대기실 입장</span><span>↗</span></button>
             </section>
@@ -816,11 +822,11 @@
       <header class="menu-topbar room-topbar"><div class="menu-brand"><span class="menu-brand-symbol">V<span>∕</span></span><span class="menu-brand-copy"><b>VALORANT<span class="menu-brand-mark"> // WEB</span></b><small>사용자 설정 대기실</small></span></div><button type="button" class="menu-exit-btn" onclick="window.openEntryScreen(event)"><span>←</span> 메인 메뉴로</button></header>
       <main class="room-main">
         <div class="room-page-head"><div><div class="menu-kicker">02 <span>/</span>비공개 대전</div><h1>커스텀 <em>대기실</em></h1><p>참가자들이 준비되면 방장이 경기를 시작할 수 있습니다.</p></div><div class="room-ticket"><div class="room-ticket-label">방 참가 코드</div><div class="room-ticket-num"><span>#</span><b id="lobby-code-display">07</b></div><button type="button" class="room-copy-btn" onclick="window.copyRoomCode()">방 코드 복사 ↗</button></div></div>
-        <div class="room-meta-bar"><div class="room-meta-left"><span class="room-pulse"></span><span id="online-lobby-status" role="status">서버 연결 상태 확인 중...</span></div><div class="room-meta-right"><span>맵<b id="room-map-name">ASCENT</b></span><span>모드<b>5 VS 5</b></span><span>플랫폼<b>WEB</b></span></div></div>
-        <div class="room-grid"><section class="room-teams" aria-label="참가자와 팀 선택"><div class="room-section-top"><div><span class="menu-kicker">팀 선택</span><h2>팀 선택</h2></div><span class="room-team-hint">버튼을 눌러 팀 변경</span></div>
-            <div class="room-team-controls"><div class="room-team-control attack"><div><span class="room-team-num">01 / 공격</span><strong>공격팀</strong></div><button type="button" onclick="window.switchTeam('attack')" id="btn-team-attack">공격팀 선택 ↗</button></div><div class="room-team-control defense"><div><span class="room-team-num">02 / 수비</span><strong>수비팀</strong></div><button type="button" onclick="window.switchTeam('defense')" id="btn-team-defense">수비팀 선택 ↗</button></div></div>
+        <div class="room-meta-bar"><div class="room-meta-left"><span class="room-pulse"></span><span id="online-lobby-status" role="status">서버 연결 상태 확인 중...</span></div><div class="room-meta-right"><span>맵<b id="room-map-name">ASCENT</b></span><span>모드<b id="room-mode-label">일반전</b></span><span>플랫폼<b>WEB</b></span></div></div>
+        <div class="room-grid"><section class="room-teams" aria-label="참가자와 팀 선택"><div class="room-section-top"><div><h2 id="room-team-title">팀 선택</h2></div><span id="room-team-hint" class="room-team-hint">버튼을 눌러 팀 변경</span></div>
+            <div id="room-team-controls" class="room-team-controls"><div class="room-team-control attack"><div><span class="room-team-num">01 / 공격</span><strong>공격팀</strong></div><button type="button" onclick="window.switchTeam('attack')" id="btn-team-attack">공격팀 선택 ↗</button></div><div class="room-team-control defense"><div><span class="room-team-num">02 / 수비</span><strong>수비팀</strong></div><button type="button" onclick="window.switchTeam('defense')" id="btn-team-defense">수비팀 선택 ↗</button></div></div>
             <div id="online-roster" class="room-roster-grid" aria-live="polite"><div class="room-roster-list"><div class="room-roster-top">공격팀<span>0/5</span></div><div class="room-slot empty">플레이어를 기다리는 중</div></div><div class="room-roster-list"><div class="room-roster-top">수비팀<span>0/5</span></div><div class="room-slot empty">플레이어를 기다리는 중</div></div></div>
-          </section><aside class="room-info" aria-label="방 정보 및 게임 시작"><div class="room-map-card"><div class="room-map-card-head"><span>선택한 맵</span><span>01 / 01</span></div><div class="room-map-graphic" aria-hidden="true"><span class="room-map-a">A</span><span class="room-map-b">B</span><div class="room-map-lines"></div></div><h3>ASCENT</h3><p>전략적인 진입 · 스파이크 설치 · 폭파 저지</p></div><div class="room-match-rules"><div><small>대전 유형</small><b>사용자 설정 · 일반전</b></div><div><small>팀 인원</small><b>5 VS 5</b></div><div><small>승리 조건</small><b id="room-win-target">13라운드</b></div><div><small>서버</small><b id="host-transport-status">Render 서버 연결</b></div></div><label id="lobby-mode-control" hidden>게임 모드 <select id="lobby-mode" style="color:white;background:#182530;padding:6px" onchange="MP.send({type:'set_mode',mode:this.value})"><option value="normal">일반전</option><option value="swift">신속플레이</option><option value="deathmatch">데스매치</option><option value="duel">난투</option></select></label><label id="lobby-map-control" hidden>경기 맵 <select id="lobby-map-select" style="padding:6px;color:white;background:#182530" onchange="window.MP.send({type:'set_map',map:this.value})"><option value="ascent">어센트</option><option value="haven">헤이븐</option></select></label><button type="button" id="lobby-cheat-perm-btn" onclick="window.toggleHostCheatPermission(event)" class="room-cheat-btn">방장 치트: 꺼짐</button><label style="display:block;margin:8px 0;font-size:12px"><input type="checkbox" id="host-transport-opt" onchange="window.MP.hostTransport?.setEnabled(this.checked)"> <span id="host-transport-label">신뢰하는 방에서 직접 연결(P2P) 허용</span></label><section id="host-consent-invite" hidden aria-labelledby="host-consent-title" style="padding:12px;border:1px solid #74848e;margin:8px 0;font-size:12px"><strong id="host-consent-title">방장이 직접 연결을 요청했습니다.</strong><p style="margin:8px 0">직접 연결을 허용하면 신뢰하는 방장과 네트워크 주소가 공유될 수 있습니다. 연결이 끊기면 경기가 재시작될 수 있습니다. 동의하지 않아도 됩니다. 방장이 직접 연결 요청을 끄면 Render 방식으로 시작할 수 있습니다.</p><button type="button" style="padding:8px;min-height:44px" onclick="window.MP.hostTransport?.respondToInvitation(true)">동의</button> <button type="button" style="padding:8px;min-height:44px" onclick="window.MP.hostTransport?.respondToInvitation(false)">동의하지 않음</button></section><p id="host-consent-detail" aria-live="polite" style="font-size:12px;margin:4px 0"></p><button type="button" id="online-start-btn" onclick="window.startMatchFromLobby(event)" class="menu-action-btn room-start-btn">경기 시작하기 <span>→</span></button><div class="room-start-help">방장만 경기를 시작할 수 있습니다.</div></aside></div>
+          </section><aside class="room-info" aria-label="방 정보 및 게임 시작"><div class="room-map-card"><div class="room-map-card-head"><span>선택한 맵</span><span>01 / 01</span></div><div class="room-map-graphic" aria-hidden="true"><span class="room-map-a">A</span><span class="room-map-b">B</span><div class="room-map-lines"></div></div><h3>ASCENT</h3><p>전략적인 진입 · 스파이크 설치 · 폭파 저지</p></div><div class="room-match-rules"><div><small>대전 유형</small><b id="room-match-mode">일반전</b></div><div><small>팀 인원</small><b id="room-team-format">5 VS 5</b></div><div><small>승리 조건</small><b id="room-win-target">13라운드</b></div><div><small>서버</small><b id="host-transport-status">Render 서버 연결</b></div></div><label id="lobby-mode-control" hidden>게임 모드 <select id="lobby-mode" style="color:white;background:#182530;padding:6px" onchange="MP.send({type:'set_mode',mode:this.value})"><option value="normal">일반전</option><option value="swift">신속플레이</option><option value="deathmatch">데스매치</option><option value="duel">난투</option></select></label><label id="lobby-map-control" hidden>경기 맵 <select id="lobby-map-select" style="padding:6px;color:white;background:#182530" onchange="window.MP.send({type:'set_map',map:this.value})"><option value="ascent">어센트</option><option value="haven">헤이븐</option></select></label><button type="button" id="lobby-cheat-perm-btn" onclick="window.toggleHostCheatPermission(event)" class="room-cheat-btn">방장 치트: 꺼짐</button><label style="display:block;margin:8px 0;font-size:12px"><input type="checkbox" id="host-transport-opt" onchange="window.MP.hostTransport?.setEnabled(this.checked)"> <span id="host-transport-label">신뢰하는 방에서 직접 연결(P2P) 허용</span></label><section id="host-consent-invite" hidden aria-labelledby="host-consent-title" style="padding:12px;border:1px solid #74848e;margin:8px 0;font-size:12px"><strong id="host-consent-title">방장이 직접 연결을 요청했습니다.</strong><p style="margin:8px 0">직접 연결을 허용하면 신뢰하는 방장과 네트워크 주소가 공유될 수 있습니다. 연결이 끊기면 경기가 재시작될 수 있습니다. 동의하지 않아도 됩니다. 방장이 직접 연결 요청을 끄면 Render 방식으로 시작할 수 있습니다.</p><button type="button" style="padding:8px;min-height:44px" onclick="window.MP.hostTransport?.respondToInvitation(true)">동의</button> <button type="button" style="padding:8px;min-height:44px" onclick="window.MP.hostTransport?.respondToInvitation(false)">동의하지 않음</button></section><p id="host-consent-detail" aria-live="polite" style="font-size:12px;margin:4px 0"></p><button type="button" id="online-start-btn" onclick="window.startMatchFromLobby(event)" class="menu-action-btn room-start-btn">경기 시작하기 <span>→</span></button><div class="room-start-help">방장만 경기를 시작할 수 있습니다.</div></aside></div>
       </main><footer class="menu-footer"><span>TACTICAL FPS // CUSTOM MATCH</span><span>PLAY TOGETHER. STAY SHARP.</span></footer>
     </div>
   </div>
@@ -1708,6 +1714,7 @@
       }
       function buildMatchMap(id) {
         const map=AscentGround.maps[id], floor=new THREE.PlaneGeometry(180,180,90,90);
+        const arenaTint={arenaA:[.50,.58,.60],arenaB:[.68,.57,.42],arenaC:[.53,.51,.65]}[id];
         floor.rotateX(-Math.PI/2);
         const pos=floor.attributes.position;
         for(let i=0;i<pos.count;i++)pos.setY(i,AscentGround.height(id,pos.getX(i),pos.getZ(i)));
@@ -1718,7 +1725,8 @@
             // Dark slate inside the two plant sites, warmer stone on the approaches.
             const a=Math.min(x-48,72-x,z+46,-23-z),b=Math.min(x+49,-19-x,z+48,-25-z);
             const site=Math.max(0,Math.min(1,Math.max(a,b)/2));
-            if(id==='haven'){
+            if(arenaTint)colors.push(...arenaTint);
+            else if(id==='haven'){
               const grass=Math.max(0,Math.min(1,(z+2)/4))*Math.min(1,Math.max(0,(-x-10)/7),Math.max(0,(x+58)/4));
               colors.push(.7-.33*grass,.68-.1*grass,.65-.36*grass);
             }else colors.push(.74-.28*site,.71-.22*site,.7-.16*site);
@@ -1882,9 +1890,10 @@ window.setModeMaps=function(mode,select,wanted){
       function selectMap(id) {
         const next = ['haven','range','arenaA','arenaB','arenaC'].includes(id) ? id : 'ascent';
         document.querySelector('.room-map-card h3').textContent = next.toUpperCase();
-        document.querySelector('.room-map-card p').textContent = next.startsWith('arena')?'난투 '+next.slice(-1):next === 'haven' ? 'A · B · C 사이트 / 헤이븐' : 'A · B 사이트 / 어센트';
+        const arenaDescription={arenaA:'세 갈래 진입로',arenaB:'넓은 측면 우회로',arenaC:'중앙 구조물을 둘러싼 순환 통로'};
+        document.querySelector('.room-map-card p').textContent = arenaDescription[next] || (next === 'haven' ? 'A · B · C 사이트 / 헤이븐' : 'A · B 사이트 / 어센트');
         for(const id of ['radar-map-name','room-map-name']) document.getElementById(id).textContent=next.toUpperCase();
-        document.querySelector('.room-map-graphic').hidden=next==='haven';
+        document.querySelector('.room-map-graphic').hidden=next!=='ascent';
         document.querySelector('[onclick^="window.teleportTo"]').parentElement.parentElement.hidden=next==='haven';
         if (activeMap === next) return;
         activeMap = next;
@@ -2453,7 +2462,8 @@ window.setModeMaps=function(mode,select,wanted){
         if(!matchState.inMatch){setScoreboard(false);return;}
         if(now-scoreboardLastAt<150)return;
         scoreboardLastAt=now;
-        const mp=window.MP, online=!!(mp.active&&mp.started&&mp.state?.players);
+        const mp=window.MP, online=!!(mp.active&&mp.state?.players&&(mp.started||matchState.phase==='post_match'));
+        const dm=online&&mp.state.mode==='deathmatch';
         let rows;
         if(online){
           rows=mp.state.players.map(p=>({id:p.id,name:p.name,ally:p.team===roomState.playerSide,me:p.id===mp.myId,alive:p.alive,credits:p.credits,loadout:p.inventory?.primary||p.inventory?.secondary||p.weapon,ping:p.id===mp.myId?mp.rtt:null,k:p.kills,d:p.deaths,a:p.assists}));
@@ -2462,14 +2472,15 @@ window.setModeMaps=function(mode,select,wanted){
         }
         const clean=v=>Number.isFinite(v)?String(Math.round(v)):'—';
         const data=rows.map(p=>{const stat=scoreboardStat(p.id);return {...p,k:p.k??stat.k,d:p.d??stat.d};});
-        const signature=JSON.stringify([matchState.allyScore,matchState.enemyScore,matchState.round,data]);
+        const signature=JSON.stringify([dm,matchState.allyScore,matchState.enemyScore,matchState.round,data]);
         if(signature===scoreboardSignature)return;
         scoreboardSignature=signature;
-        document.getElementById('msb-ally-score').textContent=matchState.allyScore;
-        document.getElementById('msb-enemy-score').textContent=matchState.enemyScore;
-        document.getElementById('msb-round').textContent=matchState.round;
+        board.classList.toggle('deathmatch',dm);
+        document.getElementById('msb-context').textContent=dm?'목표 ':'라운드';
+        document.getElementById('msb-ally-score').textContent=dm?'내 처치 '+matchState.allyScore:matchState.allyScore;
+        document.getElementById('msb-enemy-score').textContent=dm?'상대 최고 '+matchState.enemyScore:matchState.enemyScore;
+        document.getElementById('msb-round').textContent=dm?'40킬':matchState.round;
         for(const [ally,id] of [[true,'msb-ally'],[false,'msb-enemy']]){
-          const dm=online&&mp.state.mode==='deathmatch';
           const section=document.getElementById(id);section.hidden=dm&&!ally;
           const team=data.filter(p=>dm?ally:p.ally===ally).sort((a,b)=>b.k-a.k||a.d-b.d||a.name.localeCompare(b.name));
           const label=document.createElement('div');label.className='msb-team-label';label.textContent=dm?'개인 순위 · 40킬 선승':ally?'아군':'적군';
@@ -2601,14 +2612,18 @@ window.setModeMaps=function(mode,select,wanted){
         if(el&&el.classList.contains('hidden')===visible)el.classList.toggle('hidden',!visible);
       }
       function updateHUD() {
+        const mode=window.MP.active ? window.MP.room?.mode : null;
+        const dm=mode==='deathmatch';
+        const hud=hudElement('ingame-hud');
+        if(hud.dataset.mode!==(mode||'normal'))hud.dataset.mode=mode||'normal';
         hudText(hudElement('hud-room-code'), roomState.code);
         hudText(hudElement('hud-score-ally'), matchState.allyScore);
         hudText(hudElement('hud-score-enemy'), matchState.enemyScore);
-        hudText(hudElement('hud-round-label'), `ROUND ${matchState.round} // ${matchState.phase.toUpperCase()}`);
+        hudText(hudElement('hud-round-label'), dm?'데스매치 · 40킬':`ROUND ${matchState.round} // ${matchState.phase.toUpperCase()}`);
 
         const isAtk = roomState.playerSide === 'attack';
         const roleEl = hudElement('hud-team-role');
-        hudText(roleEl, isAtk ? 'ATTACKERS (공격팀)' : 'DEFENDERS (수비팀)');
+        hudText(roleEl, dm ? '개인전' : isAtk ? 'ATTACKERS (공격팀)' : 'DEFENDERS (수비팀)');
         hudClass(roleEl, isAtk ? 'font-bold text-[#ff4655] text-[10px] mt-0.5 uppercase tracking-wider' : 'font-bold text-[#38e2c7] text-[10px] mt-0.5 uppercase tracking-wider');
 
         if (activeMap==='range' || roomState.allowCheats && cheats.infiniteCreds) player.credits = 9000;
@@ -2620,7 +2635,13 @@ window.setModeMaps=function(mode,select,wanted){
         const specTarget = spectating ? getCurrentSpectatedAlly() : null;
         const specBanner = hudElement('spectator-banner');
 
-        if (!player.alive && specTarget) {
+        if(dm&&!player.alive){
+          hudVisible(specBanner,true);
+          const remaining=window.MP.state?.players.find(p=>p.id===window.MP.myId)?.respawnIn;
+          hudText(hudElement('spec-target-name'), '부활 대기 중');
+          hudText(hudElement('spec-alive-count'), Number.isFinite(remaining)?remaining.toFixed(1)+'초':'');
+          hudText(hudElement('spec-target-info'),'');
+        } else if (!player.alive && specTarget) {
           hudVisible(specBanner,true);
           hudText(hudElement('spec-alive-count'), `ALIVE ALLIES: ${getAliveAllies().length}`);
           hudText(hudElement('spec-target-name'), `SPECTATING // ${specTarget.name}`);
@@ -2691,16 +2712,17 @@ window.setModeMaps=function(mode,select,wanted){
         isSpikeKeyHeld = false;
         document.querySelectorAll('#mob-spike-btn, #slot-spike-bar-btn').forEach(b => b.classList.remove('vm-btn-active-state', 'active-hold'));
         resetKillNotice();
-        matchState.phase = 'buy';
-        matchState.timer = 16;
+        const dm=window.MP.active&&window.MP.room?.mode==='deathmatch';
+        matchState.phase = dm?'combat':'buy';
+        matchState.timer = dm?540:16;
         matchState.spikePlanted = false;
         matchState.plantProgress = 0;
         matchState.defuseProgress = 0;
         matchState.halfDefuseReached = false;
         spikeMesh.visible = false;
-        barrierGroup.visible = true;
+        barrierGroup.visible = !dm;
         const skipBtn = document.getElementById('hud-skip-buy-btn');
-        if (skipBtn) skipBtn.classList.remove('hidden');
+        if (skipBtn) skipBtn.classList.toggle('hidden',dm||window.MP.active&&!roomState.isHost);
 
         if (!player.alive) {
           player.primary = null;
@@ -2721,7 +2743,8 @@ window.setModeMaps=function(mode,select,wanted){
           putLoot({key:'spawn-spike',id:'spike',x,z,y:AscentGround.height(activeMap,x,z)},false);
         }
         document.getElementById('hud-phase-badge').textContent = '구매 단계 — [SHOP] 버튼 또는 [B] 키로 무기를 구매하십시오';
-        showRoundBanner(`${activeMap.toUpperCase()} // 라운드 ${matchState.round}`, '구매 단계');
+        if(dm)showRoundBanner(activeMap.toUpperCase(),'데스매치 · 40킬 선승');
+        else showRoundBanner(`${activeMap.toUpperCase()} // 라운드 ${matchState.round}`, '구매 단계');
         updateHUD();
       }
 
@@ -3179,7 +3202,7 @@ window.setModeMaps=function(mode,select,wanted){
           tryLockPointerSafe();
           return;
         }
-        const canBuy = window.MP.state?.mode==='deathmatch' || activeMap==='range' || matchState.phase === 'buy' || (roomState.allowCheats && cheats.buyAnywhere);
+        const canBuy = window.MP.active&&window.MP.room?.mode==='deathmatch'&&matchState.phase==='combat' || activeMap==='range' || matchState.phase === 'buy' || (roomState.allowCheats && cheats.buyAnywhere);
         if (!canBuy) {
           showRoundBanner('구매 단계 종료', '구매 페이즈에만 상점을 열 수 있습니다');
           return;
@@ -3952,7 +3975,7 @@ window.setModeMaps=function(mode,select,wanted){
         mobileSpikePressed=isSpikeKeyHeld = isSpikeMobileToggleLock = false;
         restoreChatPointer = document.pointerLockElement === canvas;
         if (restoreChatPointer) document.exitPointerLock();
-        chatChannel = e.code === 'KeyN' ? 'team' : 'all';
+        chatChannel = e.code === 'KeyN' && window.MP.room?.mode!=='deathmatch' ? 'team' : 'all';
         channelLabel.textContent = chatChannel === 'team' ? '팀' : '전체';
         chatInput.setAttribute('aria-label', channelLabel.textContent + ' 채팅 메시지');
         chatEditor.hidden = chatInput.hidden = false;
@@ -4717,6 +4740,8 @@ window.setModeMaps=function(mode,select,wanted){
             const down=ease(Math.min(1,t/.42)),rise=ease(Math.max(0,(t-.32)/.68));
             camera.position.copy(deathView.eye);camera.position.y+=2.5*rise-.35*down;
             camera.rotation.set(deathView.pitch+(-1.22-deathView.pitch)*down,deathView.yaw,0,'YXZ');
+          }else if(window.MP.active&&window.MP.room?.mode==='deathmatch'){
+            hudText(hudElement('hud-callout-name'),'부활 대기 중');
           }else if (specAlly) {
             specAlly.group.visible = false;
             const targetEye = new THREE.Vector3(

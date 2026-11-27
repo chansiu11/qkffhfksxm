@@ -22,16 +22,49 @@ if (typeof window !== "undefined") window.GAME_SERVER_URL = 'https://qkffhfksxm-
       ['deck',2,10.7,6,3,1.1],['wood',-19,-12,2,2,1.6]
     ]
   };
-  for(const [id,width,depth,cover] of [
-    ['arenaA',15,18,[[-6,-4],[6,4],[0,0]]],
-    ['arenaB',20,14,[[-9,0],[9,0],[-2,5],[2,-5]]],
-    ['arenaC',17,21,[[-8,-7],[8,7],[6,-4],[-6,4],[0,0]]]
-  ]){
-    const a=[0,depth-3],b=[0,3-depth];
-    maps[id]={outlines:[[[-width,-depth],[width,-depth],[width,depth],[-width,depth]]],
-      labels:{'Attacker Side Spawn':a,'Defender Side Spawn':b},sites:{},plant:{},gates:[],
-      floor:{'Attacker Side Spawn':0,'Defender Side Spawn':0},routes:{attack:[[a,[0,0],b]],defense:[[b,[0,0],a]]}};
-    fixtures[id]=cover.map(([x,z])=>['crate',x,z,3,2.5,2.4]);
+  const arenas = {
+    arenaA: {
+      outline: [[-10,-21],[10,-21],[16,-15],[16,15],[10,21],[-10,21],[-16,15],[-16,-15]],
+      attack: [0,17], defense: [0,-17],
+      landmarks: {'Left Lane':[-11,0], 'Center Lane':[0,0], 'Right Lane':[11,0]},
+      routes: [[[-11,13],[-11,-13]],[[0,0]],[[11,13],[11,-13]]],
+      cover: [
+        ['steel',-5.5,0,2,18,3.1], ['steel',5.5,0,2,18,3.1],
+        ['crate',-9,11,2.5,2,1.6], ['crate',9,-11,2.5,2,1.6],
+        ['wood',-2.6,-5,1.5,2,1.3], ['wood',2.6,5,1.5,2,1.3]
+      ]
+    },
+    arenaB: {
+      outline: [[-22,-9],[-12,-9],[-12,-16],[12,-16],[12,-12],[22,-12],[22,8],[13,8],[13,16],[-12,16],[-12,12],[-22,12]],
+      attack: [0,13], defense: [0,-13],
+      landmarks: {'West Yard':[-15,0], 'Mid Bend':[2,0], 'East Yard':[15,0]},
+      routes: [[[-8,9],[-18,5],[-18,-4],[-10,-7],[-10,-10.5],[0,-10.5]],[[11.5,9],[11.5,6.4],[18,5],[18,-6],[10,-9]]],
+      cover: [
+        ['steel',-2,5,8,2.2,2.7], ['steel',3,-5,8,2.2,2.7],
+        ['crate',-14,3,4,3,2.1], ['crate',14,-3,4,3,2.1],
+        ['wood',-7,-7,2.2,2,1.5], ['wood',9,6,2.2,2,1.5]
+      ]
+    },
+    arenaC: {
+      outline: [[-9,-23],[9,-23],[19,-13],[19,13],[9,23],[-9,23],[-19,13],[-19,-13]],
+      attack: [0,19], defense: [0,-19],
+      landmarks: {'West Loop':[-10,0], 'East Loop':[10,0]},
+      routes: [[[-10,13],[-10,-13]],[[10,13],[10,-13]]],
+      cover: [
+        ['steel',0,0,11,15,5.1],
+        ['crate',-14,-6,3,3,2], ['crate',14,6,3,3,2],
+        ['wood',-8,11,2.4,2.5,1.8], ['wood',8,-11,2.4,2.5,1.8],
+        ['crate',-2.8,-12,2.2,2,2.2], ['crate',2.8,12,2.2,2,2.2]
+      ]
+    }
+  };
+  for(const [id,arena] of Object.entries(arenas)){
+    const {outline,attack,defense,landmarks,routes,cover}=arena;
+    const paths=routes.map(points=>[attack,...points,defense]);
+    maps[id]={outlines:[outline],labels:{'Attacker Side Spawn':attack,'Defender Side Spawn':defense,...landmarks},
+      sites:{},plant:{},gates:[],floor:{'Attacker Side Spawn':0,'Defender Side Spawn':0},
+      routes:{attack:paths,defense:paths.map(path=>path.slice().reverse())}};
+    fixtures[id]=cover;
   }
   function height(map,x,z) {
     if(!maps[map]) return 0;
@@ -89,14 +122,15 @@ if (typeof window !== "undefined") window.GAME_SERVER_URL = 'https://qkffhfksxm-
         const dx=bx-ax,dz=bz-az,len=Math.hypot(dx,dz);
         if(len<.04)continue;
         const x=(ax+bx)/2,z=(az+bz)/2,nx=dz/len,nz=-dx/len,angle=-Math.atan2(dz,dx);
+        const arena=Object.hasOwn(arenas,id);
         const low=id==='ascent'? x>18&&x<31&&z>-12&&z<18 : x< -30&&z>0&&z<17;
         // Street-level masonry differs from upper residential facades.
         const courtyard=x>0&&x<38&&z>-34&&z<18;
         const garden=x>30&&x<45&&z>=-43&&z<-13;
-        const style=low?'wall':id==='haven'?'temple':garden?'gardenWall':courtyard?'plaster':
+        const style=arena?'steel':low?'wall':id==='haven'?'temple':garden?'gardenWall':courtyard?'plaster':
           x<0?(z< -14?'brick':'salmon'):x>40?(z>0?'clay':'ochre'):'pink';
-        const thick=low?.55:2.4;
-        const h=Math.max(height(id,ax,az),height(id,bx,bz))+(low?(id==='ascent'&&len>20?1.1:3.1):id==='haven'?7.6:9.2);
+        const thick=arena?1.1:low?.55:2.4;
+        const h=Math.max(height(id,ax,az),height(id,bx,bz))+(arena?4.8:low?(id==='ascent'&&len>20?1.1:3.1):id==='haven'?7.6:9.2);
         const cx=x+nx*thick/2,cz=z+nz*thick/2;
         const streetWall=id==='haven'&&!low&&(z>0||x>35||x< -32);
         const wallKind=streetWall?'havenPlaster':style;
@@ -114,8 +148,8 @@ if (typeof window !== "undefined") window.GAME_SERVER_URL = 'https://qkffhfksxm-
             }
           }
         }
-        box(low?'stonecap':id==='haven'?'eave':'tiles',cx,cz,len+.24,thick+.5,h,h+(low?.24:.48),angle);
-        if(!low){
+        box(arena?'stonecap':low?'stonecap':id==='haven'?'eave':'tiles',cx,cz,len+.24,thick+.5,h,h+(low?.24:.48),angle);
+        if(!low&&!arena){
           // The ridge rises away from the street. Local +Z points into the street.
           box(id==='haven'?'shingles':'tiles',x+nx*1.85,z+nz*1.85,len+.18,4.35,h+1.22,h+1.48,angle,-.42);
         }

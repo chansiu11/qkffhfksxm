@@ -96,7 +96,7 @@ function make(mp){
   }
   function getWorker(){
     if(worker)return;
-    try{worker=new Worker('host-runtime.js?v=duel-cap2');}catch(_){return;}
+    try{worker=new Worker('host-runtime.js?v=match-modes3');}catch(_){return;}
     worker.onmessage=e=>{
       const m=e.data;lastWorkerAt=performance.now();
       if(m.type==='ready'){workerReady=true;report();}
