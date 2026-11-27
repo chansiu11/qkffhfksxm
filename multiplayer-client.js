@@ -258,7 +258,10 @@
             if(a.player[slot]?.id!==id)a.player[slot]=id?a.cloneWeaponInstance(id):null;
           }
           const active=a.WEAPON_CATALOG[data.weapon];
-          if(active){a.player.activeSlot=active.slot;a.viewmodel.setWeapon(active.id);}
+          if(active){
+            const held=a.player[active.slot];if(held){held.mag=data.mag;held.reserve=data.reserve;}
+            a.player.activeSlot=active.slot;a.viewmodel.setWeapon(active.id);
+          }
           a.player.reloading=false;a.player.pendingReloadWeapon=null;a.viewmodel.stopReload();
           a.updateHUD();break;
         }
@@ -367,11 +370,11 @@
           a.addKillFeed(myKill ? 'YOU' : (killer?.name || 'PLAYER'), victim?.name || 'PLAYER', (data.weapon || '').toUpperCase(), !!data.headshot, {killer:data.killer,victim:data.victim});
           break;
         }
-        case 'spike_planted': a.showRoundBanner('SITE ' + data.spike.site, 'SPIKE PLANTED'); break;
-        case 'round_end': a.spikeRoundResult(data.reason); a.showRoundBanner(data.reason, data.team === a.roomState.playerSide ? 'ROUND WON' : 'ROUND LOST'); break;
+        case 'spike_planted': a.showRoundBanner('SITE ' + data.spike.site, '스파이크 설치 완료'); break;
+        case 'round_end': a.spikeRoundResult(data.reason); a.showRoundBanner(data.reason, data.team === a.roomState.playerSide ? '라운드 WON' : '라운드 LOST'); break;
         case 'match_end':
           a.resetChat();
-          a.showRoundBanner('MATCH COMPLETE', 'MATCH FINISHED');
+          a.showRoundBanner('대전 종료', 'MATCH FINISHED');
           this.started = false; this.lastRound = 0;
           a.enterPostMatch();
           break;
@@ -403,7 +406,7 @@
           const heading = document.createElement('div');
           heading.className = 'room-roster-top';
           const title = document.createElement('strong');
-          title.textContent = side === 'attack' ? 'ATTACKERS' : 'DEFENDERS';
+          title.textContent = side === 'attack' ? '공격팀' : '수비팀';
           const count = document.createElement('span');
           count.textContent = `${people.length} / 5`;
           heading.append(title, count);
@@ -417,12 +420,12 @@
             avatar.textContent = p ? String(i + 1).padStart(2, '0') : '+';
             const name = document.createElement('span');
             name.className = 'room-slot-name';
-            name.textContent = p ? p.name : 'EMPTY SLOT';
+            name.textContent = p ? p.name : '빈 자리';
             row.append(avatar, name);
             if (p && (p.id === this.myId || p.id === room.host)) {
               const badge = document.createElement('span');
               badge.className = 'room-slot-badge';
-              badge.textContent = p.id === this.myId ? 'YOU' : 'HOST';
+              badge.textContent = p.id === this.myId ? '나' : '방장';
               row.appendChild(badge);
             }
             col.appendChild(row);
@@ -439,7 +442,7 @@
         button.disabled = selected;
       }
       const rounds = document.getElementById('room-win-target');
-      if (rounds) rounds.textContent = `${room.winRounds || a.roomState.winRounds} ROUNDS`;
+      if (rounds) rounds.textContent = `${room.winRounds || a.roomState.winRounds} 라운드`;
       const start = document.getElementById('online-start-btn');
       if (start) { start.disabled = !a.roomState.isHost; start.style.opacity = a.roomState.isHost ? '1' : '0.65';
         start.textContent = a.roomState.isHost ? '경기 시작하기  →' : '방장의 시작을 기다리는 중'; }
@@ -493,7 +496,7 @@
       const cheat = document.getElementById('hud-cheat-btn');
       if (cheat) cheat.classList.add('hidden');
       const badge = document.getElementById('hud-phase-badge');
-      if (badge) badge.textContent = state.phase === 'buy' ? 'BUY PHASE — B 키로 무기 구매' : state.phase === 'combat' ? 'COMBAT PHASE — ONLINE' : state.phase === 'planted' ? 'SPIKE PLANTED — ONLINE' : 'ROUND COMPLETE';
+      if (badge) badge.textContent = state.phase === 'buy' ? '구매 단계 — B 키로 무기 구매' : state.phase === 'combat' ? '전투 단계 — 온라인' : state.phase === 'planted' ? '스파이크 설치 완료 — 온라인' : '라운드 종료';
       // Snapshot HP/armor may change before a hit event arrives. Flash only
       // for live damage (not the initial round reset or spectator transitions).
       if (a.matchState.inMatch && a.player.alive && me.alive && state.phase !== 'buy' &&
@@ -601,7 +604,7 @@
         if (!present.has(id)) { a.scene.remove(b.group); this.peers.delete(id); const ix = a.bots.indexOf(b); if (ix>=0) a.bots.splice(ix,1); }
       }
       const seconds = Math.max(0,Math.ceil(state.timer));
-      document.getElementById('hud-timer-text').textContent = state.spike ? `SPIKE ${seconds}s` : `${Math.floor(seconds/60)}:${String(seconds%60).padStart(2,'0')}`;
+      document.getElementById('hud-timer-text').textContent = state.spike ? `스파이크 ${seconds}s` : `${Math.floor(seconds/60)}:${String(seconds%60).padStart(2,'0')}`;
       a.updateHUD();
     },
     removePeers() {
@@ -702,7 +705,7 @@
       }
       p.credits=data.credits;p.armor=data.armor;
       a.updateHUD();
-      const fb=document.getElementById('shop-feedback');if(fb)fb.textContent='SERVER: 구매 완료';
+      const fb=document.getElementById('shop-feedback');if(fb)fb.textContent='서버: 구매 완료';
     },
     tick(dt) {
       for (const b of this.peers.values()) {
@@ -763,7 +766,7 @@
         if(moving){
           const progress=Math.min(100,Math.max(0,Math.round(action.progress*100)));
           bar.style.width=progress+'%';pct.textContent=progress+'%';
-          label.textContent=plant?'SPIKE PLANTING...':'SPIKE DEFUSING...';
+          label.textContent=plant?'스파이크 설치 중…':'스파이크 해체 중…';
         }
       }
     }

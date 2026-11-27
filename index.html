@@ -14,7 +14,7 @@
   <script src="config.js?v=perf19"></script>
   <script src="host-transport.js?v=consent-lock1"></script>
   <script src="movement-physics.js?v=move25"></script>
-  <script src="multiplayer-client.js?v=defuse-ring2"></script>
+  <script src="multiplayer-client.js?v=ko-pickup1"></script>
   <link rel="stylesheet" href="menu.css" />
   <!-- Three.js r128 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -317,7 +317,9 @@
 
       .planting-spike #fps-weapon-sprite-layer{visibility:hidden}
 
-      </style>
+      body { -webkit-touch-callout:none; }
+      #ingame-hud,canvas,button { -webkit-user-select:none; user-select:none; }
+    </style>
 </head>
 <body>
   <div id="asset-loading" style="position:fixed;inset:0;z-index:2147483647;background:#101921;color:white;display:grid;place-content:center;text-align:center;gap:12px;font:600 18px system-ui">
@@ -375,7 +377,7 @@
        class="hidden fixed inset-0 z-[70] overflow-y-auto bg-[#070d14]/95 backdrop-blur-md p-3 sm:p-6">
     <div class="mx-auto my-6 max-w-lg bg-[#0f1923] border border-[#38e2c7]/50 p-5 sm:p-7 shadow-2xl">
       <div class="flex items-start justify-between gap-3 mb-4">
-        <div><div class="text-xs font-num font-bold text-[#38e2c7] tracking-widest">CROSSHAIR // PROFILE IMPORT</div>
+        <div><div class="text-xs font-num font-bold text-[#38e2c7] tracking-widest">조준점 설정 가져오기</div>
           <h2 id="crosshair-dialog-title" class="text-xl sm:text-2xl font-black text-white">감도 · 조준점 설정</h2></div>
         <button type="button" id="crosshair-close" class="px-3 py-2 border border-white/30 text-white cursor-pointer">닫기 ×</button>
       </div>
@@ -389,7 +391,7 @@
         <div id="crosshair-preview" class="relative" aria-hidden="true"></div>
       </div>
       <form id="crosshair-form" class="grid gap-3">
-        <label for="crosshair-code" class="text-xs text-[#38e2c7] font-black tracking-widest">PROFILE SHARE CODE</label>
+        <label for="crosshair-code" class="text-xs text-[#38e2c7] font-black tracking-widest">조준점 공유 코드</label>
         <textarea id="crosshair-code" rows="3" maxlength="4096" autocapitalize="off" autocomplete="off" spellcheck="false"
              class="w-full rounded-none border border-white/25 bg-[#0b131d] text-white text-sm p-3 select-text"
              placeholder="0;P;c;5;o;1;0t;1;0l;4;0o;2;0a;1;0f;0;1b;0"></textarea>
@@ -418,14 +420,14 @@
         <div class="absolute h-full w-0.5 bg-white/90"></div>
         <div class="w-2.5 h-2.5 rounded-full border border-[#ff4655] bg-[#0f1923]"></div>
       </div>
-      <span class="font-num text-[10px] font-black tracking-widest text-white pointer-events-none">L-FIRE</span>
+      <span class="font-num text-[10px] font-black tracking-widest text-white pointer-events-none">왼쪽 발사</span>
     </button>
 
     <!-- WALK / RUN Lock Button (Silent Footstep Peeking in Valorant Mobile) -->
     <button type="button" id="mob-walk-btn"
             class="vm-btn pointer-events-auto z-20 fixed bottom-44 left-36 sm:left-40 w-14 h-10 val-cut-sm">
-      <span class="font-num text-[10px] font-black tracking-wider pointer-events-none">WALK</span>
-      <span id="mob-walk-state" class="text-[9px] text-white/60 font-bold leading-none pointer-events-none">OFF</span>
+      <span class="font-num text-[10px] font-black tracking-wider pointer-events-none">걷기</span>
+      <span id="mob-walk-state" class="text-[9px] text-white/60 font-bold leading-none pointer-events-none">꺼짐</span>
     </button>
 
     <!-- Floating movement joystick, visible only while touching the left half. -->
@@ -433,7 +435,7 @@
          class="pointer-events-auto z-20 fixed bottom-8 left-6 w-32 h-32 sm:w-36 sm:h-36 rounded-full bg-[#0f1923]/65 border-2 border-[#ece8e1]/35 flex items-center justify-center shadow-2xl">
       <!-- Inner Walk / Outer Run Ring Guide -->
       <div class="w-16 h-16 rounded-full border border-dashed border-[#38e2c7]/45 flex items-center justify-center pointer-events-none">
-        <span class="font-num text-[8px] text-[#ece8e1]/40 tracking-widest uppercase">MOVE</span>
+        <span class="font-num text-[8px] text-[#ece8e1]/40 tracking-widest uppercase">이동</span>
       </div>
       <!-- Joystick Thumb Knob -->
       <div id="joy-knob"
@@ -451,26 +453,26 @@
         <div class="absolute h-full w-0.5 bg-white"></div>
         <div class="w-4 h-4 rounded-full border-2 border-white"></div>
       </div>
-      <span class="font-num text-xs sm:text-sm font-black tracking-widest text-white pointer-events-none">FIRE</span>
+      <span class="font-num text-xs sm:text-sm font-black tracking-widest text-white pointer-events-none">발사</span>
     </button>
 
     <!-- Arc Around Main Fire: ADS (Aim Down Sights / Sniper Zoom) -->
     <button type="button" id="mob-ads-btn"
             class="vm-btn pointer-events-auto z-20 fixed bottom-36 right-8 sm:bottom-44 sm:right-11 w-14 h-14 sm:w-16 sm:h-16 rounded-full">
       <div class="w-3.5 h-3.5 border border-[#38e2c7] rotate-45 mb-0.5 pointer-events-none"></div>
-      <span class="font-num text-[11px] font-black tracking-wider pointer-events-none">ADS</span>
+      <span class="font-num text-[11px] font-black tracking-wider pointer-events-none">조준</span>
     </button>
 
     <!-- Arc Around Main Fire: JUMP -->
     <button type="button" id="mob-jump-btn"
             class="vm-btn pointer-events-auto z-20 fixed bottom-28 right-32 sm:bottom-36 sm:right-40 w-14 h-14 sm:w-16 sm:h-16 rounded-full">
-      <span class="font-num text-[11px] font-black tracking-wider pointer-events-none">JUMP</span>
+      <span class="font-num text-[11px] font-black tracking-wider pointer-events-none">점프</span>
     </button>
 
     <!-- Arc Around Main Fire: CROUCH (Toggle) -->
     <button type="button" id="mob-crouch-btn"
             class="vm-btn pointer-events-auto z-20 fixed bottom-10 right-36 sm:bottom-12 sm:right-44 w-14 h-14 sm:w-16 sm:h-16 rounded-full">
-      <span class="font-num text-[10px] font-black tracking-wider pointer-events-none">CROUCH</span>
+      <span class="font-num text-[10px] font-black tracking-wider pointer-events-none">웅크리기</span>
     </button>
 
     <button type="button" id="mob-inspect-btn" aria-label="자세히 보기 (Y)" class="vm-btn pointer-events-auto z-20 fixed bottom-28 right-48 sm:bottom-36 sm:right-60 w-12 h-12 rounded-full font-num font-black">Y</button>
@@ -478,20 +480,20 @@
     <!-- Arc Around Main Fire: RELOAD -->
     <button type="button" id="mob-reload-btn"
             class="vm-btn pointer-events-auto z-20 fixed bottom-4 right-24 sm:bottom-4 sm:right-28 w-12 h-11 sm:w-14 sm:h-12 val-cut-sm">
-      <span class="font-num text-[10px] font-black tracking-wider text-[#38e2c7] pointer-events-none">RELOAD</span>
+      <span class="font-num text-[10px] font-black tracking-wider text-[#38e2c7] pointer-events-none">장전</span>
     </button>
 
     <!-- Contextual Center-Right Tactical Buttons: SPIKE PLANT/DEFUSE (Hold or Tap Lock) & DOOR SWITCH -->
     <div class="pointer-events-auto z-20 fixed right-5 top-1/2 -translate-y-10 flex flex-col items-end gap-2">
       <button type="button" id="mob-spike-btn"
               class="vm-btn val-cut-sm px-3.5 py-2.5 border-2 border-[#f5c542] bg-[#0f1923]/90 min-w-[96px]">
-        <span class="font-num text-[11px] font-black tracking-widest text-[#f5c542] pointer-events-none">SPIKE [4]</span>
+        <span class="font-num text-[11px] font-black tracking-widest text-[#f5c542] pointer-events-none">스파이크 [4]</span>
         <span id="mob-spike-sub" class="text-[9px] text-[#ece8e1]/80 font-bold pointer-events-none">설치 / 해체 (홀드·탭)</span>
       </button>
 
       <button type="button" id="mob-door-btn"
               class="vm-btn val-cut-sm px-3 py-2 border border-[#38e2c7]/70 bg-[#0f1923]/85 min-w-[96px]">
-        <span class="font-num text-[10px] font-black tracking-widest text-[#38e2c7] pointer-events-none">DOOR [F]</span>
+        <span class="font-num text-[10px] font-black tracking-widest text-[#38e2c7] pointer-events-none">문 [F]</span>
         <span class="text-[9px] text-[#ece8e1]/75 font-bold pointer-events-none">철문 스위치</span>
       </button>
     </div>
@@ -644,7 +646,7 @@
     <!-- LIVE 1ST-PERSON TEAMMATE SPECTATOR CONTROL BAR (Shown immediately when player dies) -->
     <div id="spectator-banner" class="hidden pointer-events-auto self-center val-cut bg-[#0f1923]/95 border-2 border-[#38e2c7] px-4 py-2.5 shadow-2xl flex flex-col items-center gap-1.5 max-w-md w-full">
       <div class="flex items-center justify-between w-full text-[10px] font-num font-black text-[#38e2c7] border-b border-white/15 pb-1 tracking-wider uppercase">
-        <span>1ST-PERSON TEAMMATE SPECTATOR</span>
+        <span>팀원 1인칭 관전</span>
         <span id="spec-alive-count" class="text-amber-300">ALIVE ALLIES: 4</span>
       </div>
       <div class="flex items-center justify-between w-full gap-2">
@@ -666,11 +668,11 @@
 
     <div id="match-scoreboard" hidden aria-label="경기 점수판">
       <div class="msb-panel">
-        <div class="msb-top"><span class="ally" id="msb-ally-score">0</span><small>ROUND <span id="msb-round">1</span></small><span class="enemy" id="msb-enemy-score">0</span></div>
-        <div class="msb-grid msb-head"><span>NAME</span><span>ULTIMATE</span><span>K</span><span>D</span><span>A</span><span>LOADOUT</span><span>CREDS</span><span>PING</span></div>
+        <div class="msb-top"><span class="ally" id="msb-ally-score">0</span><small>라운드<span id="msb-round">1</span></small><span class="enemy" id="msb-enemy-score">0</span></div>
+        <div class="msb-grid msb-head"><span>이름</span><span>궁극기</span><span>K</span><span>D</span><span>A</span><span>장비</span><span>크레드</span><span>PING</span></div>
         <div id="msb-ally" class="msb-team ally"></div>
         <div id="msb-enemy" class="msb-team enemy"></div>
-        <div class="msb-footer">T — CLOSE SCOREBOARD</div>
+        <div class="msb-footer">T — 점수판 닫기</div>
       </div>
     </div>
     <!-- BOTTOM-CENTER VALORANT ANIMATED KILL EMBLEM (Pure Geometric Star / Cross, Zero Emojis) -->
@@ -685,7 +687,7 @@
         <!-- Shield & Health Readout -->
         <div class="val-cut-sm bg-[#0f1923]/92 border-l-4 border-[#38e2c7] px-3 py-1.5 flex items-center gap-3 shadow-xl">
           <div class="text-center">
-            <div class="text-[8px] font-num text-white/50 uppercase leading-none">SHIELD</div>
+            <div class="text-[8px] font-num text-white/50 uppercase leading-none">방어막</div>
             <span id="hud-armor-val" class="font-num text-xl sm:text-2xl font-extrabold text-[#38e2c7] leading-none">0</span>
           </div>
           <div class="h-6 w-px bg-white/20"></div>
@@ -705,33 +707,33 @@
           <button type="button" id="slot-primary-btn" onclick="window.switchWeaponSlot('primary')"
                   class="px-2.5 sm:px-3.5 py-1 bg-[#142230] border-b-2 border-transparent text-left min-w-[74px] sm:min-w-[104px] transition cursor-pointer">
             <div class="flex justify-between items-center text-[8px] font-num text-white/50">
-              <span>[1]</span><span>PRIMARY</span>
+              <span>[1]</span><span>주 무기</span>
             </div>
-            <div id="slot-primary-name" class="text-[11px] sm:text-xs font-bold text-[#ece8e1] truncate mt-0.5">EMPTY</div>
+            <div id="slot-primary-name" class="text-[11px] sm:text-xs font-bold text-[#ece8e1] truncate mt-0.5">비어 있음</div>
           </button>
 
           <button type="button" id="slot-secondary-btn" onclick="window.switchWeaponSlot('secondary')"
                   class="px-2.5 sm:px-3.5 py-1 bg-[#1b3142] border-b-2 border-[#38e2c7] text-left min-w-[74px] sm:min-w-[100px] transition cursor-pointer">
             <div class="flex justify-between items-center text-[8px] font-num text-[#38e2c7]">
-              <span>[2]</span><span>SIDEARM</span>
+              <span>[2]</span><span>보조 무기</span>
             </div>
-            <div id="slot-secondary-name" class="text-[11px] sm:text-xs font-bold text-white truncate mt-0.5">CLASSIC</div>
+            <div id="slot-secondary-name" class="text-[11px] sm:text-xs font-bold text-white truncate mt-0.5">클래식</div>
           </button>
 
           <button type="button" id="slot-knife-btn" onclick="window.switchWeaponSlot('knife')"
                   class="px-2.5 sm:px-3 py-1 bg-[#142230] border-b-2 border-transparent text-left min-w-[62px] sm:min-w-[82px] transition cursor-pointer">
             <div class="flex justify-between items-center text-[8px] font-num text-white/50">
-              <span>[3]</span><span>MELEE</span>
+              <span>[3]</span><span>근접 무기</span>
             </div>
-            <div class="text-[11px] sm:text-xs font-bold text-[#ece8e1] truncate mt-0.5">KNIFE</div>
+            <div class="text-[11px] sm:text-xs font-bold text-[#ece8e1] truncate mt-0.5">칼</div>
           </button>
 
           <button type="button" id="slot-spike-bar-btn"
                   class="px-2.5 sm:px-3 py-1 bg-[#142230] border-b-2 border-[#f5c542] text-left min-w-[62px] sm:min-w-[78px] transition cursor-pointer">
             <div class="flex justify-between items-center text-[8px] font-num text-[#f5c542]">
-              <span>[4]</span><span>OBJECTIVE</span>
+              <span>[4]</span><span>목표물</span>
             </div>
-            <div id="hud-spike-carrier" class="text-[11px] sm:text-xs font-bold text-[#f5c542] truncate mt-0.5">SPIKE</div>
+            <div id="hud-spike-carrier" class="text-[11px] sm:text-xs font-bold text-[#f5c542] truncate mt-0.5">스파이크</div>
           </button>
         </div>
 
@@ -743,8 +745,8 @@
             <span id="hud-ammo-res" class="font-num text-sm sm:text-base font-bold text-[#ece8e1]/70">36</span>
           </div>
           <div class="flex items-center justify-between gap-2 mt-0.5 pt-0.5 border-t border-white/10">
-            <span id="hud-weapon-title" class="text-[9px] font-num font-bold text-[#38e2c7] uppercase truncate max-w-[64px]">CLASSIC</span>
-            <span class="font-num text-[11px] font-black text-[#f5c542]">CRED <span id="hud-credits">800</span></span>
+            <span id="hud-weapon-title" class="text-[9px] font-num font-bold text-[#38e2c7] uppercase truncate max-w-[64px]">클래식</span>
+            <span class="font-num text-[11px] font-black text-[#f5c542]">크레드<span id="hud-credits">800</span></span>
           </div>
         </button>
 
@@ -766,7 +768,7 @@
       <main class="menu-main">
         <section class="menu-hero" aria-label="게임 소개">
           <div class="menu-section-line"><span>EPISODE // 001</span><span>PC &amp; MOBILE</span></div>
-          <div class="menu-hero-copy"><div class="menu-hero-overline"><span class="menu-hero-dash"></span> WELCOME TO THE FIELD</div><h1 class="menu-hero-title">PLAY<br><em>ASCENT</em><span class="menu-title-stop">.</span></h1><p class="menu-hero-desc">하나의 선택이 승부를 바꾼다.<br>전략적인 5대5 전투에 참여하세요.</p></div>
+          <div class="menu-hero-copy"><div class="menu-hero-overline"><span class="menu-hero-dash"></span>전장에 오신 것을 환영합니다</div><h1 class="menu-hero-title">플레이<br><em>ASCENT</em><span class="menu-title-stop">.</span></h1><p class="menu-hero-desc">하나의 선택이 승부를 바꾼다.<br>전략적인 5대5 전투에 참여하세요.</p></div>
           <button type="button" onclick="window.openCrosshairSettings(event)"
                   class="mt-2 mb-3 px-4 py-2 text-sm font-bold border border-[#38e2c7]/60 text-[#38e2c7] hover:bg-[#38e2c7]/10 cursor-pointer">감도 · 조준점 설정</button>
 
@@ -776,21 +778,21 @@
           <div class="menu-hero-foot"><span>ASCENT / HAVEN</span><span>MOVE WITH PURPOSE.</span></div>
         </section>
         <section class="menu-hub" aria-label="온라인 게임 참여">
-          <div class="menu-hub-top"><div><div class="menu-kicker">01 <span>/</span> MATCH CONTROL</div><h2>게임에 참가하기</h2><p>방을 만들거나 코드로 친구의 경기에 합류하세요.</p></div><div class="menu-hub-mark">5<span>V</span>5</div></div>
+          <div class="menu-hub-top"><div><div class="menu-kicker">01 <span>/</span>대전 설정</div><h2>게임에 참가하기</h2><p>방을 만들거나 코드로 친구의 경기에 합류하세요.</p></div><div class="menu-hub-mark">5<span>V</span>5</div></div>
           <div class="menu-room-grid">
             <section class="menu-room-card menu-create-card" aria-label="방 만들기">
-              <div class="menu-card-index"><span>01</span><span>HOST ROOM</span></div>
+              <div class="menu-card-index"><span>01</span><span>방 만들기</span></div>
               <div class="menu-card-title"><span class="menu-card-graphic">＋</span><div><h3>새로운 방 만들기</h3><p>최대 10명 · 온라인 사설전</p></div></div>
-              <label class="menu-field-label" for="create-code-input">ROOM CODE <span>00 — 99</span></label>
+              <label class="menu-field-label" for="create-code-input">방 코드<span>00 — 99</span></label>
               <div class="menu-code-group"><input id="create-code-input" class="menu-code-input" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="2" value="07" aria-label="생성할 두 자리 방 코드"><button type="button" class="menu-shuffle" onclick="window.randomizeCreateCode()" title="무작위 방 코드">↻ <span>랜덤</span></button></div>
-              <div class="menu-setting"><div><strong>승리 라운드</strong><small>MATCH LENGTH</small></div><div class="menu-segment"><button type="button" id="win-target-13" onclick="window.setCreateWinTarget(13)" class="menu-segment-active">13 R</button><button type="button" id="win-target-5" onclick="window.setCreateWinTarget(5)">5 R</button></div></div>
-              <div class="menu-setting menu-setting-last"><div><strong>연습 치트</strong><small>온라인 방에서는 사용 안 함</small></div><button type="button" id="create-cheat-toggle-btn" onclick="window.setCreateCheatPerm(!window.roomState.allowCheats)" class="menu-cheat-toggle">CHEATS: ON</button></div>
+              <div class="menu-setting"><div><strong>승리 라운드</strong><small>승리 조건</small></div><div class="menu-segment"><button type="button" id="win-target-13" onclick="window.setCreateWinTarget(13)" class="menu-segment-active">13 R</button><button type="button" id="win-target-5" onclick="window.setCreateWinTarget(5)">5 R</button></div></div>
+              <div class="menu-setting menu-setting-last"><div><strong>연습 치트</strong><small>온라인 방에서는 사용 안 함</small></div><button type="button" id="create-cheat-toggle-btn" onclick="window.setCreateCheatPerm(!window.roomState.allowCheats)" class="menu-cheat-toggle">치트: 켜짐</button></div>
               <button type="button" class="menu-action-btn menu-action-primary" onclick="window.createCustomRoom(event)"><span>방 생성하고 대기실 입장</span><span>↗</span></button>
             </section>
             <section class="menu-room-card menu-join-card" aria-label="코드로 입장하기">
-              <div class="menu-card-index"><span>02</span><span>JOIN ROOM</span></div>
+              <div class="menu-card-index"><span>02</span><span>방 참가</span></div>
               <div class="menu-card-title"><span class="menu-card-graphic">↗</span><div><h3>코드로 참가하기</h3><p>친구에게 받은 두 자리 코드 입력</p></div></div>
-              <div class="menu-field-label">ENTER ACCESS CODE <span>2 DIGITS</span></div>
+              <div class="menu-field-label">참가 코드 입력<span>숫자 2자리</span></div>
               <div class="menu-digit-wrapper"><div id="join-digit-0" class="menu-join-digit">0</div><div id="join-digit-1" class="menu-join-digit">7</div><div class="menu-digit-suffix">#</div></div>
               <div class="menu-keypad" aria-label="방 코드 숫자 키패드">
                 <button type="button" onclick="window.pressKeypad('1')">1</button><button type="button" onclick="window.pressKeypad('2')">2</button><button type="button" onclick="window.pressKeypad('3')">3</button>
@@ -811,14 +813,14 @@
   <div id="waiting-lobby" class="menu-screen room-screen modal-scroll hidden fixed inset-0 z-40 overflow-y-auto">
     <div class="menu-backdrop lobby-backdrop" aria-hidden="true"><div class="menu-orbit orbit-one"></div></div>
     <div class="menu-frame room-frame">
-      <header class="menu-topbar room-topbar"><div class="menu-brand"><span class="menu-brand-symbol">V<span>∕</span></span><span class="menu-brand-copy"><b>VALORANT<span class="menu-brand-mark"> // WEB</span></b><small>CUSTOM MATCH LOBBY</small></span></div><button type="button" class="menu-exit-btn" onclick="window.openEntryScreen(event)"><span>←</span> 메인 메뉴로</button></header>
+      <header class="menu-topbar room-topbar"><div class="menu-brand"><span class="menu-brand-symbol">V<span>∕</span></span><span class="menu-brand-copy"><b>VALORANT<span class="menu-brand-mark"> // WEB</span></b><small>사용자 설정 대기실</small></span></div><button type="button" class="menu-exit-btn" onclick="window.openEntryScreen(event)"><span>←</span> 메인 메뉴로</button></header>
       <main class="room-main">
-        <div class="room-page-head"><div><div class="menu-kicker">02 <span>/</span> PRIVATE MATCH</div><h1>커스텀 <em>대기실</em></h1><p>참가자들이 준비되면 방장이 경기를 시작할 수 있습니다.</p></div><div class="room-ticket"><div class="room-ticket-label">ROOM ACCESS CODE</div><div class="room-ticket-num"><span>#</span><b id="lobby-code-display">07</b></div><button type="button" class="room-copy-btn" onclick="window.copyRoomCode()">방 코드 복사 ↗</button></div></div>
-        <div class="room-meta-bar"><div class="room-meta-left"><span class="room-pulse"></span><span id="online-lobby-status" role="status">서버 연결 상태 확인 중...</span></div><div class="room-meta-right"><span>MAP <b id="room-map-name">ASCENT</b></span><span>MODE <b>5 VS 5</b></span><span>PLATFORM <b>WEB</b></span></div></div>
-        <div class="room-grid"><section class="room-teams" aria-label="참가자와 팀 선택"><div class="room-section-top"><div><span class="menu-kicker">TEAM ASSIGNMENT</span><h2>팀 선택</h2></div><span class="room-team-hint">버튼을 눌러 팀 변경</span></div>
-            <div class="room-team-controls"><div class="room-team-control attack"><div><span class="room-team-num">01 / ATTACK</span><strong>공격팀</strong></div><button type="button" onclick="window.switchTeam('attack')" id="btn-team-attack">공격팀 선택 ↗</button></div><div class="room-team-control defense"><div><span class="room-team-num">02 / DEFENSE</span><strong>수비팀</strong></div><button type="button" onclick="window.switchTeam('defense')" id="btn-team-defense">수비팀 선택 ↗</button></div></div>
-            <div id="online-roster" class="room-roster-grid" aria-live="polite"><div class="room-roster-list"><div class="room-roster-top">ATTACKERS <span>0/5</span></div><div class="room-slot empty">플레이어를 기다리는 중</div></div><div class="room-roster-list"><div class="room-roster-top">DEFENDERS <span>0/5</span></div><div class="room-slot empty">플레이어를 기다리는 중</div></div></div>
-          </section><aside class="room-info" aria-label="방 정보 및 게임 시작"><div class="room-map-card"><div class="room-map-card-head"><span>MAP SELECTED</span><span>01 / 01</span></div><div class="room-map-graphic" aria-hidden="true"><span class="room-map-a">A</span><span class="room-map-b">B</span><div class="room-map-lines"></div></div><h3>ASCENT</h3><p>전략적인 진입 · 스파이크 설치 · 폭파 저지</p></div><div class="room-match-rules"><div><small>MATCH TYPE</small><b>CUSTOM · UNRATED</b></div><div><small>TEAM SIZE</small><b>5 VS 5</b></div><div><small>WIN CONDITION</small><b id="room-win-target">13 ROUNDS</b></div><div><small>SERVER</small><b id="host-transport-status">Render 서버 연결</b></div></div><label id="lobby-map-control" hidden>경기 맵 <select id="lobby-map-select" style="padding:6px;color:white;background:#182530" onchange="window.MP.send({type:'set_map',map:this.value})"><option value="ascent">어센트</option><option value="haven">헤이븐</option></select></label><button type="button" id="lobby-cheat-perm-btn" onclick="window.toggleHostCheatPermission(event)" class="room-cheat-btn">HOST CHEATS: OFF</button><label style="display:block;margin:8px 0;font-size:12px"><input type="checkbox" id="host-transport-opt" onchange="window.MP.hostTransport?.setEnabled(this.checked)"> <span id="host-transport-label">신뢰하는 방에서 직접 연결(P2P) 허용</span></label><section id="host-consent-invite" hidden aria-labelledby="host-consent-title" style="padding:12px;border:1px solid #74848e;margin:8px 0;font-size:12px"><strong id="host-consent-title">방장이 직접 연결을 요청했습니다.</strong><p style="margin:8px 0">직접 연결을 허용하면 신뢰하는 방장과 네트워크 주소가 공유될 수 있습니다. 연결이 끊기면 경기가 재시작될 수 있습니다. 동의하지 않아도 됩니다. 방장이 직접 연결 요청을 끄면 Render 방식으로 시작할 수 있습니다.</p><button type="button" style="padding:8px;min-height:44px" onclick="window.MP.hostTransport?.respondToInvitation(true)">동의</button> <button type="button" style="padding:8px;min-height:44px" onclick="window.MP.hostTransport?.respondToInvitation(false)">동의하지 않음</button></section><p id="host-consent-detail" aria-live="polite" style="font-size:12px;margin:4px 0"></p><button type="button" id="online-start-btn" onclick="window.startMatchFromLobby(event)" class="menu-action-btn room-start-btn">경기 시작하기 <span>→</span></button><div class="room-start-help">방장만 경기를 시작할 수 있습니다.</div></aside></div>
+        <div class="room-page-head"><div><div class="menu-kicker">02 <span>/</span>비공개 대전</div><h1>커스텀 <em>대기실</em></h1><p>참가자들이 준비되면 방장이 경기를 시작할 수 있습니다.</p></div><div class="room-ticket"><div class="room-ticket-label">방 참가 코드</div><div class="room-ticket-num"><span>#</span><b id="lobby-code-display">07</b></div><button type="button" class="room-copy-btn" onclick="window.copyRoomCode()">방 코드 복사 ↗</button></div></div>
+        <div class="room-meta-bar"><div class="room-meta-left"><span class="room-pulse"></span><span id="online-lobby-status" role="status">서버 연결 상태 확인 중...</span></div><div class="room-meta-right"><span>맵<b id="room-map-name">ASCENT</b></span><span>모드<b>5 VS 5</b></span><span>플랫폼<b>WEB</b></span></div></div>
+        <div class="room-grid"><section class="room-teams" aria-label="참가자와 팀 선택"><div class="room-section-top"><div><span class="menu-kicker">팀 선택</span><h2>팀 선택</h2></div><span class="room-team-hint">버튼을 눌러 팀 변경</span></div>
+            <div class="room-team-controls"><div class="room-team-control attack"><div><span class="room-team-num">01 / 공격</span><strong>공격팀</strong></div><button type="button" onclick="window.switchTeam('attack')" id="btn-team-attack">공격팀 선택 ↗</button></div><div class="room-team-control defense"><div><span class="room-team-num">02 / 수비</span><strong>수비팀</strong></div><button type="button" onclick="window.switchTeam('defense')" id="btn-team-defense">수비팀 선택 ↗</button></div></div>
+            <div id="online-roster" class="room-roster-grid" aria-live="polite"><div class="room-roster-list"><div class="room-roster-top">공격팀<span>0/5</span></div><div class="room-slot empty">플레이어를 기다리는 중</div></div><div class="room-roster-list"><div class="room-roster-top">수비팀<span>0/5</span></div><div class="room-slot empty">플레이어를 기다리는 중</div></div></div>
+          </section><aside class="room-info" aria-label="방 정보 및 게임 시작"><div class="room-map-card"><div class="room-map-card-head"><span>선택한 맵</span><span>01 / 01</span></div><div class="room-map-graphic" aria-hidden="true"><span class="room-map-a">A</span><span class="room-map-b">B</span><div class="room-map-lines"></div></div><h3>ASCENT</h3><p>전략적인 진입 · 스파이크 설치 · 폭파 저지</p></div><div class="room-match-rules"><div><small>대전 유형</small><b>사용자 설정 · 일반전</b></div><div><small>팀 인원</small><b>5 VS 5</b></div><div><small>승리 조건</small><b id="room-win-target">13라운드</b></div><div><small>서버</small><b id="host-transport-status">Render 서버 연결</b></div></div><label id="lobby-map-control" hidden>경기 맵 <select id="lobby-map-select" style="padding:6px;color:white;background:#182530" onchange="window.MP.send({type:'set_map',map:this.value})"><option value="ascent">어센트</option><option value="haven">헤이븐</option></select></label><button type="button" id="lobby-cheat-perm-btn" onclick="window.toggleHostCheatPermission(event)" class="room-cheat-btn">방장 치트: 꺼짐</button><label style="display:block;margin:8px 0;font-size:12px"><input type="checkbox" id="host-transport-opt" onchange="window.MP.hostTransport?.setEnabled(this.checked)"> <span id="host-transport-label">신뢰하는 방에서 직접 연결(P2P) 허용</span></label><section id="host-consent-invite" hidden aria-labelledby="host-consent-title" style="padding:12px;border:1px solid #74848e;margin:8px 0;font-size:12px"><strong id="host-consent-title">방장이 직접 연결을 요청했습니다.</strong><p style="margin:8px 0">직접 연결을 허용하면 신뢰하는 방장과 네트워크 주소가 공유될 수 있습니다. 연결이 끊기면 경기가 재시작될 수 있습니다. 동의하지 않아도 됩니다. 방장이 직접 연결 요청을 끄면 Render 방식으로 시작할 수 있습니다.</p><button type="button" style="padding:8px;min-height:44px" onclick="window.MP.hostTransport?.respondToInvitation(true)">동의</button> <button type="button" style="padding:8px;min-height:44px" onclick="window.MP.hostTransport?.respondToInvitation(false)">동의하지 않음</button></section><p id="host-consent-detail" aria-live="polite" style="font-size:12px;margin:4px 0"></p><button type="button" id="online-start-btn" onclick="window.startMatchFromLobby(event)" class="menu-action-btn room-start-btn">경기 시작하기 <span>→</span></button><div class="room-start-help">방장만 경기를 시작할 수 있습니다.</div></aside></div>
       </main><footer class="menu-footer"><span>TACTICAL FPS // CUSTOM MATCH</span><span>PLAY TOGETHER. STAY SHARP.</span></footer>
     </div>
   </div>
@@ -828,13 +830,13 @@
     <div class="val-cut bg-[#14212e] max-w-6xl w-full p-4 sm:p-6 border border-[#ece8e1]/25 shadow-2xl my-auto">
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b-2 border-[#ff4655]">
         <div class="flex items-center gap-3">
-          <span class="px-2.5 py-0.5 bg-[#ff4655] text-[#ece8e1] font-num text-xs font-black tracking-widest uppercase">BUY PHASE // ARMORY</span>
-          <h2 class="font-val text-2xl sm:text-3xl font-bold text-[#ece8e1] uppercase tracking-wider">VALORANT TACTICAL ARMORY (WEAPONS & SHIELDS)</h2>
+          <span class="px-2.5 py-0.5 bg-[#ff4655] text-[#ece8e1] font-num text-xs font-black tracking-widest uppercase">구매 단계 · 무기 상점</span>
+          <h2 class="font-val text-2xl sm:text-3xl font-bold text-[#ece8e1] uppercase tracking-wider">무기 및 방어막 구매</h2>
         </div>
         <div class="flex items-center gap-4">
           <div class="val-cut-sm px-4 py-1 bg-[#0f1923] border-l-4 border-[#38e2c7] text-right">
-            <div class="text-[10px] font-num text-[#ece8e1]/60 uppercase">CREDITS</div>
-            <div class="font-num text-xl sm:text-2xl font-black text-[#38e2c7]">CRED <span id="shop-credits-val">800</span></div>
+            <div class="text-[10px] font-num text-[#ece8e1]/60 uppercase">크레드</div>
+            <div class="font-num text-xl sm:text-2xl font-black text-[#38e2c7]">크레드<span id="shop-credits-val">800</span></div>
           </div>
           <button type="button" onclick="window.closeShop(event)" class="val-cut-sm px-5 py-2.5 bg-[#ff4655] hover:bg-rose-600 text-white font-bold text-xs uppercase cursor-pointer">
             CLOSE SHOP [B / ESC]
@@ -846,109 +848,109 @@
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 my-4">
         <!-- Col 1: Sidearms -->
         <div class="space-y-2">
-          <div class="text-xs font-num font-black text-[#ece8e1]/60 tracking-widest uppercase border-b border-white/10 pb-1">SIDEARMS</div>
+          <div class="text-xs font-num font-black text-[#ece8e1]/60 tracking-widest uppercase border-b border-white/10 pb-1">보조 무기</div>
           <button type="button" onclick="window.buyItem('classic')" class="val-cut-sm w-full p-2.5 bg-[#0f1923] hover:bg-[#1f3144] border border-white/15 hover:border-[#38e2c7] text-left flex justify-between items-center cursor-pointer">
-            <div><div class="text-sm font-bold text-[#ece8e1]">CLASSIC</div><div class="text-[10px] text-slate-400">HEAD 78 / BODY 26</div></div>
-            <span class="font-num text-xs font-black text-[#38e2c7]">FREE</span>
+            <div><div class="text-sm font-bold text-[#ece8e1]">클래식</div><div class="text-[10px] text-slate-400">머리 78 / 몸통 26</div></div>
+            <span class="font-num text-xs font-black text-[#38e2c7]">무료</span>
           </button>
           <button type="button" onclick="window.buyItem('shorty')" class="val-cut-sm w-full p-2.5 bg-[#0f1923] hover:bg-[#1f3144] border border-white/15 hover:border-[#38e2c7] text-left flex justify-between items-center cursor-pointer">
-            <div><div class="text-sm font-bold text-[#ece8e1]">SHORTY</div><div class="text-[10px] text-slate-400">SAWED-OFF // 2 RDS</div></div>
+            <div><div class="text-sm font-bold text-[#ece8e1]">쇼티</div><div class="text-[10px] text-slate-400">SAWED-OFF // 2 RDS</div></div>
             <span class="font-num text-xs font-black text-[#f5c542]">300</span>
           </button>
           <button type="button" onclick="window.buyItem('frenzy')" class="val-cut-sm w-full p-2.5 bg-[#0f1923] hover:bg-[#1f3144] border border-white/15 hover:border-[#38e2c7] text-left flex justify-between items-center cursor-pointer">
-            <div><div class="text-sm font-bold text-[#ece8e1]">FRENZY</div><div class="text-[10px] text-slate-400">AUTO PISTOL // 13 RDS</div></div>
+            <div><div class="text-sm font-bold text-[#ece8e1]">프렌지</div><div class="text-[10px] text-slate-400">AUTO PISTOL // 13 RDS</div></div>
             <span class="font-num text-xs font-black text-[#f5c542]">450</span>
           </button>
           <button type="button" onclick="window.buyItem('ghost')" class="val-cut-sm w-full p-2.5 bg-[#0f1923] hover:bg-[#1f3144] border border-white/15 hover:border-[#38e2c7] text-left flex justify-between items-center cursor-pointer">
-            <div><div class="text-sm font-bold text-[#ece8e1]">GHOST</div><div class="text-[10px] text-slate-400">HEAD 105 / BODY 30</div></div>
+            <div><div class="text-sm font-bold text-[#ece8e1]">고스트</div><div class="text-[10px] text-slate-400">머리 105 / 몸통 30</div></div>
             <span class="font-num text-xs font-black text-[#f5c542]">500</span>
           </button>
           <button type="button" onclick="window.buyItem('bandit')" class="val-cut-sm w-full p-2.5 bg-[#0f1923] hover:bg-[#1f3144] border border-white/15 hover:border-[#38e2c7] text-left flex justify-between items-center cursor-pointer">
-            <div><div class="text-sm font-bold text-[#ece8e1]">BANDIT · 벤딧</div><div class="text-[10px] text-slate-400">HEAD 152 / BODY 39</div></div>
+            <div><div class="text-sm font-bold text-[#ece8e1]">BANDIT · 벤딧</div><div class="text-[10px] text-slate-400">머리 152 / 몸통 39</div></div>
             <span class="font-num text-xs font-black text-[#f5c542]">600</span>
           </button>
           <button type="button" onclick="window.buyItem('sheriff')" class="val-cut-sm w-full p-2.5 bg-[#0f1923] hover:bg-[#1f3144] border border-white/15 hover:border-[#38e2c7] text-left flex justify-between items-center cursor-pointer">
-            <div><div class="text-sm font-bold text-[#ece8e1]">SHERIFF</div><div class="text-[10px] text-slate-400">HEAD 159 / BODY 55</div></div>
+            <div><div class="text-sm font-bold text-[#ece8e1]">셰리프</div><div class="text-[10px] text-slate-400">머리 159 / 몸통 55</div></div>
             <span class="font-num text-xs font-black text-[#f5c542]">800</span>
           </button>
         </div>
 
         <!-- Col 2: SMGs & Shotguns -->
         <div class="space-y-2">
-          <div class="text-xs font-num font-black text-[#ece8e1]/60 tracking-widest uppercase border-b border-white/10 pb-1">SMGS & SHOTGUNS</div>
+          <div class="text-xs font-num font-black text-[#ece8e1]/60 tracking-widest uppercase border-b border-white/10 pb-1">기관단총 · 산탄총</div>
           <button type="button" onclick="window.buyItem('stinger')" class="val-cut-sm w-full p-2.5 bg-[#0f1923] hover:bg-[#1f3144] border border-white/15 hover:border-[#38e2c7] text-left flex justify-between items-center cursor-pointer">
-            <div><div class="text-sm font-bold text-[#ece8e1]">STINGER</div><div class="text-[10px] text-slate-400">HIGH ROF SMG // 20 RDS</div></div>
+            <div><div class="text-sm font-bold text-[#ece8e1]">스팅어</div><div class="text-[10px] text-slate-400">HIGH ROF SMG // 20 RDS</div></div>
             <span class="font-num text-xs font-black text-[#f5c542]">1,100</span>
           </button>
           <button type="button" onclick="window.buyItem('spectre')" class="val-cut-sm w-full p-2.5 bg-[#0f1923] hover:bg-[#1f3144] border border-white/15 hover:border-[#38e2c7] text-left flex justify-between items-center cursor-pointer">
-            <div><div class="text-sm font-bold text-[#ece8e1]">SPECTRE</div><div class="text-[10px] text-slate-400">SILENCED SMG // 30 RDS</div></div>
+            <div><div class="text-sm font-bold text-[#ece8e1]">스펙터</div><div class="text-[10px] text-slate-400">SILENCED SMG // 30 RDS</div></div>
             <span class="font-num text-xs font-black text-[#f5c542]">1,600</span>
           </button>
           <button type="button" onclick="window.buyItem('bucky')" class="val-cut-sm w-full p-2.5 bg-[#0f1923] hover:bg-[#1f3144] border border-white/15 hover:border-[#38e2c7] text-left flex justify-between items-center cursor-pointer">
-            <div><div class="text-sm font-bold text-[#ece8e1]">BUCKY</div><div class="text-[10px] text-slate-400">PUMP SHOTGUN // 10 PELLETS</div></div>
+            <div><div class="text-sm font-bold text-[#ece8e1]">버키</div><div class="text-[10px] text-slate-400">PUMP SHOTGUN // 10 PELLETS</div></div>
             <span class="font-num text-xs font-black text-[#f5c542]">850</span>
           </button>
           <button type="button" onclick="window.buyItem('judge')" class="val-cut-sm w-full p-2.5 bg-[#0f1923] hover:bg-[#1f3144] border border-white/15 hover:border-[#38e2c7] text-left flex justify-between items-center cursor-pointer">
-            <div><div class="text-sm font-bold text-[#ece8e1]">JUDGE</div><div class="text-[10px] text-slate-400">AUTO SHOTGUN // 7 RDS</div></div>
+            <div><div class="text-sm font-bold text-[#ece8e1]">저지</div><div class="text-[10px] text-slate-400">AUTO SHOTGUN // 7 RDS</div></div>
             <span class="font-num text-xs font-black text-[#f5c542]">1,850</span>
           </button>
         </div>
 
         <!-- Col 3: Rifles -->
         <div class="space-y-2">
-          <div class="text-xs font-num font-black text-[#ece8e1]/60 tracking-widest uppercase border-b border-white/10 pb-1">RIFLES</div>
+          <div class="text-xs font-num font-black text-[#ece8e1]/60 tracking-widest uppercase border-b border-white/10 pb-1">소총</div>
           <button type="button" onclick="window.buyItem('bulldog')" class="val-cut-sm w-full p-2.5 bg-[#0f1923] hover:bg-[#1f3144] border border-white/15 hover:border-[#38e2c7] text-left flex justify-between items-center cursor-pointer">
-            <div><div class="text-sm font-bold text-[#ece8e1]">BULLDOG</div><div class="text-[10px] text-slate-400">HEAD 115 / BODY 35</div></div>
+            <div><div class="text-sm font-bold text-[#ece8e1]">불독</div><div class="text-[10px] text-slate-400">머리 115 / 몸통 35</div></div>
             <span class="font-num text-xs font-black text-[#f5c542]">2,050</span>
           </button>
           <button type="button" onclick="window.buyItem('guardian')" class="val-cut-sm w-full p-2.5 bg-[#0f1923] hover:bg-[#1f3144] border border-white/15 hover:border-[#38e2c7] text-left flex justify-between items-center cursor-pointer">
-            <div><div class="text-sm font-bold text-[#ece8e1]">GUARDIAN</div><div class="text-[10px] text-slate-400">SEMI-AUTO DMR // HEAD 195</div></div>
+            <div><div class="text-sm font-bold text-[#ece8e1]">가디언</div><div class="text-[10px] text-slate-400">SEMI-AUTO DMR // HEAD 195</div></div>
             <span class="font-num text-xs font-black text-[#f5c542]">2,250</span>
           </button>
           <button type="button" onclick="window.buyItem('phantom')" class="val-cut-sm w-full p-3 bg-[#0f1923] hover:bg-[#1f3144] border-l-4 border-[#38e2c7] text-left flex justify-between items-center cursor-pointer">
-            <div><div class="text-sm font-bold text-[#38e2c7]">PHANTOM</div><div class="text-[10px] text-slate-300">SILENCED RIFLE // 30 RDS</div></div>
+            <div><div class="text-sm font-bold text-[#38e2c7]">팬텀</div><div class="text-[10px] text-slate-300">SILENCED RIFLE // 30 RDS</div></div>
             <span class="font-num text-xs font-black text-[#f5c542]">2,900</span>
           </button>
           <button type="button" onclick="window.buyItem('warden')" class="val-cut-sm w-full p-2.5 bg-[#0f1923] hover:bg-[#1f3144] border border-white/15 hover:border-[#38e2c7] text-left flex justify-between items-center cursor-pointer">
-            <div><div class="text-sm font-bold text-[#ece8e1]">WARDEN · 워든</div><div class="text-[10px] text-slate-400">HEAD 200 / BODY 50</div></div>
+            <div><div class="text-sm font-bold text-[#ece8e1]">WARDEN · 워든</div><div class="text-[10px] text-slate-400">머리 200 / 몸통 50</div></div>
             <span class="font-num text-xs font-black text-[#f5c542]">2,900</span>
           </button>
           <button type="button" onclick="window.buyItem('vandal')" class="val-cut-sm w-full p-3 bg-[#0f1923] hover:bg-[#1f3144] border-l-4 border-[#ff4655] text-left flex justify-between items-center cursor-pointer">
-            <div><div class="text-sm font-bold text-[#ff4655]">VANDAL</div><div class="text-[10px] text-slate-300">HEADSHOT 160 ONE-TAP RIFLE</div></div>
+            <div><div class="text-sm font-bold text-[#ff4655]">밴달</div><div class="text-[10px] text-slate-300">HEADSHOT 160 ONE-TAP RIFLE</div></div>
             <span class="font-num text-xs font-black text-[#f5c542]">2,900</span>
           </button>
         </div>
 
         <!-- Col 4: Snipers & Shields -->
         <div class="space-y-2">
-          <div class="text-xs font-num font-black text-[#ece8e1]/60 tracking-widest uppercase border-b border-white/10 pb-1">SNIPERS / MACHINE GUNS / ARMOR</div>
+          <div class="text-xs font-num font-black text-[#ece8e1]/60 tracking-widest uppercase border-b border-white/10 pb-1">저격소총 · 기관총 · 방어막</div>
           <button type="button" onclick="window.buyItem('marshal')" class="val-cut-sm w-full p-2.5 bg-[#0f1923] hover:bg-[#1f3144] border border-white/15 hover:border-[#38e2c7] text-left flex justify-between items-center cursor-pointer">
-            <div><div class="text-sm font-bold text-[#ece8e1]">MARSHAL</div><div class="text-[10px] text-slate-400">HEAD 202 / BODY 101</div></div>
+            <div><div class="text-sm font-bold text-[#ece8e1]">마샬</div><div class="text-[10px] text-slate-400">머리 202 / 몸통 101</div></div>
             <span class="font-num text-xs font-black text-[#f5c542]">950</span>
           </button>
           <button type="button" onclick="window.buyItem('outlaw')" class="val-cut-sm w-full p-2.5 bg-[#0f1923] hover:bg-[#1f3144] border border-white/15 hover:border-[#38e2c7] text-left flex justify-between items-center cursor-pointer">
-            <div><div class="text-sm font-bold text-[#ece8e1]">OUTLAW · 아웃로</div><div class="text-[10px] text-slate-400">HEAD 238 / BODY 140</div></div>
+            <div><div class="text-sm font-bold text-[#ece8e1]">OUTLAW · 아웃로</div><div class="text-[10px] text-slate-400">머리 238 / 몸통 140</div></div>
             <span class="font-num text-xs font-black text-[#f5c542]">2,400</span>
           </button>
           <button type="button" onclick="window.buyItem('operator')" class="val-cut-sm w-full p-2.5 bg-[#0f1923] hover:bg-[#1f3144] border-l-4 border-[#f5c542] text-left flex justify-between items-center cursor-pointer">
-            <div><div class="text-sm font-bold text-[#f5c542]">OPERATOR</div><div class="text-[10px] text-slate-300">HEAD 255 / BODY 150 ONE-SHOT</div></div>
+            <div><div class="text-sm font-bold text-[#f5c542]">오퍼레이터</div><div class="text-[10px] text-slate-300">머리 255 / 몸통 150 ONE-SHOT</div></div>
             <span class="font-num text-xs font-black text-[#f5c542]">4,700</span>
           </button>
           <button type="button" onclick="window.buyItem('ares')" class="val-cut-sm w-full p-2.5 bg-[#0f1923] hover:bg-[#1f3144] border border-white/15 hover:border-[#38e2c7] text-left flex justify-between items-center cursor-pointer">
-            <div><div class="text-sm font-bold text-[#ece8e1]">ARES · 아레스</div><div class="text-[10px] text-slate-400">HEAD 75 / BODY 30</div></div>
+            <div><div class="text-sm font-bold text-[#ece8e1]">ARES · 아레스</div><div class="text-[10px] text-slate-400">머리 75 / 몸통 30</div></div>
             <span class="font-num text-xs font-black text-[#f5c542]">1,600</span>
           </button>
           <button type="button" onclick="window.buyItem('odin')" class="val-cut-sm w-full p-2.5 bg-[#0f1923] hover:bg-[#1f3144] border border-white/15 hover:border-[#38e2c7] text-left flex justify-between items-center cursor-pointer">
-            <div><div class="text-sm font-bold text-[#ece8e1]">ODIN · 오딘</div><div class="text-[10px] text-slate-400">HEAD 95 / BODY 38</div></div>
+            <div><div class="text-sm font-bold text-[#ece8e1]">ODIN · 오딘</div><div class="text-[10px] text-slate-400">머리 95 / 몸통 38</div></div>
             <span class="font-num text-xs font-black text-[#f5c542]">3,200</span>
           </button>
           <div class="grid grid-cols-2 gap-2 pt-1">
             <button type="button" onclick="window.buyItem('light_shield')" class="val-cut-sm p-2.5 bg-[#0f1923] hover:bg-[#1f3144] border border-[#38e2c7]/40 text-left cursor-pointer">
-              <div class="text-xs font-bold text-[#38e2c7]">LIGHT SHIELD (+25)</div>
+              <div class="text-xs font-bold text-[#38e2c7]">경형 보호막 (+25)</div>
               <div class="font-num text-xs font-black text-[#f5c542] mt-0.5">400</div>
             </button>
             <button type="button" onclick="window.buyItem('heavy_shield')" class="val-cut-sm p-2.5 bg-[#0f1923] hover:bg-[#1f3144] border border-[#38e2c7] text-left cursor-pointer">
-              <div class="text-xs font-bold text-[#38e2c7]">HEAVY SHIELD (+50)</div>
+              <div class="text-xs font-bold text-[#38e2c7]">중형 보호막 (+50)</div>
               <div class="font-num text-xs font-black text-[#f5c542] mt-0.5">1,000</div>
             </button>
           </div>
@@ -967,7 +969,7 @@
     <div class="val-cut val-panel max-w-3xl w-full p-5 sm:p-6 border-2 border-amber-400 shadow-2xl my-auto">
       <div class="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-white/15">
         <div>
-          <span class="px-2 py-0.5 bg-amber-400 text-slate-950 font-num font-black text-xs">CUSTOM GAME CHEATS // F1</span>
+          <span class="px-2 py-0.5 bg-amber-400 text-slate-950 font-num font-black text-xs">사용자 설정 치트 · F1</span>
           <h2 class="text-xl font-black text-white mt-1">발로란트 사설방 치트 제어판 (방장 통제)</h2>
         </div>
         <div class="flex items-center gap-2">
@@ -987,31 +989,31 @@
       <div id="cheat-controls-body" class="space-y-4 mt-4">
         <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
           <button type="button" id="cheat-btn-ghost" onclick="window.toggleCheatOption('ghost')" class="p-3 bg-[#0f1923] border border-white/15 text-left cursor-pointer">
-            <div class="text-xs font-bold text-purple-300">GHOST NOCLIP [V]</div>
+            <div class="text-xs font-bold text-purple-300">자유 비행 [V]</div>
             <div class="text-[11px] text-slate-400 mt-0.5">벽 통과 및 공중 자유 비행</div>
           </button>
           <button type="button" id="cheat-btn-pauseTimer" onclick="window.toggleCheatOption('pauseTimer')" class="p-3 bg-[#0f1923] border border-white/15 text-left cursor-pointer">
-            <div class="text-xs font-bold text-amber-300">PAUSE ROUND TIMER</div>
+            <div class="text-xs font-bold text-amber-300">라운드 시간 정지</div>
             <div class="text-[11px] text-slate-400 mt-0.5">라운드 제한시간 정지</div>
           </button>
           <button type="button" id="cheat-btn-infiniteCreds" onclick="window.toggleCheatOption('infiniteCreds')" class="p-3 bg-[#0f1923] border border-white/15 text-left cursor-pointer">
-            <div class="text-xs font-bold text-[#38e2c7]">INFINITE CREDITS (9,000)</div>
+            <div class="text-xs font-bold text-[#38e2c7]">무제한 크레드 (9,000)</div>
             <div class="text-[11px] text-slate-400 mt-0.5">보유 크레딧 9,000 고정</div>
           </button>
           <button type="button" id="cheat-btn-infiniteAmmo" onclick="window.toggleCheatOption('infiniteAmmo')" class="p-3 bg-[#0f1923] border border-white/15 text-left cursor-pointer">
-            <div class="text-xs font-bold text-[#38e2c7]">INFINITE MAGAZINE</div>
+            <div class="text-xs font-bold text-[#38e2c7]">무한 탄약</div>
             <div class="text-[11px] text-slate-400 mt-0.5">재장전 없이 무한 사격</div>
           </button>
           <button type="button" id="cheat-btn-buyAnywhere" onclick="window.toggleCheatOption('buyAnywhere')" class="p-3 bg-[#0f1923] border border-white/15 text-left cursor-pointer">
-            <div class="text-xs font-bold text-[#38e2c7]">BUY ANYWHERE / ANYTIME</div>
+            <div class="text-xs font-bold text-[#38e2c7]">언제 어디서나 구매</div>
             <div class="text-[11px] text-slate-400 mt-0.5">전투 중 언제든 상점 구매</div>
           </button>
           <button type="button" id="cheat-btn-invincible" onclick="window.toggleCheatOption('invincible')" class="p-3 bg-[#0f1923] border border-white/15 text-left cursor-pointer">
-            <div class="text-xs font-bold text-emerald-300">INVINCIBLE MODE</div>
+            <div class="text-xs font-bold text-emerald-300">무적 모드</div>
             <div class="text-[11px] text-slate-400 mt-0.5">피격 데미지 무시</div>
           </button>
           <button type="button" id="cheat-btn-autoRespawn" onclick="window.toggleCheatOption('autoRespawn')" class="p-3 bg-[#0f1923] border border-white/15 text-left cursor-pointer">
-            <div class="text-xs font-bold text-pink-300">AUTO RESPAWN</div>
+            <div class="text-xs font-bold text-pink-300">자동 부활</div>
             <div class="text-[11px] text-slate-400 mt-0.5">사망 시 즉시 체력 100 회복</div>
           </button>
         </div>
@@ -1099,7 +1101,7 @@
         const mobLayer = document.getElementById('mobile-controls');
         const toggleBtn = document.getElementById('hud-touch-toggle-btn');
         if (toggleBtn) {
-          toggleBtn.textContent = inputSystem.touchModeEnabled ? 'TOUCH UI: ON' : 'TOUCH UI: OFF';
+          toggleBtn.textContent = inputSystem.touchModeEnabled ? '터치 조작: 켜짐' : '터치 조작: 꺼짐';
           toggleBtn.className = inputSystem.touchModeEnabled
             ? 'val-cut-sm px-2.5 py-1 bg-[#38e2c7]/25 border border-[#38e2c7] text-[#38e2c7] font-num font-black text-[11px] cursor-pointer'
             : 'val-cut-sm px-2.5 py-1 bg-[#0f1923]/95 border border-white/25 text-white/60 font-num font-black text-[11px] cursor-pointer';
@@ -1947,26 +1949,26 @@
        * 5. FULL VALORANT WEAPON ROSTER & 4-SLOT PURE GUNPLAY LOADOUT
        * ========================================================================= */
       const WEAPON_CATALOG = {
-        knife:    { id: 'knife', slot: 'knife', name: 'MELEE KNIFE', cost: 0, headDmg: 150, bodyDmg: 50, fireRate: 0.42, equipTime: 0.6, magSize: 1, resSize: 0, spreadBase: 0, spreadMove: 0, recoilPitch: 0.01, auto: true, canScope: false, pellets: 1, range: 2.5, color: 0xf5c542 },        classic:  { id: 'classic', slot: 'secondary', name: 'CLASSIC', cost: 0, headDmg: 78, bodyDmg: 26, fireRate: 0.1481481, equipTime: 0.75, magSize: 12, resSize: 36, spreadBase: 0.004, spreadMove: 0.045, recoilPitch: 0.016, auto: false, canScope: false, pellets: 1, range: 220, color: 0x94a3b8 },
-        shorty:   { id: 'shorty', slot: 'secondary', name: 'SHORTY', cost: 300, headDmg: 22, bodyDmg: 11, fireRate: 0.3333333, equipTime: 0.75, magSize: 2, resSize: 6, spreadBase: 0.075, spreadMove: 0.09, recoilPitch: 0.045, auto: false, canScope: false, pellets: 15, range: 42, color: 0xf97316 },
-        frenzy:   { id: 'frenzy', slot: 'secondary', name: 'FRENZY', cost: 450, headDmg: 78, bodyDmg: 26, fireRate: 0.1, equipTime: 1, magSize: 13, resSize: 39, spreadBase: 0.012, spreadMove: 0.05, recoilPitch: 0.018, auto: true, canScope: false, pellets: 1, range: 220, color: 0xfacc15 },
-        ghost:    { id: 'ghost', slot: 'secondary', name: 'GHOST', cost: 500, headDmg: 105, bodyDmg: 30, fireRate: 0.1481481, equipTime: 0.75, magSize: 15, resSize: 45, spreadBase: 0.0025, spreadMove: 0.045, recoilPitch: 0.015, auto: false, canScope: false, pellets: 1, range: 220, color: 0x38e2c7 },
-        sheriff:  { id: 'sheriff', slot: 'secondary', name: 'SHERIFF', cost: 800, headDmg: 159.5, bodyDmg: 55, fireRate: 0.25, equipTime: 1, magSize: 6, resSize: 24, spreadBase: 0.0018, spreadMove: 0.08, recoilPitch: 0.045, auto: false, canScope: false, pellets: 1, range: 220, color: 0xfbbf24 },
-        stinger:  { id: 'stinger', slot: 'primary', name: 'STINGER', cost: 1100, headDmg: 67.5, bodyDmg: 27, fireRate: 0.0625, equipTime: 0.75, magSize: 20, resSize: 60, spreadBase: 0.014, spreadMove: 0.045, recoilPitch: 0.014, auto: true, canScope: true, pellets: 1, range: 220, color: 0xa855f7 },
-        spectre:  { id: 'spectre', slot: 'primary', name: 'SPECTRE', cost: 1600, headDmg: 78, bodyDmg: 26, fireRate: 0.0750019, equipTime: 0.75, magSize: 30, resSize: 90, spreadBase: 0.010, spreadMove: 0.042, recoilPitch: 0.013, auto: true, canScope: true, pellets: 1, range: 220, color: 0x38bdf8 },
-        bucky:    { id: 'bucky', slot: 'primary', name: 'BUCKY', cost: 850, headDmg: 34, bodyDmg: 17, fireRate: 0.9090909, equipTime: 1, magSize: 5, resSize: 10, spreadBase: 0.058, spreadMove: 0.085, recoilPitch: 0.05, auto: false, canScope: false, pellets: 15, range: 50, color: 0xfb923c },
-        judge:    { id: 'judge', slot: 'primary', name: 'JUDGE', cost: 1850, headDmg: 34, bodyDmg: 17, fireRate: 0.2857143, equipTime: 1, magSize: 7, resSize: 21, spreadBase: 0.062, spreadMove: 0.09, recoilPitch: 0.038, auto: true, canScope: false, pellets: 12, range: 52, color: 0xf97316 },
-        bulldog:  { id: 'bulldog', slot: 'primary', name: 'BULLDOG', cost: 2050, headDmg: 115.5, bodyDmg: 35, fireRate: 0.1, equipTime: 1, magSize: 24, resSize: 72, spreadBase: 0.0035, spreadMove: 0.08, recoilPitch: 0.019, auto: true, canScope: true, pellets: 1, range: 220, color: 0x34d399 },
-        guardian: { id: 'guardian', slot: 'primary', name: 'GUARDIAN', cost: 2250, headDmg: 195, bodyDmg: 65, fireRate: 0.1904762, equipTime: 1, magSize: 12, resSize: 36, spreadBase: 0.001, spreadMove: 0.09, recoilPitch: 0.034, auto: false, canScope: true, pellets: 1, range: 220, color: 0x60a5fa },
-        phantom:  { id: 'phantom', slot: 'primary', name: 'PHANTOM', cost: 2900, headDmg: 156, bodyDmg: 39, fireRate: 0.0909091, equipTime: 1, magSize: 30, resSize: 90, spreadBase: 0.0026, spreadMove: 0.09, recoilPitch: 0.018, auto: true, canScope: true, pellets: 1, range: 220, color: 0x38e2c7 },
-        vandal:   { id: 'vandal', slot: 'primary', name: 'VANDAL', cost: 2900, headDmg: 160, bodyDmg: 40, fireRate: 0.1025641, equipTime: 1, magSize: 25, resSize: 75, spreadBase: 0.0020, spreadMove: 0.10, recoilPitch: 0.024, auto: true, canScope: true, pellets: 1, range: 220, color: 0xff4655 },
-        marshal:  { id: 'marshal', slot: 'primary', name: 'MARSHAL', cost: 950, headDmg: 202, bodyDmg: 101, fireRate: 0.6666667, equipTime: 1.25, scopedInterval: 1/1.2, magSize: 5, resSize: 15, spreadBase: 0.0015, spreadMove: 0.11, recoilPitch: 0.055, auto: false, canScope: true, pellets: 1, range: 220, color: 0xa3e635 },
+        knife:    { id: 'knife', slot: 'knife', name: '근접 무기 칼', cost: 0, headDmg: 150, bodyDmg: 50, fireRate: 0.42, equipTime: 0.6, magSize: 1, resSize: 0, spreadBase: 0, spreadMove: 0, recoilPitch: 0.01, auto: true, canScope: false, pellets: 1, range: 2.5, color: 0xf5c542 },        classic:  { id: 'classic', slot: 'secondary', name: '클래식', cost: 0, headDmg: 78, bodyDmg: 26, fireRate: 0.1481481, equipTime: 0.75, magSize: 12, resSize: 36, spreadBase: 0.004, spreadMove: 0.045, recoilPitch: 0.016, auto: false, canScope: false, pellets: 1, range: 220, color: 0x94a3b8 },
+        shorty:   { id: 'shorty', slot: 'secondary', name: '쇼티', cost: 300, headDmg: 22, bodyDmg: 11, fireRate: 0.3333333, equipTime: 0.75, magSize: 2, resSize: 6, spreadBase: 0.075, spreadMove: 0.09, recoilPitch: 0.045, auto: false, canScope: false, pellets: 15, range: 42, color: 0xf97316 },
+        frenzy:   { id: 'frenzy', slot: 'secondary', name: '프렌지', cost: 450, headDmg: 78, bodyDmg: 26, fireRate: 0.1, equipTime: 1, magSize: 13, resSize: 39, spreadBase: 0.012, spreadMove: 0.05, recoilPitch: 0.018, auto: true, canScope: false, pellets: 1, range: 220, color: 0xfacc15 },
+        ghost:    { id: 'ghost', slot: 'secondary', name: '고스트', cost: 500, headDmg: 105, bodyDmg: 30, fireRate: 0.1481481, equipTime: 0.75, magSize: 15, resSize: 45, spreadBase: 0.0025, spreadMove: 0.045, recoilPitch: 0.015, auto: false, canScope: false, pellets: 1, range: 220, color: 0x38e2c7 },
+        sheriff:  { id: 'sheriff', slot: 'secondary', name: '셰리프', cost: 800, headDmg: 159.5, bodyDmg: 55, fireRate: 0.25, equipTime: 1, magSize: 6, resSize: 24, spreadBase: 0.0018, spreadMove: 0.08, recoilPitch: 0.045, auto: false, canScope: false, pellets: 1, range: 220, color: 0xfbbf24 },
+        stinger:  { id: 'stinger', slot: 'primary', name: '스팅어', cost: 1100, headDmg: 67.5, bodyDmg: 27, fireRate: 0.0625, equipTime: 0.75, magSize: 20, resSize: 60, spreadBase: 0.014, spreadMove: 0.045, recoilPitch: 0.014, auto: true, canScope: true, pellets: 1, range: 220, color: 0xa855f7 },
+        spectre:  { id: 'spectre', slot: 'primary', name: '스펙터', cost: 1600, headDmg: 78, bodyDmg: 26, fireRate: 0.0750019, equipTime: 0.75, magSize: 30, resSize: 90, spreadBase: 0.010, spreadMove: 0.042, recoilPitch: 0.013, auto: true, canScope: true, pellets: 1, range: 220, color: 0x38bdf8 },
+        bucky:    { id: 'bucky', slot: 'primary', name: '버키', cost: 850, headDmg: 34, bodyDmg: 17, fireRate: 0.9090909, equipTime: 1, magSize: 5, resSize: 10, spreadBase: 0.058, spreadMove: 0.085, recoilPitch: 0.05, auto: false, canScope: false, pellets: 15, range: 50, color: 0xfb923c },
+        judge:    { id: 'judge', slot: 'primary', name: '저지', cost: 1850, headDmg: 34, bodyDmg: 17, fireRate: 0.2857143, equipTime: 1, magSize: 7, resSize: 21, spreadBase: 0.062, spreadMove: 0.09, recoilPitch: 0.038, auto: true, canScope: false, pellets: 12, range: 52, color: 0xf97316 },
+        bulldog:  { id: 'bulldog', slot: 'primary', name: '불독', cost: 2050, headDmg: 115.5, bodyDmg: 35, fireRate: 0.1, equipTime: 1, magSize: 24, resSize: 72, spreadBase: 0.0035, spreadMove: 0.08, recoilPitch: 0.019, auto: true, canScope: true, pellets: 1, range: 220, color: 0x34d399 },
+        guardian: { id: 'guardian', slot: 'primary', name: '가디언', cost: 2250, headDmg: 195, bodyDmg: 65, fireRate: 0.1904762, equipTime: 1, magSize: 12, resSize: 36, spreadBase: 0.001, spreadMove: 0.09, recoilPitch: 0.034, auto: false, canScope: true, pellets: 1, range: 220, color: 0x60a5fa },
+        phantom:  { id: 'phantom', slot: 'primary', name: '팬텀', cost: 2900, headDmg: 156, bodyDmg: 39, fireRate: 0.0909091, equipTime: 1, magSize: 30, resSize: 90, spreadBase: 0.0026, spreadMove: 0.09, recoilPitch: 0.018, auto: true, canScope: true, pellets: 1, range: 220, color: 0x38e2c7 },
+        vandal:   { id: 'vandal', slot: 'primary', name: '밴달', cost: 2900, headDmg: 160, bodyDmg: 40, fireRate: 0.1025641, equipTime: 1, magSize: 25, resSize: 75, spreadBase: 0.0020, spreadMove: 0.10, recoilPitch: 0.024, auto: true, canScope: true, pellets: 1, range: 220, color: 0xff4655 },
+        marshal:  { id: 'marshal', slot: 'primary', name: '마샬', cost: 950, headDmg: 202, bodyDmg: 101, fireRate: 0.6666667, equipTime: 1.25, scopedInterval: 1/1.2, magSize: 5, resSize: 15, spreadBase: 0.0015, spreadMove: 0.11, recoilPitch: 0.055, auto: false, canScope: true, pellets: 1, range: 220, color: 0xa3e635 },
         outlaw:   { id: 'outlaw', slot: 'primary', name: 'OUTLAW', cost: 2400, headDmg: 238, bodyDmg: 140, fireRate: 0.3636364, equipTime: 1.25, magSize: 2, resSize: 10, spreadBase: 0.0008, spreadMove: 0.13, recoilPitch: 0.065, auto: false, canScope: true, pellets: 1, range: 220, color: 0xc084fc },
         bandit: { id: "bandit", reloadTime: 1.5, slot: "secondary", name: "BANDIT", cost: 600, headDmg: 152, bodyDmg: 39, fireRate: 0.19607843137254904, magSize: 8, resSize: 24, spreadBase: 0.0025, spreadMove: 0.045, recoilPitch: 0.015, auto: false, canScope: false, pellets: 1, range: 220, color: 8952234, equipTime: 0.75 },
         warden: { id: "warden", reloadTime: 2.5, slot: "primary", name: "WARDEN", cost: 2900, headDmg: 200, bodyDmg: 50, fireRate: 0.15384615384615385, magSize: 18, resSize: 36, spreadBase: 0.002, spreadMove: 0.1, recoilPitch: 0.024, auto: true, canScope: true, pellets: 1, range: 220, color: 8952234, equipTime: 1 },
         ares: { id: "ares", reloadTime: 3.25, slot: "primary", name: "ARES", cost: 1600, headDmg: 75, bodyDmg: 30, fireRate: 0.07692307692307693, magSize: 50, resSize: 100, spreadBase: 0.002, spreadMove: 0.1, recoilPitch: 0.024, auto: true, canScope: true, pellets: 1, range: 220, color: 8952234, equipTime: 1.25 },
         odin: { id: "odin", reloadTime: 5, slot: "primary", name: "ODIN", cost: 3200, headDmg: 95, bodyDmg: 38, fireRate: 0.08333333333333333, magSize: 100, resSize: 200, spreadBase: 0.002, spreadMove: 0.1, recoilPitch: 0.024, auto: true, canScope: true, pellets: 1, range: 220, color: 8952234, equipTime: 1.25, scopedInterval: 0.06410256410256411 },
-        operator: { id: 'operator', slot: 'primary', name: 'OPERATOR', cost: 4700, headDmg: 255, bodyDmg: 150, fireRate: 1.6666667, equipTime: 1.5, magSize: 5, resSize: 10, spreadBase: 0.0004, spreadMove: 0.15, recoilPitch: 0.08, auto: false, canScope: true, pellets: 1, range: 220, color: 0xeab308 }
+        operator: { id: 'operator', slot: 'primary', name: '오퍼레이터', cost: 4700, headDmg: 255, bodyDmg: 150, fireRate: 1.6666667, equipTime: 1.5, magSize: 5, resSize: 10, spreadBase: 0.0004, spreadMove: 0.15, recoilPitch: 0.08, auto: false, canScope: true, pellets: 1, range: 220, color: 0xeab308 }
       };
 
       function cloneWeaponInstance(id) {
@@ -2087,18 +2089,29 @@
         else{player[w.slot]=null;window.switchWeaponSlot(player.secondary?'secondary':player.primary?'primary':'knife');}
       }
       function pickupLoot(){
-        for(const {item} of loot.values()){
-          if(Math.hypot(item.x-player.pos.x,item.y-player.footY,item.z-player.pos.z)>2.2)continue;
-          if(item.id==='spike'?roomState.playerSide!=='attack':player[WEAPON_CATALOG[item.id].slot])continue;
-          if(window.MP.active)window.MP.send({type:'pickup_item',key:item.key});
-          else{
-            if(item.id==='spike')offlineCarrier=true;
-            else player[WEAPON_CATALOG[item.id].slot]=item.saved;
-            clearLoot(item.key);updateHUD();
-          }
-          return true;
+        if(!player.alive || defusing() || !['buy','combat','planted'].includes(matchState.phase))return false;
+        let item=null,nearest=2.2;
+        for(const entry of loot.values()){
+          const d=entry.item;
+          if(d.id==='spike' && roomState.playerSide!=='attack')continue;
+          const distance=Math.hypot(d.x-player.pos.x,d.y-player.footY,d.z-player.pos.z);
+          if(distance<=nearest){nearest=distance;item=d;}
         }
-        return false;
+        if(!item)return false;
+        if(window.MP.active)window.MP.send({type:'pickup_item',key:item.key});
+        else{
+          if(item.id==='spike')offlineCarrier=true;
+          else{
+            const slot=WEAPON_CATALOG[item.id].slot,old=player[slot];
+            if(old)putLoot({key:'local-'+(++dropSerial),id:old.id,x:player.pos.x,y:player.footY,z:player.pos.z,yaw:player.yaw,saved:old});
+            player.reloadId=(player.reloadId||0)+1;player.reloading=false;player.pendingReloadWeapon=null;viewmodel.stopReload();
+            player[slot]=item.saved||cloneWeaponInstance(item.id);
+            delete localShopReceipts[slot];
+            window.switchWeaponSlot(slot);
+          }
+          clearLoot(item.key);updateHUD();
+        }
+        return true;
       }
       const matchState = {
         inMatch: false,
@@ -2433,7 +2446,7 @@
         if(online){
           rows=mp.state.players.map(p=>({id:p.id,name:p.name,ally:p.team===roomState.playerSide,me:p.id===mp.myId,alive:p.alive,credits:p.credits,loadout:p.inventory?.primary||p.inventory?.secondary||p.weapon,ping:p.id===mp.myId?mp.rtt:null,k:p.kills,d:p.deaths,a:p.assists}));
         }else{
-          rows=[{id:'YOU',name:'YOU',ally:true,me:true,alive:player.alive,credits:player.credits,loadout:player.primary?.id||player.secondary?.id},...bots.filter(b=>activeMap!=='range').map(b=>({id:b.name,name:b.name,ally:b.team==='ally',alive:b.alive,credits:b.credits,loadout:b.weapon?.id}))];
+          rows=[{id:'나',name:'나',ally:true,me:true,alive:player.alive,credits:player.credits,loadout:player.primary?.id||player.secondary?.id},...bots.filter(b=>activeMap!=='range').map(b=>({id:b.name,name:b.name,ally:b.team==='ally',alive:b.alive,credits:b.credits,loadout:b.weapon?.id}))];
         }
         const clean=v=>Number.isFinite(v)?String(Math.round(v)):'—';
         const data=rows.map(p=>{const stat=scoreboardStat(p.id);return {...p,k:p.k??stat.k,d:p.d??stat.d};});
@@ -2445,7 +2458,7 @@
         document.getElementById('msb-round').textContent=matchState.round;
         for(const [ally,id] of [[true,'msb-ally'],[false,'msb-enemy']]){
           const section=document.getElementById(id), team=data.filter(p=>p.ally===ally).sort((a,b)=>b.k-a.k||a.d-b.d||a.name.localeCompare(b.name));
-          const label=document.createElement('div');label.className='msb-team-label';label.textContent=ally?'ALLY TEAM':'ENEMY TEAM';
+          const label=document.createElement('div');label.className='msb-team-label';label.textContent=ally?'아군':'적군';
           const frag=document.createDocumentFragment();frag.appendChild(label);
           for(const p of team){
             const row=document.createElement('div');row.className='msb-grid msb-row'+(p.me?' me':'')+(p.alive===false?' dead':'');
@@ -2513,7 +2526,7 @@
         player.alive=true;
         resetADS();resetCameraEffects();GameMovement.reset(player);resetMovementAudio(player);
         isSpikeKeyHeld=false;isKeyboardFiring=false;isMouseFiring=false;isLeftTouchFiring=false;isRightTouchFiring=false;
-        document.getElementById('hud-phase-badge').textContent='MATCH COMPLETE · 자유 이동 / 대기실 버튼으로 종료';
+        document.getElementById('hud-phase-badge').textContent='대전 종료 · 자유 이동 / 대기실 버튼으로 종료';
         document.getElementById('hud-timer-text').textContent='END';
         document.getElementById('hud-context-prompt').classList.add('hidden');
         document.getElementById('spike-action-box').classList.add('hidden');
@@ -2703,8 +2716,8 @@
           const z=spawnZ-1.25;
           putLoot({key:'spawn-spike',id:'spike',x,z,y:AscentGround.height(activeMap,x,z)},false);
         }
-        document.getElementById('hud-phase-badge').textContent = 'BUY PHASE — [SHOP] 버튼 또는 [B] 키로 무기를 구매하십시오';
-        showRoundBanner(`${activeMap.toUpperCase()} // ROUND ${matchState.round}`, 'BUY PHASE');
+        document.getElementById('hud-phase-badge').textContent = '구매 단계 — [SHOP] 버튼 또는 [B] 키로 무기를 구매하십시오';
+        showRoundBanner(`${activeMap.toUpperCase()} // 라운드 ${matchState.round}`, '구매 단계');
         updateHUD();
       }
 
@@ -2725,7 +2738,7 @@
       function updateMouseLockUI() {
         const btn=document.getElementById('hud-touch-toggle-btn');
         if(!btn||inputSystem.touchModeEnabled)return;
-        btn.textContent=document.pointerLockElement===canvas?'TOUCH UI: OFF':'TOUCH UI: OFF · 화면 클릭';
+        btn.textContent=document.pointerLockElement===canvas?'터치 조작: 꺼짐':'터치 조작: 꺼짐 · 화면 클릭';
         btn.title=document.pointerLockElement===canvas?'ESC: 마우스 잠금 해제':'게임 화면을 클릭하면 마우스 잠금';
       }
       function tryLockPointerSafe() {
@@ -2748,19 +2761,19 @@
         const allowed = activeMap!=='range' && roomState.allowCheats;
         const createBtn = document.getElementById('create-cheat-toggle-btn');
         if (createBtn) {
-          createBtn.textContent = allowed ? 'CHEATS: ON' : 'CHEATS: OFF';
+          createBtn.textContent = allowed ? '치트: 켜짐' : '치트: 꺼짐';
           createBtn.className = 'menu-cheat-toggle';
           createBtn.style.opacity = allowed ? '1' : '0.55';
         }
         const lobbyBtn = document.getElementById('lobby-cheat-perm-btn');
         if (lobbyBtn) {
-          lobbyBtn.textContent = allowed ? 'HOST CHEATS: ON' : 'HOST CHEATS: OFF';
+          lobbyBtn.textContent = allowed ? '방장 치트: 켜짐' : '방장 치트: 꺼짐';
           lobbyBtn.className = 'room-cheat-btn';
           lobbyBtn.style.opacity = allowed ? '1' : '0.65';
         }
         const modalBtn = document.getElementById('modal-host-cheat-btn');
         if (modalBtn) {
-          modalBtn.textContent = allowed ? 'HOST CHEATS: ON' : 'HOST CHEATS: OFF';
+          modalBtn.textContent = allowed ? '방장 치트: 켜짐' : '방장 치트: 꺼짐';
           modalBtn.className = allowed
             ? 'px-3.5 py-2 bg-emerald-500 text-slate-950 font-black text-xs cursor-pointer'
             : 'px-3.5 py-2 bg-rose-600 text-white font-black text-xs cursor-pointer';
@@ -2852,14 +2865,14 @@
         const defBtn = document.getElementById('btn-team-defense');
         if (atkBtn && defBtn) {
           if (roomState.playerSide === 'attack') {
-            atkBtn.textContent = 'JOINED';
+            atkBtn.textContent = '참가 중';
             atkBtn.className = 'px-3 py-1 bg-[#ff4655] text-white text-xs font-bold cursor-pointer';
-            defBtn.textContent = 'SWITCH SIDE';
+            defBtn.textContent = '팀 변경';
             defBtn.className = 'px-3 py-1 bg-slate-800 text-slate-300 text-xs font-bold cursor-pointer';
           } else {
-            defBtn.textContent = 'JOINED';
+            defBtn.textContent = '참가 중';
             defBtn.className = 'px-3 py-1 bg-[#38e2c7] text-[#0f1923] text-xs font-bold cursor-pointer';
-            atkBtn.textContent = 'SWITCH SIDE';
+            atkBtn.textContent = '팀 변경';
             atkBtn.className = 'px-3 py-1 bg-slate-800 text-slate-300 text-xs font-bold cursor-pointer';
           }
         }
@@ -3164,7 +3177,7 @@
         }
         const canBuy = activeMap==='range' || matchState.phase === 'buy' || (roomState.allowCheats && cheats.buyAnywhere);
         if (!canBuy) {
-          showRoundBanner('BUY PHASE ENDED', '구매 페이즈에만 상점을 열 수 있습니다');
+          showRoundBanner('구매 단계 종료', '구매 페이즈에만 상점을 열 수 있습니다');
           return;
         }
         if (document.pointerLockElement) {
@@ -3202,17 +3215,17 @@
           const cost = itemId === 'light_shield' ? 400 : 1000;
           const targetArmor = itemId === 'light_shield' ? 25 : 50;
           if (player.armor >= targetArmor) {
-            if (fb) fb.textContent = 'ALREADY EQUIPPED EQUAL OR STRONGER SHIELD.';
+            if (fb) fb.textContent = '같거나 더 강한 보호막을 착용하고 있습니다.';
             return;
           }
           if (player.credits < cost) {
-            if (fb) fb.textContent = 'NOT ENOUGH CREDITS.';
+            if (fb) fb.textContent = '크레드가 부족합니다.';
             return;
           }
           player.credits -= cost;
           player.armor = targetArmor;
   
-          if (fb) fb.textContent = `EQUIPPED ${itemId === 'light_shield' ? 'LIGHT SHIELD (+25)' : 'HEAVY SHIELD (+50)'}.`;
+          if (fb) fb.textContent = `EQUIPPED ${itemId === 'light_shield' ? '경형 보호막 (+25)' : '중형 보호막 (+50)'}.`;
           updateHUD();
           return;
         }
@@ -3220,7 +3233,7 @@
         const spec = WEAPON_CATALOG[itemId];
         if (!spec) return;
         if (player.credits < spec.cost) {
-          if (fb) fb.textContent = 'NOT ENOUGH CREDITS.';
+          if (fb) fb.textContent = '크레드가 부족합니다.';
           return;
         }
         player.credits -= spec.cost;
@@ -3281,7 +3294,7 @@
         if (!roomState.allowCheats) return;
         roomState.playerSide = roomState.playerSide === 'attack' ? 'defense' : 'attack';
         document.getElementById('cheat-modal').classList.add('hidden');
-        showRoundBanner('HOST CHEAT', 'SIDES SWAPPED');
+        showRoundBanner('방장 CHEAT', 'SIDES SWAPPED');
         startNewRound();
       };
 
@@ -3308,11 +3321,11 @@
         if (winnerTeam === 'ally') {
           matchState.allyScore++;
           player.credits = Math.min(9000, player.credits + 3000);
-          showRoundBanner(reasonText, 'ROUND WON // ALLY VICTORY');
+          showRoundBanner(reasonText, '라운드 승리');
         } else {
           matchState.enemyScore++;
           player.credits = Math.min(9000, player.credits + 1900);
-          showRoundBanner(reasonText, 'ROUND LOST // ENEMY VICTORY');
+          showRoundBanner(reasonText, '라운드 패배');
         }
         updateHUD();
 
@@ -3322,7 +3335,7 @@
           if(!matchState.inMatch||window.MP.active||matchState.phase!=='round_end')return;
           if (matchState.allyScore >= roomState.winRounds || matchState.enemyScore >= roomState.winRounds) {
             const wonMatch = matchState.allyScore >= roomState.winRounds;
-            showRoundBanner('MATCH COMPLETE', wonMatch ? 'VICTORY // MATCH WON' : 'DEFEAT // MATCH OVER');
+            showRoundBanner('대전 종료', wonMatch ? '대전 승리' : '대전 패배');
             enterPostMatch();
             return;
           } else {
@@ -3333,7 +3346,7 @@
               player.credits = 800;
               player.primary = null;
               player.secondary = cloneWeaponInstance('classic');
-              showRoundBanner('HALFTIME // SIDE SWAP', 'SWITCHING SIDES');
+              showRoundBanner('전반 종료 · 공수 교대', '진영 교대 중');
             }
           }
           startNewRound();
@@ -3824,7 +3837,7 @@
         const btn = document.getElementById('mob-walk-btn');
         const st = document.getElementById('mob-walk-state');
         if (btn) btn.classList.toggle('vm-btn-active-state', player.walkToggle);
-        if (st) st.textContent = player.walkToggle ? 'LOCK' : 'OFF';
+        if (st) st.textContent = player.walkToggle ? 'LOCK' : '꺼짐';
       };
 
       window.triggerJump = function () {
@@ -3857,7 +3870,7 @@
           nearest.switchMesh.material.color.setHex(nearest.closed ? 0xff4655 : 0x38e2c7);
         }
 
-        showRoundBanner('ASCENT DOOR SWITCH', `${nearest.name} // ${nearest.closed ? 'CLOSED' : 'OPEN'}`);
+        showRoundBanner('ASCENT 문 SWITCH', `${nearest.name} // ${nearest.closed ? 'CLOSED' : 'OPEN'}`);
         return true;
       };
 
@@ -4059,7 +4072,9 @@
       window.addEventListener('mouseup', e=>{
         if(e.button===0)isMouseFiring=false;
       });
-      canvas.addEventListener('contextmenu', e=>e.preventDefault());
+      document.addEventListener('contextmenu',e=>{
+          if(!e.target.closest?.('input, textarea, [contenteditable="true"]'))e.preventDefault();
+        },true);
 
       /* --- FLOATING LEFT-HALF JOYSTICK + INDEPENDENT RIGHT-HALF AIM --- */
       const joyState = { active: false, pointerId: null, dx: 0, dy: 0, distRatio: 0, cx: 0, cy: 0 };
@@ -4855,7 +4870,7 @@
                       if (roomState.allowCheats && cheats.autoRespawn) {
                         player.hp = 100;
                         player.armor = 50;
-                        showRoundBanner('AUTO RESPAWN', 'RESPAWN CHEAT TRIGGERED');
+                        showRoundBanner('자동 부활', 'RESPAWN CHEAT TRIGGERED');
                       } else {
                         player.hp = 0;
                         player.alive = false;
@@ -4913,8 +4928,8 @@
               barrierGroup.visible = false;
               const skipBtn = document.getElementById('hud-skip-buy-btn');
               if (skipBtn) skipBtn.classList.add('hidden');
-              document.getElementById('hud-phase-badge').textContent = 'COMBAT PHASE — A / B 사이트에 스파이크를 설치하거나 적을 섬멸하십시오';
-              showRoundBanner('BARRIERS DROPPED', 'COMBAT PHASE START');
+              document.getElementById('hud-phase-badge').textContent = '전투 단계 — A / B 사이트에 스파이크를 설치하거나 적을 섬멸하십시오';
+              showRoundBanner('BARRIERS DROPPED', '전투 시작');
             } else if (matchState.phase === 'combat') {
               const defWin = roomState.playerSide === 'defense' ? 'ally' : 'enemy';
               endRound(defWin, 'TIME EXPIRED');
@@ -4939,11 +4954,11 @@
 
         const isAtk = roomState.playerSide === 'attack';
         if (player.alive && matchState.phase === 'combat' && isAtk && inSite) {
-          promptEl.textContent = `[SPIKE] 버튼 또는 [4/F] 키를 길게 눌러 ${inSite} 사이트에 스파이크 설치 (4초)`;
+          promptEl.textContent = `[스파이크] 버튼 또는 [4/F] 키를 길게 눌러 ${inSite} 사이트에 스파이크 설치 (4초)`;
           promptEl.classList.remove('hidden');
           if (planting()) {
             boxEl.classList.remove('hidden');
-            lblEl.textContent = `PLANTING SPIKE (${inSite} SITE)...`;
+            lblEl.textContent = `스파이크 설치 중 (${inSite} SITE)...`;
             matchState.plantProgress += dt / 4.0;
             const pct = Math.min(100, Math.floor(matchState.plantProgress * 100));
             barEl.style.width = pct + '%';
@@ -4958,8 +4973,8 @@
               spikeMesh.visible = true;
               player.credits = Math.min(9000, player.credits + 300);
               boxEl.classList.add('hidden');
-              document.getElementById('hud-phase-badge').textContent = `SPIKE PLANTED (${inSite} SITE) — 45초 후 폭발`;
-              showRoundBanner(`SITE ${inSite} COMPROMISED`, 'SPIKE PLANTED');
+              document.getElementById('hud-phase-badge').textContent = `스파이크 설치 완료 (${inSite} SITE) — 45초 후 폭발`;
+              showRoundBanner(`SITE ${inSite} COMPROMISED`, '스파이크 설치 완료');
               updateHUD();
             }
           } else {
@@ -4967,11 +4982,11 @@
             boxEl.classList.add('hidden');
           }
         } else if (player.alive && matchState.phase === 'planted' && !isAtk && insideDefuseRing()) {
-          promptEl.textContent = '[SPIKE] 버튼 또는 [4] 키를 길게 눌러 스파이크 해체 (7초 • 50% 반해체 저장)';
+          promptEl.textContent = '[스파이크] 버튼 또는 [4] 키를 길게 눌러 스파이크 해체 (7초 • 50% 반해체 저장)';
           promptEl.classList.remove('hidden');
           if (defusing()) {
             boxEl.classList.remove('hidden');
-            lblEl.textContent = 'DEFUSING SPIKE...';
+            lblEl.textContent = '스파이크 해체 중…';
             matchState.defuseProgress += dt / 7.0;
             if (matchState.defuseProgress >= 0.5) matchState.halfDefuseReached = true;
             const pct = Math.min(100, Math.floor(matchState.defuseProgress * 100));

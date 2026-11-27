@@ -23,7 +23,7 @@ function spawn(p, idx, map, keepWeapons = false) {
   p.yaw = atk ? 0 : Math.PI;
   p.pitch = 0;
   p.hp = 100;
-  p.armor = 0;
+  if (!keepWeapons) p.armor = 0;
   p.alive = true;
   if (!keepWeapons) {
     p.aiming=false;
@@ -403,12 +403,22 @@ function receive(c,m) {
       p.mag=p.ammo[p.weapon]?.mag??1;p.reserve=p.ammo[p.weapon]?.reserve??0;
       send(c,{type:'drop_loadout',inventory:p.inventory,weapon:p.weapon,mag:p.mag,reserve:p.reserve});
     }
-  } else if(m.type==='pickup_item' && p.alive){
+  } else if(m.type==='pickup_item' && p.alive && ['combat','buy','planted'].includes(r.phase) && !defusing(r,p) && !planting(r,p)){
     const item=r.drops?.find(d=>d.key===m.key);
     if(!item||Math.hypot(item.x-p.x,item.y-p.footY,item.z-p.z)>2.2)return;
     if(item.id==='spike'){if(p.team!=='attack'||r.carrier||r.spike)return;r.carrier=p.id;}
-    else{const slot=catalog[item.id].slot;if(p.inventory[slot])return;
-      p.inventory[slot]=item.id;p.ammo[item.id]={mag:item.mag,reserve:item.reserve};
+    else{
+      const slot=catalog[item.id].slot, old=p.inventory[slot];
+      if(old){
+        const ammo=old===p.weapon?p:p.ammo[old];
+        r.drops.push({key:'throw-'+(++r.dropSeq),id:old,x:p.x,y:p.footY,z:p.z,yaw:p.yaw,mag:ammo.mag,reserve:ammo.reserve});
+        delete p.ammo[old];
+      }
+      cancelEquipmentReload(p);
+      delete p.shopReceipts?.[slot];
+      p.inventory[slot]=p.weapon=item.id;
+      p.mag=item.mag;p.reserve=item.reserve;p.ammo[item.id]={mag:p.mag,reserve:p.reserve};
+      p.spikeSelected=false;p.aiming=false;p.bulldogCount=0;p.lastShot=0;p.lastInterval=0;p.equipUntil=now+1000*catalog[item.id].equipTime;
       send(c,{type:'drop_loadout',inventory:p.inventory,weapon:p.weapon,mag:p.mag,reserve:p.reserve});}
     r.drops=r.drops.filter(d=>d!==item);
   } else if(m.type==='equip' && r.started) {
