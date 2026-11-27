@@ -547,6 +547,8 @@
     };
     api.preloadJobs=()=>[...Object.keys(files),...Object.keys(heldOnlyArchives)].map(id=>()=>getModel(id));
     // Cosmetic scene props reuse existing resources and never affect simulation.
+    // Canon model lengths in world metres; newer guns use category estimates.
+    const droppedLength={"classic":0.30920000000000003,"shorty":0.69,"frenzy":0.4089,"ghost":0.654,"bandit":0.37,"sheriff":0.4253,"stinger":0.8449,"spectre":0.9802,"bucky":1.23,"judge":0.9822,"bulldog":0.8951,"guardian":1.3955000000000002,"warden":1.33,"phantom":1.2111,"vandal":1.2799,"marshal":1.5405000000000002,"outlaw":1.59,"operator":1.7225,"ares":1.5528,"odin":1.7404};
     api.createGroundDisplay=(id,group)=>{
       if(!Object.hasOwn(referenceImages,id)||!sourceSize[id])return;
       let active=true, sprite=null, clone=null;
@@ -556,14 +558,20 @@
         tex.encoding=T.sRGBEncoding;
       },undefined,()=>{});
       const material=new T.MeshBasicMaterial({map:texture,transparent:true,depthWrite:false,side:T.DoubleSide});
-      const geometry=new T.PlaneGeometry(.85,.85*h/w);
+      const length=droppedLength[id]??.85;
+      const geometry=new T.PlaneGeometry(length,length*h/w);
       sprite=new T.Mesh(geometry,material);sprite.rotation.x=-Math.PI/2;
       group.add(sprite);
-      if(files[id])getModel(id).then(asset=>{
+      if(hasHeldModel(id))getModel(id).then(asset=>{
         if(!active||!asset)return;
         // Rotate the display as a whole so the broad side faces up.
         const side=new T.Group();side.rotation.z=Math.PI/2;
-        clone=asset.clone(true);side.add(clone);group.add(side);
+        clone=asset.clone(true);side.add(clone);
+        const size=new T.Box3().setFromObject(side).getSize(new T.Vector3());
+        const extent=Math.max(size.x,size.z);
+        if(!(extent>0) || !Number.isFinite(extent))return;
+        side.scale.setScalar(length/extent);
+        group.add(side);
         group.updateMatrixWorld(true);
         const bounds=new T.Box3().setFromObject(side);
         if(!Number.isFinite(bounds.min.y)){group.remove(side);return;}
