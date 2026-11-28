@@ -898,7 +898,7 @@
       }
       relaxHand(leftHand,Math.max(travel*.66,.18*inspect*offGun));
       if(activeEdits()){
-        leftHand.visible ||= showSupport||selected==='classic';
+        leftHand.visible ||= showSupport||heldPoses.has(selected);
         editHand(rightHand,'handL');
         editHand(leftHand,'handR');
         editWeapon();
@@ -980,8 +980,9 @@
       if(!hasHeldModel(id))return;
       getModel(id).then(asset=>{
         if(!asset||selected!==id)return;
-        model=id==='knife'||id==='classic'||previewEdits?asset.clone(true):asset;
-        if(model!==asset)model.userData=asset.userData;
+        // Keep the cached model intact if a held pose is registered after equip.
+        model=asset.clone(true);
+        model.userData=asset.userData;
         if(id==='knife'){
           model.rotateOnWorldAxis(screenAxis,Math.PI);
         }

@@ -28,7 +28,7 @@
   <script src="crosshair-profile.js"></script>
   <script src="crosshair-ui.js" defer></script>
   <script src="ads-system.js?v=armory20"></script>
-  <script src="weapon-viewmodels.js?v=classic-pose19"></script>
+  <script src="weapon-viewmodels.js?v=shorty-pose20"></script>
 
   <style>
     :root {
@@ -2271,7 +2271,24 @@ window.setModeMaps=function(mode,select,wanted){
         Thumb1R:[.022,-.020,.020,-9,78,20,1],
         Thumb2R:[-.002,.002,-.016,-17,-17,63,1]
       };
-      const weaponPartDefaults={knife:knifePartDefaults,classic:classicPartDefaults};
+      const shortyPartDefaults={
+        forearmL:[0,-.018,0,0,0,0,1],
+        forearmR:[-.031,.002,-.047,-56,-3,-36,.73],
+        handR:[-.262,.130,.186,1,-9,54,1],
+        weapon:[.206,.090,.260,5,-15,0,1.04],
+        handL:[-.300,.123,.172,0,0,-69,1],
+        Thumb1L:[0,0,0,0,0,-7,1],
+        Index1L:[0,0,0,9,-1,-9,1],
+        Thumb2L:[0,0,0,0,0,7,1],
+        Thumb1R:[-.007,-.007,.016,-34,-11,21,1],
+        Index1R:[0,0,0,0,0,60,1],
+        Middle1R:[0,0,0,0,0,64,1],
+        Ring1L:[0,0,0,0,0,0,1],
+        Ring1R:[0,0,0,0,0,59,1],
+        Pinky1R:[0,0,0,0,0,66,1],
+        Thumb2R:[0,-.002,.009,42,63,-34,1]
+      };
+      const weaponPartDefaults={knife:knifePartDefaults,classic:classicPartDefaults,shorty:shortyPartDefaults};
       function buildFirstPersonHands(asset,settings=knifeGripDefaults,sides=['L','R'],adjustments={}) {
         return sides.map(side=>{
           const posed=THREE.SkeletonUtils.clone(asset.scene);
@@ -5963,10 +5980,12 @@ window.setModeMaps=function(mode,select,wanted){
           if(!asset)return;
           const [right,left]=buildFirstPersonHands(asset);
           const [knifeRight]=buildFirstPersonHands(asset,knifeGripDefaults,['L'],knifePartDefaults);
-          const classicHands=buildFirstPersonHands(asset,knifeGripDefaults,['L','R'],classicPartDefaults);
           viewmodel.setHands?.(right,left);
           viewmodel.setHeldPose?.('knife',knifePartDefaults,[knifeRight,left]);
-          viewmodel.setHeldPose?.('classic',classicPartDefaults,classicHands);
+          for(const id of ['classic','shorty']){
+            const parts=weaponPartDefaults[id];
+            viewmodel.setHeldPose?.(id,parts,buildFirstPersonHands(asset,knifeGripDefaults,['L','R'],parts));
+          }
         }).catch(error=>console.warn('First-person hands unavailable',error));
       }, {once:true});
       let startupStarted=false;
