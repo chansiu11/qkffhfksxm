@@ -28,7 +28,7 @@
   <script src="crosshair-profile.js"></script>
   <script src="crosshair-ui.js" defer></script>
   <script src="ads-system.js?v=armory20"></script>
-  <script src="weapon-viewmodels.js?v=knife-pose18"></script>
+  <script src="weapon-viewmodels.js?v=classic-pose19"></script>
 
   <style>
     :root {
@@ -2258,6 +2258,20 @@ window.setModeMaps=function(mode,select,wanted){
         forearmR:[.002,.025,.004,48,0,0,1],
         weapon:[0,0,0,-26,0,0,1]
       };
+      const classicPartDefaults={
+        weapon:[0,.128,.114,5,-16,0,1],
+        handR:[-.199,.186,.141,12,38,-74,1.5],
+        handL:[-.224,.199,.020,-8,-7,-59,1.5],
+        Thumb1L:[.013,-.007,0,8,-9,-15,1],
+        Thumb2L:[0,0,0,-1,-52,-39,1],
+        Index1L:[0,0,0,0,27,-12,1],
+        Index2L:[0,0,0,0,4,30,1],
+        forearmL:[-.031,.036,.007,89,-36,27,.9],
+        forearmR:[.049,.022,.018,97,15,-24,.63],
+        Thumb1R:[.022,-.020,.020,-9,78,20,1],
+        Thumb2R:[-.002,.002,-.016,-17,-17,63,1]
+      };
+      const weaponPartDefaults={knife:knifePartDefaults,classic:classicPartDefaults};
       function buildFirstPersonHands(asset,settings=knifeGripDefaults,sides=['L','R'],adjustments={}) {
         return sides.map(side=>{
           const posed=THREE.SkeletonUtils.clone(asset.scene);
@@ -5761,10 +5775,10 @@ window.setModeMaps=function(mode,select,wanted){
         const weaponIds=['knife','classic','shorty','frenzy','ghost','bandit','sheriff'].filter(id=>jobs.has(id));
         for(const id of weaponIds)weaponSelect.append(new Option(WEAPON_CATALOG[id].name,id));
         const drafts=new Map(weaponIds.map(id=>[id,{
-          index:{...knifeGripDefaults},parts:id==='knife'?structuredClone(knifePartDefaults):{}
+          index:{...knifeGripDefaults},parts:structuredClone(weaponPartDefaults[id]??{})
         }]));
         let weapon='knife', {index:settings,parts:edits}=drafts.get(weapon);
-        const defaultParts=()=>weapon==='knife'?knifePartDefaults:{};
+        const defaultParts=()=>weaponPartDefaults[weapon]??{};
         const neutral=[0,0,0,0,0,0,1];
         const partFields=[];
         function addParts(label,entries){
@@ -5949,8 +5963,10 @@ window.setModeMaps=function(mode,select,wanted){
           if(!asset)return;
           const [right,left]=buildFirstPersonHands(asset);
           const [knifeRight]=buildFirstPersonHands(asset,knifeGripDefaults,['L'],knifePartDefaults);
+          const classicHands=buildFirstPersonHands(asset,knifeGripDefaults,['L','R'],classicPartDefaults);
           viewmodel.setHands?.(right,left);
-          viewmodel.setKnifePose?.(knifePartDefaults,knifeRight);
+          viewmodel.setHeldPose?.('knife',knifePartDefaults,[knifeRight,left]);
+          viewmodel.setHeldPose?.('classic',classicPartDefaults,classicHands);
         }).catch(error=>console.warn('First-person hands unavailable',error));
       }, {once:true});
       let startupStarted=false;

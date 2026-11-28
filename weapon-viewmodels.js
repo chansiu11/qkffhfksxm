@@ -630,13 +630,13 @@
     const armStretch=new T.Matrix4();
     const editMove=new T.Vector3(),editTurn=new T.Quaternion(),editAngles=new T.Euler(),editMatrix=new T.Matrix4();
     const editScale=new T.Vector3(1,1,1),editPivot=new T.Vector3(),editWrist=new T.Vector3();
-    let knifeEdits, modelParts, knifeRightHand, defaultHands, previewEdits, showSupport;
+    const heldPoses=new Map();
+    let modelParts, defaultHands, previewEdits, showSupport;
     api.setPreviewEdits=(edits,support=false)=>{previewEdits=edits;showSupport=support;};
-    const activeEdits=()=>previewEdits??(selected==='knife'?knifeEdits:null);
-    api.setKnifePose=(edits,right)=>{
-      knifeEdits=edits;
-      knifeRightHand=right;
-      attachSelectedHands();
+    const activeEdits=()=>previewEdits??heldPoses.get(selected)?.edits;
+    api.setHeldPose=(id,edits,hands)=>{
+      heldPoses.set(id,{edits,hands});
+      if(selected===id)attachSelectedHands();
     };
     function readEdit(values,scale=1){
       editMove.set(values[0],values[1],values[2]).multiplyScalar(scale);
@@ -808,12 +808,12 @@
     };
     function attachSelectedHands(){
       if(!defaultHands)return;
-      const [right,left]=defaultHands;
+      const [right,left]=heldPoses.get(selected)?.hands??defaultHands;
       rightHand?.parent?.remove(rightHand);
       leftHand?.parent?.remove(leftHand);
       rightHand?.forearm?.parent?.remove(rightHand.forearm);
       leftHand?.forearm?.parent?.remove(leftHand.forearm);
-      rightHand=selected==='knife'&&knifeRightHand?knifeRightHand:right;
+      rightHand=right;
       leftHand=left;
       for(const hand of [rightHand,leftHand]){
         if(!hand.forearm)continue;
@@ -897,8 +897,8 @@
         leftHand.quaternion.copy(carryRotation).slerp(reloadRotation,release);
       }
       relaxHand(leftHand,Math.max(travel*.66,.18*inspect*offGun));
-      if(previewEdits){
-        leftHand.visible ||= showSupport;
+      if(activeEdits()){
+        leftHand.visible ||= showSupport||selected==='classic';
         editHand(rightHand,'handL');
         editHand(leftHand,'handR');
         editWeapon();
@@ -980,7 +980,7 @@
       if(!hasHeldModel(id))return;
       getModel(id).then(asset=>{
         if(!asset||selected!==id)return;
-        model=id==='knife'||previewEdits?asset.clone(true):asset;
+        model=id==='knife'||id==='classic'||previewEdits?asset.clone(true):asset;
         if(model!==asset)model.userData=asset.userData;
         if(id==='knife'){
           model.rotateOnWorldAxis(screenAxis,Math.PI);
