@@ -2358,9 +2358,21 @@ window.setModeMaps=function(mode,select,wanted){
         Thumb2R:[0,0,0,-1,41,47,1],
         Index1R:[0,0,0,16,-32,38,1]
       };
+      const sheriffPartDefaults={
+        weapon:[0,0.026,0.042,7,-19,6,1.2],
+        handL:[-0.147,0.057,0.02,-20,-7,-76,1.5],
+        Thumb1L:[0.007,-0.007,-0.009,0,22,18,1],
+        Thumb2L:[0,0,0,0,-71,-97,1],
+        Index1L:[0.028,0.002,0,26,3,-28,1],
+        handR:[-0.057,0.044,0.193,45,45,-83,1.5],
+        Thumb1R:[0.035,-0.022,0.011,24,55,-11,1],
+        Index1R:[0,0,0.004,22,4,32,0.99],
+        Thumb2R:[0,0,0,0,41,34,1]
+      };
       const weaponPartDefaults={
         knife:knifePartDefaults,classic:classicPartDefaults,shorty:shortyPartDefaults,
-        frenzy:frenzyPartDefaults,ghost:ghostPartDefaults,bandit:banditPartDefaults
+        frenzy:frenzyPartDefaults,ghost:ghostPartDefaults,bandit:banditPartDefaults,
+        sheriff:sheriffPartDefaults
       };
       function buildFirstPersonHands(asset,settings=knifeGripDefaults,sides=['L','R'],adjustments={}) {
         return sides.map(side=>{
