@@ -319,6 +319,30 @@
     "odin": "refs/classic/Meshy_AI_Shadowbreaker_Cannon_20261126_texture_fbx.zip"
   };
   const hasHeldModel=id=>Object.hasOwn(files,id)||Object.hasOwn(heldOnlyArchives,id);
+  // Height/depth fractions measured on each model for the right and support hands, then hand scale.
+  const gripProfiles={
+    knife:[0.689,0.195,0.522,0.786,0.680],
+    classic:[0.356,0.181,0.633,0.695,0.700],
+    shorty:[0.289,0.090,0.544,0.629,0.710],
+    frenzy:[0.422,0.143,0.611,0.652,0.690],
+    ghost:[0.333,0.076,0.567,0.614,0.690],
+    bandit:[0.378,0.200,0.633,0.614,0.690],
+    sheriff:[0.322,0.119,0.567,0.619,0.690],
+    stinger:[0.400,0.376,0.644,0.748,0.750],
+    spectre:[0.389,0.267,0.644,0.619,0.740],
+    bucky:[0.367,0.262,0.500,0.681,0.790],
+    judge:[0.300,0.229,0.500,0.714,0.790],
+    bulldog:[0.333,0.252,0.622,0.657,0.760],
+    guardian:[0.256,0.267,0.644,0.652,0.770],
+    phantom:[0.278,0.286,0.656,0.667,0.770],
+    warden:[0.300,0.276,0.644,0.638,0.770],
+    vandal:[0.344,0.295,0.667,0.662,0.770],
+    marshal:[0.300,0.352,0.467,0.624,0.760],
+    outlaw:[0.333,0.286,0.522,0.605,0.770],
+    operator:[0.244,0.205,0.456,0.576,0.770],
+    ares:[0.289,0.257,0.533,0.676,0.790],
+    odin:[0.311,0.267,0.600,0.648,0.800]
+  };
   const poses = {
     classic: {scale:.40, right:.168, height:-.143, inspectYaw:.95, turnRoll:1.04, reloadDrop:.25, reloadRoll:.54},
     shorty:  {scale:.73, right:.146, height:-.143, inspectYaw:.95, turnRoll:1.04, reloadDrop:.12, reloadRoll:.54},
@@ -328,6 +352,15 @@
     sheriff: {scale:.61, right:.154, height:-.155, inspectYaw:1.21, turnRoll:.62, reloadDrop:.12, reloadRoll:.86}
   };
   const riflePose={scale:1.04,right:.17,height:-.15,inspectYaw:.85,turnRoll:.66,reloadDrop:.17,reloadRoll:.47};
+  function reloadMotion(id,slot){
+    if(id==='sheriff')return {reach:.22,back:.64,dip:.21,pitch:.52,roll:.46,drop:.036};
+    if(id==='shorty'||id==='bucky')return {reach:.16,back:.77,dip:.17,pitch:.45,roll:.28,drop:.032};
+    if(id==='marshal'||id==='outlaw'||id==='operator')return {reach:.17,back:.75,dip:.24,pitch:.48,roll:.27,drop:.040};
+    if(id==='odin'||id==='ares'||id==='judge')return {reach:.21,back:.70,dip:.28,pitch:.32,roll:.43,drop:.044};
+    return slot==='secondary'
+      ? {reach:.15,back:.66,dip:.18,pitch:.40,roll:.29,drop:.022}
+      : {reach:.18,back:.68,dip:.23,pitch:.36,roll:.35,drop:.035};
+  }
   Object.assign(poses,{
     phantom:{...riflePose}, vandal:{...riflePose},
     bulldog:{...riflePose,scale:.875,right:.210,height:-.128,yaw:.32},
@@ -540,7 +573,9 @@
     const point=(height,depth)=>body.worldToLocal(new T.Vector3(mid.x,bounds.min.y+span.y*height,bounds.max.z-span.z*depth));
     const holdHeight=blade?.49:pistol?.36:short?.30:heavy?.34:.35;
     const hold=point(holdHeight,blade?.21:pistol?.20:short?.21:bullpup?.36:.29);
-    if(!blade){
+    const profile=gripProfiles[id];
+    if(profile)hold.copy(point(profile[0],profile[1]));
+    else if(!blade){
       const y=bounds.min.y+span.y*holdHeight;
       const points=[];
       mesh.traverse(node=>{
@@ -565,9 +600,9 @@
     }
     body.userData.handAnchors={
       hold,
-      support:point(heavy?.59:.62,bullpup?.66:short?.64:.68),
+      support:profile?point(profile[2],profile[3]):point(heavy?.59:.62,bullpup?.66:short?.64:.68),
       reload:point(.28,heavy?.48:bullpup?.26:.43),
-      gripSize:blade?.68:pistol?.70:short?.72:heavy?.82:.76
+      gripSize:profile?.[4]??(blade?.68:pistol?.70:short?.72:heavy?.82:.76)
     };
     body.userData.inspectCorners=[];
     for(const x of [bounds.min.x,bounds.max.x])
@@ -635,13 +670,14 @@
       rightHand.visible=true;
       relaxHand(rightHand,0);
 
-      const offGun=ease((reloadT-.08)/.24)*(1-ease((reloadT-.70)/.26));
+      const motion=reloadMotion(selected,catalog[selected]?.slot);
+      const offGun=ease((reloadT-.06)/motion.reach)*(1-ease((reloadT-motion.back)/(1-motion.back)));
       leftHand.visible=knife||!pistol||offGun>.04;
       if(knife){
         if(leftHand.parent!==scene)scene.add(leftHand);
-        bladePosition.set(-.24*Math.min(camera.aspect,2.1)/1.78+.032*slash,
-          -.245-.16*draw+.014*slash+.004*stride,-.54+.024*inspect-.038*slash);
-        leftBladeRotation.set(-1.54-.14*slash,.23,.39+.33*slash);
+        bladePosition.set(-.24*Math.min(camera.aspect,2.1)/1.78+.032*slash+.016*inspect,
+          -.245-.16*draw+.014*slash+.004*stride-.062*inspect,-.54+.024*inspect-.038*slash);
+        leftBladeRotation.set(-1.54-.14*slash,.23+.14*inspect,.39+.33*slash);
         leftHand.position.copy(bladePosition);
         leftHand.rotation.copy(leftBladeRotation);
         leftHand.scale.setScalar(.63);
@@ -656,9 +692,9 @@
       const loading=handAnchors?.reload||grip;
       weaponPoint(leftRelease,loading);
       // Travel below the receiver before coming back up to the support point.
-      const travel=ease((reloadT-.13)/.13)*(1-ease((reloadT-.40)/.20));
+      const travel=ease((reloadT-.11)/motion.reach)*(1-ease((reloadT-.40)/.23));
       leftRelease.x-=(.037+.055*travel)/pivot.scale.x;
-      leftRelease.y-=(.018+.095*travel)/pivot.scale.x;
+      leftRelease.y-=(.012+motion.dip*.22*travel)/pivot.scale.x;
       leftRelease.z+=(.012+.024*travel)/pivot.scale.x;
       fitGrip(leftHand,leftContact,size*.97,0,0,-1,-.63,-.77,0);
       if(pistol||offGun>.001){
@@ -803,20 +839,24 @@
     function applySideInspect(time){
       if(time<0 || time>=gunInspectDuration)return;
       const first=easeInspect(time/.48);
-      const turn=easeInspect((time-1.10)/.80);
+      const turn=easeInspect((time-1.00)/.62);
       const finish=easeInspect((time-2.48)/.52);
       const baseYaw=pivot.rotation.y;
-      const side=Math.PI*.46;
-      const yaw=baseYaw+(side-baseYaw)*first-2*side*turn+(baseYaw+side)*finish;
+      const side=Math.PI*.36;
+      const opposite=side*.86;
+      const yaw=baseYaw+(side-baseYaw)*first-(side+opposite)*turn+(baseYaw+opposite)*finish;
       model.updateWorldMatrix(true,false);
-      model.localToWorld(gripBefore.copy(model.userData.inspectGrip));
+      const hold=model.userData.handAnchors?.hold||model.userData.inspectGrip;
+      model.localToWorld(gripBefore.copy(hold));
       pivot.rotation.y=yaw;
       // Roll in camera space so the muzzle rises on both opposite-facing poses.
-      const tilt=(-15*first+90*turn-75*finish)*Math.PI/180;
+      const tilt=(-16*first+39*turn-23*finish)*Math.PI/180;
       pivot.quaternion.premultiply(tiltRotation.setFromAxisAngle(screenAxis,tilt));
       model.updateWorldMatrix(true,false);
-      model.localToWorld(gripAfter.copy(model.userData.inspectGrip));
+      model.localToWorld(gripAfter.copy(hold));
       pivot.position.add(gripBefore.sub(gripAfter));
+      pivot.position.x-=.060*(first-finish);
+      pivot.position.y+=.074*(first-finish);
       model.updateWorldMatrix(true,false);
       const h=.90*Math.tan(camera.fov*Math.PI/360), w=h*camera.aspect;
       let left=-Infinity,right=Infinity,bottom=-Infinity,top=Infinity;
@@ -876,6 +916,7 @@
       const shortyInspect=shorty?lift:0;
       const shortyTurn=shorty?turn:0;
       const shortyReload=shorty?smooth(reloadT/.22)*(1-smooth((reloadT-.72)/.28)):0;
+      const loading=reloadMotion(selected,catalog[selected]?.slot);
       const shot=(now-fired)/1000, kick=selected==='knife'?(shot<.25?Math.sin(Math.PI*Math.min(1,shot/.055)/2)*Math.exp(-shot*18):0):.4*api.getVisualKick(now);
       const move=Math.min(1,Math.hypot(player.vel?.x||0,player.vel?.z||0)/7.6);
       stridePhase=(stridePhase+Math.min(.05,Math.max(0,dt))*(3+move*8))%(Math.PI*2);
@@ -897,12 +938,13 @@
         offsetY=(.5-frame[1])*2*halfHeight-tip.y;
       }
       pivot.position.set(pose.right*Math.min(camera.aspect,2.1)/1.78-.013*lift-.087*turn-.033*shortyInspect,
-        pose.height+.048*lift-.08*turn-.26*draw-pose.reloadDrop*dip+.015*seat,
+        pose.height+.048*lift-.08*turn-.26*draw-loading.drop*dip+.019*seat,
         -.54+.05*lift+.045*kick);
       pivot.position.x+=offsetX+.004*sway;
       pivot.position.y+=offsetY+.004*stride;
-      pivot.rotation.set(.12+.30*kick+.20*lift+(selected==='classic'?0:.73*liftBarrel+.48*seat),
-        (pose.yaw??.30)+pose.inspectYaw*lift-.45*turn+.16*dip+.25*shortyInspect-.56*shortyTurn,-.06-.24*lift-pose.turnRoll*turn-pose.reloadRoll*dip-.22*seat-.47*shortyReload);
+      pivot.rotation.set(.12+.30*kick+.20*lift+loading.pitch*liftBarrel+.18*seat,
+        (pose.yaw??.30)+pose.inspectYaw*lift-.45*turn+.13*dip+.25*shortyInspect-.56*shortyTurn,
+        -.06-.24*lift-pose.turnRoll*turn-loading.roll*dip-.12*seat-.19*shortyReload);
       if(selected==='knife'){
         const slash=Math.sin(Math.PI*Math.min(1,shot/.33))**2;
         pivot.position.x-=.20*slash+.045*lift;
@@ -932,6 +974,13 @@
         const remaining=1-smooth((now-releaseTime)/150);
         pivot.position.lerp(releasePosition,remaining);
         pivot.quaternion.slerp(releaseRotation,remaining);
+      }
+      if(api.isReloading){
+        const weight=smooth(reloadT/.14)*(1-smooth((reloadT-.78)/.22));
+        model.updateWorldMatrix(true,false);
+        model.localToWorld(gripAfter.copy(model.userData.handAnchors?.hold||model.userData.inspectGrip));
+        const limit=Math.min(-.035,gripAfter.z*Math.tan(camera.fov*Math.PI/360)*.67);
+        pivot.position.y+=Math.max(0,limit-gripAfter.y)*weight;
       }
       syncHands({reloadT,draw,aim,age,shot,stride});
       const photo=document.querySelector('#fps-weapon-sprite-layer .fps-paper-weapon');
