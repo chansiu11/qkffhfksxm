@@ -28,7 +28,7 @@
   <script src="crosshair-profile.js"></script>
   <script src="crosshair-ui.js" defer></script>
   <script src="ads-system.js?v=armory20"></script>
-  <script src="weapon-viewmodels.js?v=muzzle-alignment"></script>
+  <script src="weapon-viewmodels.js?v=arm-continuity"></script>
 
   <style>
     :root {
@@ -215,8 +215,8 @@
       z-index: 28;
     }
 
-    #settings-aim-dot {
-      position: absolute;
+    #model-editor-aim-dot {
+      position: fixed;
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);
@@ -226,7 +226,7 @@
       background: white;
       box-shadow: 0 0 0 1px #101820;
       pointer-events: none;
-      z-index: 1;
+      z-index: 4;
     }
 
     #ingame-hud {
@@ -447,9 +447,8 @@
         <input id="look-sensitivity" class="block w-full" type="range" min="0.25" max="3" step="0.01" value="1">
       </div>
       <p class="text-sm text-slate-300 mb-4">발로란트에서 복사한 <code>0;P;...</code> 프로필 코드를 그대로 붙여넣으세요. 조준점 디자인만 변경되고 명중 방향은 유지됩니다.</p>
-      <div class="relative bg-[#202c3a] border border-white/20 min-h-[160px] grid place-items-center mb-4" aria-label="조준점 미리보기">
+      <div class="bg-[#202c3a] border border-white/20 min-h-[160px] grid place-items-center mb-4" aria-label="조준점 미리보기">
         <div id="crosshair-preview" class="relative" aria-hidden="true"></div>
-        <span id="settings-aim-dot" aria-hidden="true"></span>
       </div>
       <form id="crosshair-form" class="grid gap-3">
         <label for="crosshair-code" class="text-xs text-[#38e2c7] font-black tracking-widest">조준점 공유 코드</label>
@@ -2371,6 +2370,7 @@ window.setModeMaps=function(mode,select,wanted){
                 for(const index of [a,b,c]){
                   v.fromBufferAttribute(position,index);
                   mesh.localToWorld(v).sub(wrist);
+                  forearm.userData.reach=Math.max(forearm.userData.reach??0,v.dot(forearm.userData.axis));
                   armPositions.push(v.x,v.y,v.z);
                 }
               }
@@ -5814,7 +5814,10 @@ window.setModeMaps=function(mode,select,wanted){
           <p role="status">무기와 손 모델을 불러오는 중…</p>
           <textarea readonly hidden rows="5" aria-label="복사할 조정 값"></textarea>
           <a href="./">게임으로 돌아가기</a>`;
-        document.body.append(panel);
+        const centerDot=document.createElement('span');
+        centerDot.id='model-editor-aim-dot';
+        centerDot.setAttribute('aria-hidden','true');
+        document.body.append(centerDot,panel);
         const status=panel.querySelector('[role="status"]');
         const fields=panel.querySelector('[data-controls]');
         const partSelect=panel.querySelector('#grip-part');

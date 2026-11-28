@@ -627,8 +627,8 @@
     const handSide=new T.Vector3(), rollCorrection=new T.Quaternion();
     const wristSocket=new T.Vector3(), armDirection=new T.Vector3(), armNormal=new T.Vector3();
     const armCross=new T.Vector3(), armScale=new T.Vector3(), takeoff=new T.Vector3();
-    const armStretch=new T.Matrix4();
-    const editMove=new T.Vector3(),editTurn=new T.Quaternion(),editAngles=new T.Euler(),editMatrix=new T.Matrix4();
+    const armStretch=new T.Matrix4(),armLocalNormal=new T.Vector3(),armShift=new T.Vector3();
+    const editMove=new T.Vector3(),editTurn=new T.Quaternion(),editAngles=new T.Euler();
     const editScale=new T.Vector3(1,1,1),editPivot=new T.Vector3(),editWrist=new T.Vector3();
     const heldPoses=new Map();
     let modelParts, defaultHands, previewEdits, showSupport;
@@ -732,26 +732,49 @@
       hand.updateWorldMatrix(true,false);
       hand.localToWorld(wristSocket.copy(hand.userData.wrist));
       hand.getWorldScale(armScale);
-      // Start just inside the wrist so the cuff covers the seam on both hands.
       hand.getWorldQuaternion(rollCorrection);
-      arm.position.copy(wristSocket).addScaledVector(armNormal.copy(hand.userData.palmDirection).applyQuaternion(rollCorrection),.014);
-      takeoff.set(side*(.31*camera.aspect),side===1?-.37:-.33,-.37);
-      const extension=T.MathUtils.clamp(takeoff.distanceTo(arm.position)/(arm.userData.length*armScale.x),1,2.3)-1;
-      armDirection.copy(takeoff).sub(wristSocket).normalize();
-      armNormal.copy(arm.userData.normal).applyQuaternion(rollCorrection);
+      // Keep the cuff at the wrist and lay the rear of the arm past the bottom edge.
+      arm.position.copy(wristSocket).addScaledVector(armNormal.copy(hand.userData.palmDirection).applyQuaternion(rollCorrection),.010);
+      const armAxis=arm.userData.axis;
+      armLocalNormal.copy(arm.userData.normal)
+        .addScaledVector(armAxis,-arm.userData.normal.dot(armAxis)).normalize();
+      armNormal.copy(armLocalNormal);
+      armShift.set(0,0,0);
+      const values=activeEdits()?.[side===1?'forearmL':'forearmR'];
+      let size=1;
+      if(values){
+        readEdit(values);
+        size=editScale.x;
+        armShift.copy(editMove).applyQuaternion(rollCorrection);
+        armNormal.applyQuaternion(editTurn);
+      }
+      const depth=T.MathUtils.clamp(-wristSocket.z*.7-armShift.z,.25,.55);
+      const halfHeight=depth*Math.tan(T.MathUtils.degToRad(camera.fov/2));
+      const halfWidth=halfHeight*camera.aspect;
+      takeoff.set(
+        T.MathUtils.clamp(side*.70*halfWidth+armShift.x,-.90*halfWidth,.90*halfWidth),
+        -halfHeight-.10+T.MathUtils.clamp(armShift.y,-.045,.045),
+        -depth
+      );
+      armDirection.copy(takeoff).sub(arm.position);
+      const reach=armDirection.length();
+      armDirection.normalize();
+      armNormal.applyQuaternion(rollCorrection);
       armNormal.addScaledVector(armDirection,-armNormal.dot(armDirection)).normalize();
+      if(armNormal.lengthSq()<1e-6){
+        armNormal.set(1,0,0).addScaledVector(armDirection,-armDirection.x).normalize();
+      }
       armCross.crossVectors(armDirection,armNormal);
       gripBasis.makeBasis(armDirection,armNormal,armCross);
       arm.quaternion.setFromRotationMatrix(gripBasis);
-      armDirection.copy(arm.userData.axis);
-      armNormal.copy(arm.userData.normal).addScaledVector(armDirection,-arm.userData.normal.dot(armDirection)).normalize();
-      armCross.crossVectors(armDirection,armNormal);
-      inverseFrame.setFromRotationMatrix(gripBasis.makeBasis(armDirection,armNormal,armCross)).invert();
+      armCross.crossVectors(armAxis,armLocalNormal);
+      inverseFrame.setFromRotationMatrix(gripBasis.makeBasis(armAxis,armLocalNormal,armCross)).invert();
       arm.quaternion.multiply(inverseFrame);
-      arm.scale.copy(armScale);
-      const {x,y,z}=arm.userData.axis;
-      const thickness=side===1?.78:.87;
-      const axial=1+extension-thickness;
+      arm.scale.setScalar(armScale.x);
+      const {x,y,z}=armAxis;
+      const thickness=(side===1?.78:.87)*size;
+      const axial=reach/((arm.userData.reach||arm.userData.length)*armScale.x)-thickness;
+      // Length and width scale along the mesh's own axes, with no post-scale rotation.
       armStretch.set(
         thickness+axial*x*x,axial*x*y,axial*x*z,0,
         axial*x*y,thickness+axial*y*y,axial*y*z,0,
@@ -760,11 +783,6 @@
       );
       arm.updateMatrix();
       arm.matrix.multiply(armStretch);
-      const values=activeEdits()?.[side===1?'forearmL':'forearmR'];
-      if(values){
-        readEdit(values);
-        arm.matrix.multiply(editMatrix.compose(editMove,editTurn,editScale));
-      }
       arm.visible=true;
     }
     const reloadRotation=new T.Quaternion(), reloadEuler=new T.Euler();
