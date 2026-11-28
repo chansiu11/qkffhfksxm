@@ -628,6 +628,91 @@
     const wristSocket=new T.Vector3(), armDirection=new T.Vector3(), armNormal=new T.Vector3();
     const armCross=new T.Vector3(), armScale=new T.Vector3(), takeoff=new T.Vector3();
     const armStretch=new T.Matrix4();
+    const editMove=new T.Vector3(),editTurn=new T.Quaternion(),editAngles=new T.Euler(),editMatrix=new T.Matrix4();
+    const editScale=new T.Vector3(1,1,1),editPivot=new T.Vector3(),editWrist=new T.Vector3();
+    let previewEdits, knifeParts;
+    api.setPreviewEdits=edits=>{previewEdits=edits;};
+    function readEdit(values,scale=1){
+      editMove.set(values[0],values[1],values[2]).multiplyScalar(scale);
+      editAngles.set(...values.slice(3,6).map(T.MathUtils.degToRad));
+      editTurn.setFromEuler(editAngles);
+      editScale.setScalar(values[6]??1);
+    }
+    function editHand(hand,key){
+      const values=previewEdits?.[key];
+      if(!values)return;
+      readEdit(values);
+      editWrist.copy(hand.userData.wrist).multiply(hand.scale);
+      editPivot.copy(editWrist).applyQuaternion(hand.quaternion);
+      hand.quaternion.multiply(editTurn);
+      hand.scale.multiply(editScale);
+      editWrist.multiply(editScale);
+      editPivot.sub(editWrist.applyQuaternion(hand.quaternion));
+      hand.position.add(editPivot).add(editMove);
+    }
+    function splitKnifeForPreview(body){
+      body.updateWorldMatrix(true,true);
+      const inverse=body.matrixWorld.clone().invert();
+      const source=[];
+      body.traverse(object=>{if(object.isMesh)source.push(object);});
+      const groups={blade:new T.Group(),guard:new T.Group(),handle:new T.Group()};
+      const bounds=Object.keys(groups).map(()=>new T.Box3());
+      const point=new T.Vector3(),center=new T.Vector3();
+      for(const mesh of source){
+        const toBody=inverse.clone().multiply(mesh.matrixWorld);
+        const vertices=mesh.geometry.attributes.position;
+        const index=mesh.geometry.index;
+        const indices=bounds.map(()=>[]);
+        for(let i=0;i<(index?.count??vertices.count);i+=3){
+          const a=index?index.getX(i):i,b=index?index.getX(i+1):i+1,c=index?index.getX(i+2):i+2;
+          center.set(0,0,0);
+          for(const vertex of [a,b,c])center.add(point.fromBufferAttribute(vertices,vertex));
+          center.multiplyScalar(1/3).applyMatrix4(toBody).applyQuaternion(body.quaternion).multiplyScalar(body.scale.x);
+          // Longitudinal limits measured along the displayed knife, in model-view units.
+          const zone=center.z<.032?0:center.z<.082?1:2;
+          indices[zone].push(a,b,c);
+          for(const vertex of [a,b,c])bounds[zone].expandByPoint(point.fromBufferAttribute(vertices,vertex).applyMatrix4(toBody));
+        }
+        Object.values(groups).forEach((group,zone)=>{
+          if(!indices[zone].length)return;
+          const geometry=mesh.geometry.clone();
+          geometry.setIndex(indices[zone]);
+          geometry.clearGroups();
+          const fragment=new T.Mesh(geometry,mesh.material);
+          fragment.matrixAutoUpdate=false;
+          fragment.matrix.copy(toBody);
+          group.add(fragment);
+        });
+        mesh.visible=false;
+      }
+      const weapon=new T.Group();
+      body.add(weapon);
+      Object.values(groups).forEach((group,zone)=>{
+        if(!group.children.length)return;
+        bounds[zone].getCenter(group.position);
+        group.userData.rest=group.position.clone();
+        for(const mesh of group.children)mesh.matrix.setPosition(point.setFromMatrixPosition(mesh.matrix).sub(group.position));
+        weapon.add(group);
+      });
+      groups.weapon=weapon;
+      weapon.userData.rest=new T.Vector3();
+      return groups;
+    }
+    function editKnife(){
+      if(!previewEdits)return;
+      knifeParts??=splitKnifeForPreview(model);
+      for(const [key,part] of Object.entries(knifeParts)){
+        if(!part.userData.rest)continue;
+        part.position.copy(part.userData.rest);
+        part.quaternion.identity();
+        part.scale.setScalar(1);
+        if(!previewEdits[key])continue;
+        readEdit(previewEdits[key],1/model.scale.x);
+        part.position.add(editMove);
+        part.quaternion.copy(editTurn);
+        part.scale.copy(editScale);
+      }
+    }
     function aimForearm(hand,side){
       const arm=hand.forearm;
       if(!arm)return;
@@ -662,6 +747,11 @@
       );
       arm.updateMatrix();
       arm.matrix.multiply(armStretch);
+      const values=previewEdits?.[side===1?'forearmL':'forearmR'];
+      if(values){
+        readEdit(values);
+        arm.matrix.multiply(editMatrix.compose(editMove,editTurn,editScale));
+      }
       arm.visible=true;
     }
     const reloadRotation=new T.Quaternion(), reloadEuler=new T.Euler();
@@ -756,6 +846,9 @@
         faceFreeKnifeHand(leftHand,slash,inspect);
         leftHand.scale.setScalar(.59);
         relaxHand(leftHand,.97-.33*slash);
+        editHand(rightHand,'handL');
+        editHand(leftHand,'handR');
+        editKnife();
         aimForearm(rightHand,1);
         aimForearm(leftHand,-1);
         return;
@@ -852,6 +945,7 @@
       if(selected===id)return;
       startModelDraw=hasHeldModel(id);
       selected=id; equipped=performance.now(); inspected=fired=-Infinity;
+      knifeParts=null;
       pivot.clear(); model=null; visible=false;
       if(!hasHeldModel(id))return;
       getModel(id).then(asset=>{
