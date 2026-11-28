@@ -321,7 +321,7 @@
   const hasHeldModel=id=>Object.hasOwn(files,id)||Object.hasOwn(heldOnlyArchives,id);
   // Height/depth fractions measured on each model for the right and support hands, then hand scale.
   const gripProfiles={
-    knife:[0.648,0.246,0.522,0.786,0.720],
+    knife:[0.648,0.258,0.522,0.786,0.720],
     classic:[0.356,0.181,0.633,0.695,0.700],
     shorty:[0.289,0.090,0.544,0.629,0.710],
     frenzy:[0.422,0.143,0.611,0.652,0.690],
@@ -680,7 +680,7 @@
       fitGrip(hand,contact,size,0,0,-1,.85,-.52,0);
       handFacing.copy(hand.userData.palmNormal).applyQuaternion(hand.quaternion);
       handFacing.addScaledVector(gripAxis,-handFacing.dot(gripAxis)).normalize();
-      targetFacing.set(.47,-.88,0).normalize();
+      targetFacing.set(.62,-.78,0).normalize();
       const sin=gripCross.crossVectors(handFacing,targetFacing).dot(gripAxis);
       const cos=handFacing.dot(targetFacing);
       hand.quaternion.premultiply(rollCorrection.setFromAxisAngle(gripAxis,Math.atan2(sin,cos)));

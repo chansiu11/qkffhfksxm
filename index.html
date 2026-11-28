@@ -28,7 +28,7 @@
   <script src="crosshair-profile.js"></script>
   <script src="crosshair-ui.js" defer></script>
   <script src="ads-system.js?v=armory20"></script>
-  <script src="weapon-viewmodels.js?v=knife-groove14"></script>
+  <script src="weapon-viewmodels.js?v=knife-grip15"></script>
 
   <style>
     :root {
@@ -2287,9 +2287,10 @@ window.setModeMaps=function(mode,select,wanted){
             parts.push({mesh,capture,open:capture()});
           });
           const knifeFingers = side==='L' ? [
-            ['Index2',1.19],['Index3',1.11],
-            ['Middle2',1.08],['Middle3',1.07],
-            ['Ring2',1.05],['Pinky2',1.05],
+            ['Index2',1.42],['Index3',1.21],
+            ['Middle2',1.12],['Middle3',1.22],
+            ['Ring2',1.08],['Ring3',1.20],
+            ['Pinky2',1.09],['Pinky3',1.18],
             ['Thumb2',.90]
           ].map(([name,curl])=>{
             const bone=posed.getObjectByName(name+side);
@@ -2336,7 +2337,13 @@ window.setModeMaps=function(mode,select,wanted){
               ));
             }
             // Line the index finger up with the front scallop and oppose it with the thumb.
-            steerBase('Index',axis,-.29);
+            const indexBase=posed.getObjectByName('Index1'+side);
+            const seated=indexBase.getWorldPosition(new THREE.Vector3())
+              .addScaledVector(axis,.019)
+              .addScaledVector(openNormal,-.009)
+              .addScaledVector(palmDirection,-.005);
+            indexBase.position.copy(indexBase.parent.worldToLocal(seated));
+            steerBase('Index',palmDirection.clone().addScaledVector(axis,-1.23),.42);
             steerBase('Thumb',palmDirection,.42);
           }
           posed.updateMatrixWorld(true);
