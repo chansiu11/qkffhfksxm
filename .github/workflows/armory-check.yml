@@ -3,6 +3,8 @@ on:
   push:
     paths:
       - 'tests/armory-online.test.js'
+      - 'tests/hit-registry.test.js'
+      - 'server/hit-registry.js'
       - 'server/weapons.json'
       - 'server/room-core.js'
       - '.github/workflows/armory-check.yml'
@@ -18,4 +20,4 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-      - run: node --test tests/armory-online.test.js tests/spread-online.test.js tests/hitscan-reload-online.test.js
+      - run: node --test tests/hit-registry.test.js tests/armory-online.test.js tests/spread-online.test.js tests/hitscan-reload-online.test.js

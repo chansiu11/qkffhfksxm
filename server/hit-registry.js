@@ -1,12 +1,26 @@
 'use strict';
-// Hit detection is deliberately aligned to the Three.js character meshes:
-// body BoxGeometry(.76, 1.24, .44) at local y=.62, head (.42,.42,.42)
-// at y=1.46, both rotated with group.rotation.y. A small tolerance accounts
-// for rendering pixel edges and position rounding; walls remain authoritative.
+(function(root,factory){
+  if(typeof module==='object'&&module.exports)module.exports=factory();
+  else root.CharacterHitboxes=factory();
+})(typeof globalThis!=='undefined'?globalThis:this,function(){
+const zones = [
+  {zone:'head', min:[-.079,1.45,-.097], max:[.079,1.677,.114]},
+  {zone:'body', min:[-.184,1.13,-.167], max:[.184,1.432,.193]},
+  {zone:'body', min:[-.323,1.276,-.105], max:[-.127,1.446,.130]},
+  {zone:'body', min:[.127,1.276,-.105], max:[.323,1.446,.130]},
+  {zone:'body', min:[-.207,.795,-.135], max:[.207,1.165,.213]},
+  ...[-1,1].flatMap(side=>[
+    {zone:'leg', min:[side*.139-.097,.490,-.122], max:[side*.139+.097,.811,.152]},
+    {zone:'leg', min:[side*.169-.088,.108,-.086], max:[side*.169+.088,.504,.146]},
+    {zone:'leg', min:[side*.178-.070,0,-.135], max:[side*.178+.070,.125,.151]}
+  ])
+];
+const crouchScale=.75;
+function isCrouched(p) { return Number.isFinite(p.y) && p.y-p.footY<1.39; }
 const MAX_HISTORY_MS = 750;
 const MAX_REWIND_MS = 320;
 function recordPosition(player, at=Date.now()) {
-  const sample={at, x:player.x, z:player.z, footY:player.footY, yaw:player.yaw};
+  const sample={at, x:player.x, z:player.z, footY:player.footY, yaw:player.yaw, crouched:isCrouched(player)};
   if (!player.positionHistory) player.positionHistory=[];
   const h=player.positionHistory;
   if (h.length && h[h.length-1].at===at) h[h.length-1]=sample;
@@ -16,7 +30,7 @@ function recordPosition(player, at=Date.now()) {
 }
 function samplePosition(player, at) {
   const h=player.positionHistory;
-  const actual={x:player.x,z:player.z,footY:player.footY,yaw:player.yaw};
+  const actual={x:player.x,z:player.z,footY:player.footY,yaw:player.yaw,crouched:isCrouched(player)};
   if (!h?.length) return actual;
   const last=h[h.length-1];
   // Also covers server-side forced moves (teleport/round setup in tests).
@@ -29,7 +43,7 @@ function samplePosition(player, at) {
     if (at>=a.at) {
       const t=Math.max(0,Math.min(1,(at-a.at)/(b.at-a.at||1)));
       return {x:a.x+(b.x-a.x)*t,z:a.z+(b.z-a.z)*t,
-        footY:a.footY+(b.footY-a.footY)*t,yaw:b.yaw};
+        footY:a.footY+(b.footY-a.footY)*t,yaw:b.yaw,crouched:t<.5?a.crouched:b.crouched};
     }
   }
   return h[0];
@@ -50,15 +64,15 @@ function rayCharacter(ox,oy,oz,dx,dy,dz,target,at) {
   const rx=ox-pos.x,rz=oz-pos.z;
   const x=c*rx-s*rz, z=s*rx+c*rz;
   const vx=c*dx-s*dz,vz=s*dx+c*dz;
-  const fy=pos.footY;
-  // The head mesh covers y=1.25..1.67; margin ~3.5 cm.
-  const head=rayAabb(x,oy-fy,z,vx,dy,vz,-.245,.245,1.215,1.705,-.245,.245);
-  // The body mesh covers y=0..1.24, shoulder width .76; slight margin.
-  const body=rayAabb(x,oy-fy,z,vx,dy,vz,-.42,.42,-.03,1.27,-.28,.28);
-  // Favor the head where the two tolerance volumes meet at the neck.
-  if(Number.isFinite(head) && (head<=body+.10))return {distance:head,headshot:true};
-  if(Number.isFinite(body))return {distance:body,headshot:false,legshot:oy+dy*body-fy<.62};
-  if(Number.isFinite(head))return {distance:head,headshot:true};
-  return null;
+  const scale=pos.crouched?crouchScale:1;
+  let hit=null;
+  for(const {zone,min,max} of zones){
+    const distance=rayAabb(x,oy-pos.footY,z,vx,dy,vz,min[0],max[0],min[1]*scale,max[1]*scale,min[2],max[2]);
+    if(Number.isFinite(distance)&&(!hit||distance<hit.distance)){
+      hit={distance,headshot:zone==='head',legshot:zone==='leg'};
+    }
+  }
+  return hit;
 }
-module.exports={recordPosition,samplePosition,rayCharacter,MAX_REWIND_MS};
+return {zones,crouchScale,isCrouched,recordPosition,samplePosition,rayCharacter,MAX_REWIND_MS};
+});

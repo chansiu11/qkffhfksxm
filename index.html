@@ -14,10 +14,13 @@
   <script src="config.js?v=arena-gates4"></script>
   <script src="host-transport.js?v=arena-gates4"></script>
   <script src="movement-physics.js?v=move25"></script>
-  <script src="multiplayer-client.js?v=match-modes3"></script>
+  <script src="multiplayer-client.js?v=character-rig1"></script>
   <link rel="stylesheet" href="menu.css" />
   <!-- Three.js r128 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/SkeletonUtils.js"></script>
+  <script src="server/hit-registry.js?v=kayo1"></script>
   <script src="match-samples.js?v=equip-recording3"></script>
   <script src="melee-rules.js?v=equipment2"></script>
   <script src="shotgun-pellets.js"></script>
@@ -2164,30 +2167,139 @@ window.setModeMaps=function(mode,select,wanted){
         spikeBadge.visible=!!carrier&&carrier.group.visible;
         if(spikeBadge.visible)spikeBadge.position.copy(carrier.group.position).y+=2.05;
       }
-      function createTacticalBotMesh(isAlly) {
+      let characterAsset;
+      function loadCharacterAsset() {
+        if (!characterAsset && THREE.GLTFLoader && THREE.SkeletonUtils) {
+          characterAsset = new THREE.GLTFLoader().loadAsync('assets/characters/kayo.glb')
+            .then(asset => {
+              const clips = new Map(asset.animations.map(clip => [clip.name, clip]));
+              const armTrack = track => /^(?:Clavicle|UpperArm|Forearm|Hand)[LR]/.test(track.name.replaceAll('.', ''));
+              const withoutArms = name => {
+                const clip = clips.get(name);
+                return new THREE.AnimationClip(name + 'Held', clip.duration, clip.tracks.filter(track => !armTrack(track)));
+              };
+              const hold = clips.get('Aim');
+              for (const name of ['Idle', 'Walk', 'Run']) clips.set(name + 'Held', withoutArms(name));
+              clips.set('HoldUpperBody', new THREE.AnimationClip('HoldUpperBody', hold.duration, hold.tracks.filter(armTrack)));
+              return { scene: asset.scene, clips };
+            })
+            .catch(error => {
+              console.warn('Character model unavailable', error);
+              return null;
+            });
+        }
+        return characterAsset || Promise.resolve(null);
+      }
+
+      function mountCharacterVisual(group, hitMeshes, onlineFacing) {
+        loadCharacterAsset().then(asset => {
+          if (!asset || group.parent !== scene) return;
+          const model = THREE.SkeletonUtils.clone(asset.scene);
+          // Keep feet on y=0 and place the visor inside the existing standing head box.
+          model.scale.set(.86, .80, .86);
+          model.rotation.y = onlineFacing ? Math.PI : 0;
+          const accents = [];
+          model.traverse(obj => {
+            if (!obj.isSkinnedMesh) return;
+            obj.castShadow = true;
+            obj.frustumCulled = false;
+            if (/^(Petrol visor|Cyan indicators)$/.test(obj.material.name)) {
+              obj.material = obj.material.clone();
+              accents.push({ material: obj.material, color: obj.material.color.clone(), light: obj.material.emissive.clone() });
+            }
+          });
+          const mixer = new THREE.AnimationMixer(model);
+          const actions = new Map(Array.from(asset.clips, ([name, clip]) => [name, mixer.clipAction(clip)]));
+          group.add(model);
+          group.userData.character = {
+            mixer, actions, accents, motion: null, isEnemy: null,
+            hand: model.getObjectByName('HandR'),
+            point: new THREE.Vector3(), lastX: group.position.x, lastZ: group.position.z, speed: 0
+          };
+          for (const box of hitMeshes) {
+            // Keep the actual mesh raycastable for offline hits.
+            box.material.colorWrite = false;
+            box.material.depthWrite = false;
+            box.castShadow = false;
+          }
+          group.userData.enemyOutlineParts.forEach(part => {part.visible = false;});
+          setCharacterTeam(group, group.userData.isEnemy);
+        });
+      }
+
+      function setCharacterTeam(group, isEnemy) {
+        group.userData.isEnemy = !!isEnemy;
+        const rig = group.userData.character;
+        if (!rig) {
+          group.userData.enemyOutlineParts.forEach(part => {part.visible = !!isEnemy;});
+          return;
+        }
+        if (rig.isEnemy === !!isEnemy) return;
+        rig.isEnemy = !!isEnemy;
+        for (const {material, color, light} of rig.accents) {
+          material.color.copy(color);
+          material.emissive.copy(light);
+          if (isEnemy) {
+            material.color.setHex(0xff8453);
+            material.emissive.setRGB(.65,.13,.04);
+          }
+        }
+      }
+
+      function updateCharacterVisuals(dt) {
+        for (const bot of bots) {
+          const group = bot.group, rig = group.userData.character;
+          if (!rig) continue;
+          const {x,z} = group.position;
+          const distance = Math.hypot(x-rig.lastX,z-rig.lastZ);
+          rig.lastX = x;
+          rig.lastZ = z;
+          if (!group.visible || !bot.alive) {rig.speed=0;continue;}
+          const speed = distance < 1 ? distance / Math.max(dt,.005) : 0;
+          rig.speed += (Math.min(speed,8)-rig.speed)*Math.min(1,dt*12);
+          const handHeld = !!(bot.hold && !bot.displayWeapon?.startsWith('spike') && bot.weapon?.slot !== 'knife');
+          const pace = rig.speed > 4.05 ? 'Run' : rig.speed > .35 ? 'Walk' : 'Idle';
+          const motion = pace + (handHeld ? 'Held' : '');
+          if (rig.motion !== motion) {
+            rig.actions.get(rig.motion)?.fadeOut(.14);
+            rig.actions.get(motion).reset().fadeIn(.14).play();
+            rig.motion = motion;
+          }
+          if (rig.handHeld !== handHeld) {
+            const action = rig.actions.get('HoldUpperBody');
+            if (handHeld) action.reset().fadeIn(.14).play();
+            else action.fadeOut(.14);
+            rig.handHeld = handHeld;
+          }
+          rig.mixer.update(dt);
+          if (handHeld && rig.hand) {
+            rig.hand.getWorldPosition(rig.point);
+            group.worldToLocal(rig.point);
+            bot.hold.position.copy(rig.point);
+            bot.hold.position.y += .025;
+          }
+        }
+      }
+
+      function createTacticalBotMesh(isAlly, onlineFacing = false) {
         const group = new THREE.Group();
-        const suitColor = isAlly ? 0x0d9488 : 0xe11d48;
-        const headColor = isAlly ? 0x5eead4 : 0xfda4af;
-
-        const body = new THREE.Mesh(
-          new THREE.BoxGeometry(0.76, 1.24, 0.44),
-          new THREE.MeshStandardMaterial({ color: suitColor, roughness: 0.5 })
-        );
-        body.position.y = 0.62;
-        body.castShadow = true;
-
-        const head = new THREE.Mesh(
-          new THREE.BoxGeometry(0.42, 0.42, 0.42),
-          new THREE.MeshStandardMaterial({ color: headColor, roughness: 0.35 })
-        );
-        head.position.y = 1.46;
-        head.castShadow = true;
+        const hitMeshes = CharacterHitboxes.zones.map(({zone,min,max}) => {
+          const color = zone==='head' ? (isAlly?0x5eead4:0xfda4af) : (isAlly?0x0d9488:0xe11d48);
+          const mesh = new THREE.Mesh(
+            new THREE.BoxGeometry(max[0]-min[0],max[1]-min[1],max[2]-min[2]),
+            new THREE.MeshStandardMaterial({color,roughness:.5})
+          );
+          mesh.position.set((min[0]+max[0])/2,(min[1]+max[1])/2,(min[2]+max[2])/2);
+          mesh.userData.zone = zone;
+          mesh.castShadow = true;
+          return mesh;
+        });
 
         // Yellow silhouette on opponents; occluded by world geometry (no wall hack).
         const outlineParts = [];
         const rimMat = new THREE.MeshBasicMaterial({ color: 0xffda42, side: THREE.BackSide, depthWrite: false });
         const edgeMat = new THREE.LineBasicMaterial({ color: 0xffeb70, transparent: true, opacity: 0.95, depthTest: true });
-        for (const mesh of [body, head]) {
+        for (const mesh of hitMeshes) {
           const rim = new THREE.Mesh(mesh.geometry, rimMat);
           rim.scale.set(1.15, 1.10, 1.19);
           mesh.add(rim);
@@ -2198,14 +2310,15 @@ window.setModeMaps=function(mode,select,wanted){
         }
         group.userData.enemyOutlineParts = outlineParts;
         outlineParts.forEach(part => { part.visible = !isAlly; });
-        group.add(body, head);
+        group.add(...hitMeshes);
         scene.add(group);
-        return { group, body, head };
+        group.userData.isEnemy = !isAlly;
+        mountCharacterVisual(group, hitMeshes, onlineFacing);
+        return { group, hitMeshes };
       }
 
       function setEnemyOutline(bot, isEnemy) {
-        const parts = bot?.group?.userData?.enemyOutlineParts || [];
-        parts.forEach(part => { part.visible = !!isEnemy; });
+        if (bot?.group) setCharacterTeam(bot.group, isEnemy);
       }
 
       function spawnTeamsForRound() {
@@ -2252,8 +2365,7 @@ window.setModeMaps=function(mode,select,wanted){
             pitch: 0,
             weapon: cloneWeaponInstance(allyWeapons[i]),
             group: m.group,
-            bodyMesh: m.body,
-            headMesh: m.head,
+            hitMeshes: m.hitMeshes,
             route: route.map(v => v.clone()),
             wpIdx: 0,
             shootCooldown: 0.75 + Math.random() * 0.5
@@ -2285,8 +2397,7 @@ window.setModeMaps=function(mode,select,wanted){
             pitch: 0,
             weapon: cloneWeaponInstance(enemyWeapons[i]),
             group: m.group,
-            bodyMesh: m.body,
-            headMesh: m.head,
+            hitMeshes: m.hitMeshes,
             route: route.map(v => v.clone()),
             wpIdx: 0,
             shootCooldown: 0.85 + Math.random() * 0.6
@@ -3020,7 +3131,7 @@ window.setModeMaps=function(mode,select,wanted){
             for(const b of bots.splice(0))scene.remove(b.group);
             for(let i=0;i<10;i++){
               const m=createTacticalBotMesh(false);
-              bots.push({team:'enemy',name:'훈련 봇',footY:0,group:m.group,headMesh:m.head,bodyMesh:m.body});
+              bots.push({team:'enemy',name:'훈련 봇',footY:0,group:m.group,hitMeshes:m.hitMeshes});
             }
             player.vel.set(0,0,0);player.pendingReloadWeapon=null;viewmodel.stopReload();
             document.body.classList.add('in-range');setting('controls').hidden=false;startRangeDrill();
@@ -3620,9 +3731,10 @@ window.setModeMaps=function(mode,select,wanted){
         const enemyMeshes = [];
         bots.forEach(b => {
           if (b.alive && b.team === 'enemy') {
-            b.headMesh.userData = { bot: b, isHead: true };
-            b.bodyMesh.userData = { bot: b, isHead: false };
-            enemyMeshes.push(b.headMesh, b.bodyMesh);
+            for(const mesh of b.hitMeshes){
+              mesh.userData.bot=b;
+              enemyMeshes.push(mesh);
+            }
           }
         });
 
@@ -3672,11 +3784,11 @@ window.setModeMaps=function(mode,select,wanted){
             }
             if (firstHit.object.userData && firstHit.object.userData.bot) {
               const targetBot = firstHit.object.userData.bot;
-              const isHead = firstHit.object.userData.isHead;
+              const zone = firstHit.object.userData.zone;
+            const isHead = zone==='head';
               const before=targetBot.hp+targetBot.armor;
               {
-                const zone=isHead?'head':endPt.y-targetBot.footY<.62?'leg':'body';
-                ShootingSpread.applyGunDamage(targetBot,w.id,travel + firstHit.distance,zone);
+                    ShootingSpread.applyGunDamage(targetBot,w.id,travel + firstHit.distance,zone);
                 targetBot.taggedAt=performance.now();
               }
               if(activeMap==='range' && drill.mode==='target'){
@@ -5190,7 +5302,7 @@ window.setModeMaps=function(mode,select,wanted){
           }
 
           updateRoundEndWait();
-          window.MP.tick(dt);orientAudio();
+          window.MP.tick(dt);updateCharacterVisuals(dt);orientAudio();
           renderScoreboard(now);
           if (now - lastRadarAt > 75) {drawAscentRadar();lastRadarAt = now;}
         } else {
@@ -5276,6 +5388,7 @@ window.setModeMaps=function(mode,select,wanted){
         launchAscentMatchImmediate,enterPostMatch,showGroundDisplay,openWaitingLobby:window.openWaitingLobby,openEntryScreen:window.openEntryScreen,
         switchWeaponSlot:window.switchWeaponSlot,getSpikeHeld:()=>!!planting()||defusing()});
       // Complete the small data/audio stage before starting any 3D model jobs.
+      window.addEventListener('load', () => { void loadCharacterAsset(); }, {once:true});
       let startupStarted=false;
       function settleAsset(job, timeout=12000){
         return new Promise(resolve=>{

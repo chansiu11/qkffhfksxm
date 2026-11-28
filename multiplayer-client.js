@@ -585,9 +585,9 @@
         let b = this.peers.get(rp.id);
         const isAlly = !dm && rp.team === me.team;
         if (!b) {
-          const m = a.createTacticalBotMesh(isAlly);
+          const m = a.createTacticalBotMesh(isAlly, true);
           b = { id: rp.id, name: rp.name, team: isAlly ? 'ally' : 'enemy', alive: rp.alive, hp: rp.hp, armor: rp.armor,
-            group: m.group, headMesh: m.head, bodyMesh: m.body, weapon: a.cloneWeaponInstance('classic'),
+            group: m.group, hitMeshes: m.hitMeshes, weapon: a.cloneWeaponInstance('classic'),
             footY: rp.footY, yaw: rp.yaw, pitch: rp.pitch, callout: 'ONLINE PLAYER', spotted: false };
           this.peers.set(rp.id, b);
           a.bots.push(b);
@@ -616,7 +616,7 @@
             b.hold.add(model);
           }).catch(()=>{});
         }
-        b.crouchedOnSpike=!!rp.spikeAction?.progress;
+        b.crouched=CharacterHitboxes.isCrouched(rp);
         b.peerAim=!!rp.aiming && !!b.weapon.canScope && !rp.reloading;
         b.spotted = state.phase !== 'buy' && (isAlly || Math.hypot(rp.x - a.player.pos.x, rp.z - a.player.pos.z) < 20);
         if (!b.targetPosition) b.targetPosition = new THREE.Vector3();
@@ -744,7 +744,7 @@
         if (!b.targetPosition) continue;
         const alpha=Math.min(1,(dt||0.016)*13);
         b.group.position.lerp(b.targetPosition,alpha);
-        b.group.scale.y+=((b.crouchedOnSpike ? .75 : 1)-b.group.scale.y)*alpha;
+        b.group.scale.y+=((b.crouched ? CharacterHitboxes.crouchScale : 1)-b.group.scale.y)*alpha;
         if(b.hold){
           const t=b.aimBlend=(b.aimBlend||0)+((b.peerAim?1:0)-(b.aimBlend||0))*alpha;
           b.hold.position.set(.23-.19*t,1.01+.32*t,-.34-.07*t);
