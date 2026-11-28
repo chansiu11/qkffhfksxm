@@ -322,6 +322,8 @@
         }
         case 'knife_swing':
           if (data.shooter !== this.myId && this.started && a.matchState.inMatch) {
+            const peer=this.peers.get(data.shooter);
+            if(peer)peer.knifeAt=performance.now();
             const sample = data.mode === 'heavy' ? 'knife-heavy' : 'knife-light';
             a.gameSound('shot', data.x, data.z, false, data.y, sample);
           }
@@ -611,7 +613,7 @@
           a.viewmodel.remoteModel(displayId).then(model=>{
             if(!model||b.displayWeapon!==displayId||this.peers.get(b.id)!==b)return;
             const pistol=b.weapon.slot==='secondary';
-            model.scale.multiplyScalar(displayId.startsWith('spike') ? .44 : pistol ? .66 : 1.45);
+            model.scale.multiplyScalar(displayId.startsWith('spike') ? .44 : displayId==='knife' ? .86 : pistol ? .66 : 1.45);
             model.position.z=pistol?-.09:-.21;
             b.hold.add(model);
           }).catch(()=>{});

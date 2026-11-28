@@ -535,9 +535,48 @@
     const light=new T.DirectionalLight(0xffffff,1.4);
     light.position.set(-1,2,1); scene.add(light);
     let selected, model, visible=false, equipped=0, inspected=-Infinity, fired=-Infinity;
+    let rightHand,leftHand;
+    api.setHands=(right,left)=>{
+      rightHand=right;leftHand=left;
+    };
+    function syncHands() {
+      if(!rightHand||!leftHand||!model?.userData.inspectGrip)return;
+      if(rightHand.parent!==pivot)pivot.add(rightHand,leftHand);
+      const grip=model.userData.inspectGrip;
+      const knife=selected==='knife', pistol=catalog[selected]?.slot==='secondary';
+      const primary = !knife&&!pistol;
+      const size=.86/pivot.scale.x;
+      rightHand.position.copy(grip).multiply(model.scale).applyQuaternion(model.quaternion).add(model.position);
+      rightHand.rotation.set(knife?.9:.12,Math.PI+(.12),knife?-.38:-.08);
+      rightHand.scale.setScalar(size);
+      rightHand.visible=true;
+      leftHand.visible=primary;
+      if(!primary)return;
+      leftHand.position.copy(grip).lerp(model.userData.muzzle,.39).multiply(model.scale)
+        .applyQuaternion(model.quaternion).add(model.position);
+      leftHand.position.y-=.024;
+      leftHand.rotation.set(.6,Math.PI-.30,.53);
+      leftHand.scale.setScalar(size);
+    }
     let duration=750, reloadStarted=0, startModelDraw=false;
     function getModel(id){
-      if(!cache.has(id))cache.set(id,loadModel(id,T).catch(err=>{cache.delete(id);throw err;}));
+      if(!cache.has(id))cache.set(id,loadModel(id,T).catch(err=>{
+        if(id==='knife'){
+          const blade=new T.Group();
+          const add=(geometry,color,z)=>{
+            const part=new T.Mesh(geometry,new T.MeshStandardMaterial({color,roughness:.43}));
+            part.position.z=z;blade.add(part);
+          };
+          add(new T.BoxGeometry(.038,.035,.13),0x343a43,.04);
+          add(new T.BoxGeometry(.054,.034,.017),0x667680,-.025);
+          add(new T.BoxGeometry(.036,.014,.17),0x9aa9b2,-.114);
+          blade.userData.inspectGrip=new T.Vector3(0,0,.046);
+          blade.userData.muzzle=new T.Vector3(0,0,-.199);
+          blade.userData.inspectCorners=[];
+          return blade;
+        }
+        cache.delete(id);throw err;
+      }));
       return cache.get(id);
     }
     api.remoteModel=async id=>{
@@ -804,6 +843,7 @@
     };
     api.renderModel=renderer=>{
       if(!visible)return;
+      syncHands();
       const clear=renderer.autoClear;
       renderer.autoClear=false;
       try {renderer.clearDepth();renderer.render(scene,camera);}

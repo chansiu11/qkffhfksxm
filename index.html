@@ -14,7 +14,7 @@
   <script src="config.js?v=arena-gates4"></script>
   <script src="host-transport.js?v=weapon-leg-values2"></script>
   <script src="movement-physics.js?v=move25"></script>
-  <script src="multiplayer-client.js?v=character-rig1"></script>
+  <script src="multiplayer-client.js?v=hands3"></script>
   <link rel="stylesheet" href="menu.css" />
   <!-- Three.js r128 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -28,7 +28,7 @@
   <script src="crosshair-profile.js"></script>
   <script src="crosshair-ui.js" defer></script>
   <script src="ads-system.js?v=armory20"></script>
-  <script src="weapon-viewmodels.js?v=ground-scale3"></script>
+  <script src="weapon-viewmodels.js?v=hands3"></script>
 
   <style>
     :root {
@@ -2174,9 +2174,10 @@ window.setModeMaps=function(mode,select,wanted){
             .then(asset => {
               const clips = new Map(asset.animations.map(clip => [clip.name, clip]));
               const armTrack = track => /^(?:Clavicle|UpperArm|Forearm|Hand)[LR]/.test(track.name.replaceAll('.', ''));
-              const withoutArms = name => {
+              const mainArmTrack = track => /^(?:Clavicle|UpperArm|Forearm|Hand)L/.test(track.name.replaceAll('.', ''));
+              const withoutArms = (name,suffix,filter) => {
                 const clip = clips.get(name);
-                return new THREE.AnimationClip(name + 'Held', clip.duration, clip.tracks.filter(track => !armTrack(track)));
+                return new THREE.AnimationClip(name + suffix, clip.duration, clip.tracks.filter(track => !filter(track)));
               };
               const hold = clips.get('Aim');
               const ready = hold.clone();
@@ -2189,9 +2190,14 @@ window.setModeMaps=function(mode,select,wanted){
                   new THREE.Quaternion().fromArray(track.values,i).premultiply(drop).toArray(track.values,i);
                 }
               }
-              for (const name of ['Idle', 'Walk', 'Run', 'Strafe']) clips.set(name + 'Held', withoutArms(name));
-              clips.set('HoldUpperBody', new THREE.AnimationClip('HoldUpperBody', hold.duration, hold.tracks.filter(armTrack)));
-              clips.set(ready.name,new THREE.AnimationClip(ready.name,ready.duration,ready.tracks.filter(armTrack)));
+              for (const name of ['Idle', 'Walk', 'Run', 'Strafe']) {
+                clips.set(name+'Held',withoutArms(name,'Held',armTrack));
+                clips.set(name+'OneHand',withoutArms(name,'OneHand',mainArmTrack));
+              }
+              for(const [name,clip] of [['HoldUpperBody',hold],['WeaponReady',ready]]){
+                clips.set(name,new THREE.AnimationClip(name,clip.duration,clip.tracks.filter(armTrack)));
+                clips.set(name+'OneHand',new THREE.AnimationClip(name+'OneHand',clip.duration,clip.tracks.filter(mainArmTrack)));
+              }
               return { scene: asset.scene, clips };
             })
             .catch(error => {
@@ -2200,6 +2206,56 @@ window.setModeMaps=function(mode,select,wanted){
             });
         }
         return characterAsset || Promise.resolve(null);
+      }
+
+      function buildFirstPersonHands(asset) {
+        return ['L','R'].map(side=>{
+          const posed=THREE.SkeletonUtils.clone(asset.scene);
+          const mixer=new THREE.AnimationMixer(posed);
+          mixer.clipAction(asset.clips.get('Grip'+side)).play();
+          mixer.update(.1);
+          posed.updateMatrixWorld(true);
+          const palm = new THREE.Vector3(side==='L'?-.036:.036,-.064,.072);
+          const hand=posed.getObjectByName('Hand'+side);
+          const center=hand.localToWorld(palm);
+          const result=new THREE.Group();
+          const isHand = bone => bone?.name.endsWith(side) && /^(Hand|Thumb|Index|Middle|Ring|Pinky)/.test(bone.name);
+          const v=new THREE.Vector3();
+          posed.traverse(mesh=>{
+            if(!mesh.isSkinnedMesh)return;
+            mesh.skeleton.update();
+            const g=mesh.geometry, {position,skinIndex,skinWeight}=g.attributes;
+            const belongs=new Uint8Array(position.count);
+            const normalized=new Float32Array(skinWeight.count*4);
+            const unit=skinWeight.normalized && skinWeight.array instanceof Uint8Array ? 255 : 1;
+            for(let j=0;j<position.count;j++){
+              for(let k=0;k<4;k++)normalized[4*j+k]=skinWeight.array[4*j+k]/unit;
+              belongs[j]=isHand(mesh.skeleton.bones[skinIndex.getX(j)])?1:0;
+            }
+            if(!belongs.some(Boolean))return;
+            mesh.geometry=g.clone();
+            mesh.geometry.setAttribute('skinWeight',new THREE.BufferAttribute(normalized,4));
+            const vertices=[];
+            const idx=g.index;
+            for(let j=0;j<(idx?.count??position.count);j+=3){
+              const a=idx?idx.getX(j):j,b=idx?idx.getX(j+1):j+1,c=idx?idx.getX(j+2):j+2;
+              if(!belongs[a]||!belongs[b]||!belongs[c])continue;
+              for(const p of [a,b,c]){
+                v.fromBufferAttribute(position,p);
+                mesh.boneTransform(p,v);
+                mesh.localToWorld(v).sub(center);
+                vertices.push(v.x,v.y,v.z);
+              }
+            }
+            mesh.geometry.dispose();
+            if(!vertices.length)return;
+            const geometry=new THREE.BufferGeometry();
+            geometry.setAttribute('position',new THREE.Float32BufferAttribute(vertices,3));
+            geometry.computeVertexNormals();
+            result.add(new THREE.Mesh(geometry,mesh.material));
+          });
+          return result;
+        });
       }
 
       function mountCharacterVisual(group, hitMeshes, onlineFacing) {
@@ -2224,10 +2280,11 @@ window.setModeMaps=function(mode,select,wanted){
           group.add(model);
           group.userData.character = {
             mixer, actions, accents, motion: null, isEnemy: null,
-            hand: model.getObjectByName('HandR'),
-            support: model.getObjectByName('HandL'),
-            rightPalm: new THREE.Vector3(.036,-.064,.072), leftPalm: new THREE.Vector3(-.036,-.064,.072),
-            supportArm: ['ForearmL','UpperArmL'].map(name=>model.getObjectByName(name)),
+            hand: model.getObjectByName('HandL'),
+            support: model.getObjectByName('HandR'),
+            rightPalm: new THREE.Vector3(-.036,-.064,.072), leftPalm: new THREE.Vector3(.036,-.064,.072),
+            mainArm: ['ForearmL','UpperArmL'].map(name=>model.getObjectByName(name)),
+            supportArm: ['ForearmR','UpperArmR'].map(name=>model.getObjectByName(name)),
             gripPoint: new THREE.Vector3(), target: new THREE.Vector3(),
             jointPoint: new THREE.Vector3(), towardHand: new THREE.Vector3(), towardTarget: new THREE.Vector3(),
             parentRotation: new THREE.Quaternion(), correction: new THREE.Quaternion(), identity: new THREE.Quaternion(),
@@ -2264,38 +2321,46 @@ window.setModeMaps=function(mode,select,wanted){
         }
       }
 
-      function placeHeldCharacterWeapon(bot, rig, twoHanded) {
-        const weapon = bot.hold.children[0];
-        if (!weapon?.userData.inspectGrip || !rig.hand) return;
-        rig.hand.updateWorldMatrix(true,false);
-        rig.hand.localToWorld(rig.point.copy(rig.rightPalm));
-        bot.group.worldToLocal(rig.point);
-        const grip = weapon.userData.inspectGrip;
-        // Derive the offset from the mesh's grip marker while the weapon follows aim pitch.
-        rig.gripPoint.copy(grip).multiply(weapon.scale).applyQuaternion(weapon.quaternion)
-          .add(weapon.position).multiply(bot.hold.scale).applyQuaternion(bot.hold.quaternion);
-        bot.hold.position.copy(rig.point).sub(rig.gripPoint);
-        bot.hold.updateWorldMatrix(false,true);
-        if (!twoHanded || !rig.support || !weapon.userData.muzzle) return;
-        rig.target.copy(grip).lerp(weapon.userData.muzzle,.49);
-        rig.target.y-=.028/weapon.scale.y;
-        weapon.localToWorld(rig.target);
-        for (let pass=0;pass<2;pass++) {
-          for(const joint of rig.supportArm){
+      function reachWeaponGrip(rig, hand, arm, palm, target) {
+        for (let pass=0;pass<4;pass++) {
+          for (const joint of arm) {
             if (!joint) continue;
             joint.getWorldPosition(rig.jointPoint);
-            rig.support.updateWorldMatrix(true,false);
-            rig.support.localToWorld(rig.towardHand.copy(rig.leftPalm)).sub(rig.jointPoint).normalize();
-            rig.towardTarget.copy(rig.target).sub(rig.jointPoint).normalize();
+            hand.updateWorldMatrix(true,false);
+            hand.localToWorld(rig.towardHand.copy(palm)).sub(rig.jointPoint).normalize();
+            rig.towardTarget.copy(target).sub(rig.jointPoint).normalize();
             joint.parent.getWorldQuaternion(rig.parentRotation).invert();
             rig.towardHand.applyQuaternion(rig.parentRotation);
             rig.towardTarget.applyQuaternion(rig.parentRotation);
-            rig.correction.setFromUnitVectors(rig.towardHand,rig.towardTarget);
-            rig.correction.slerp(rig.identity,.42);
+            rig.correction.setFromUnitVectors(rig.towardHand,rig.towardTarget).slerp(rig.identity,.34);
             joint.quaternion.premultiply(rig.correction);
             joint.updateWorldMatrix(false,true);
           }
         }
+      }
+
+      function placeHeldCharacterWeapon(bot, rig, twoHanded, knife) {
+        const weapon=bot.hold.children[0];
+        if (!weapon?.userData.inspectGrip || !rig.hand) return;
+        const grip=weapon.userData.inspectGrip;
+        const aim=bot.aimBlend||0, slash=knife?Math.max(0,1-(performance.now()-(bot.knifeAt??-Infinity))/320):0;
+        bot.hold.rotation.set(knife?-.32+slash*.95:(bot.pitch||0)-.14*(1-aim),knife?slash*.60:0,knife?-.24-slash*.75:0);
+        rig.point.set(knife?.27-slash*.22:.15-.07*aim,knife?.85+.09*slash:1.03+.17*aim,knife?-.29:-.32-.07*aim);
+        rig.gripPoint.copy(grip).multiply(weapon.scale).applyQuaternion(weapon.quaternion)
+          .add(weapon.position).applyQuaternion(bot.hold.quaternion);
+        bot.hold.position.copy(rig.point).sub(rig.gripPoint);
+        bot.hold.updateWorldMatrix(true,true);
+        weapon.localToWorld(rig.target.copy(grip));
+        reachWeaponGrip(rig,rig.hand,rig.mainArm,rig.rightPalm,rig.target);
+        rig.hand.updateWorldMatrix(true,false);
+        rig.hand.localToWorld(rig.point.copy(rig.rightPalm));
+        bot.hold.position.add(bot.group.worldToLocal(rig.point).sub(bot.group.worldToLocal(rig.target)));
+        bot.hold.updateWorldMatrix(false,true);
+        if(!twoHanded || !rig.support || !weapon.userData.muzzle)return;
+        rig.target.copy(grip).lerp(weapon.userData.muzzle,.39);
+        rig.target.y-=.024/weapon.scale.y;
+        weapon.localToWorld(rig.target);
+        reachWeaponGrip(rig,rig.support,rig.supportArm,rig.leftPalm,rig.target);
       }
 
       function updateCharacterVisuals(dt) {
@@ -2310,8 +2375,9 @@ window.setModeMaps=function(mode,select,wanted){
           if (!group.visible || !bot.alive) {rig.speed=0;continue;}
           const speed = distance < 1 ? distance / Math.max(dt,.005) : 0;
           rig.speed += (Math.min(speed,8)-rig.speed)*Math.min(1,dt*15);
-          const armed = !!(bot.hold && !bot.displayWeapon?.startsWith('spike') && bot.weapon?.slot !== 'knife');
-          const twoHanded = armed && bot.weapon?.slot !== 'secondary';
+          const armed = !!(bot.hold?.children.length && !bot.displayWeapon?.startsWith('spike'));
+          const knife = bot.weapon?.slot==='knife';
+          const twoHanded = armed && !knife && bot.weapon?.slot !== 'secondary';
           const facing = rig.onlineFacing ? 1 : -1;
           const yaw=group.rotation.y;
           const forward=(-Math.sin(yaw)*dx-Math.cos(yaw)*dz)*facing;
@@ -2319,7 +2385,7 @@ window.setModeMaps=function(mode,select,wanted){
           const sideways=distance>.002 && Math.abs(side)>Math.abs(forward)*(rig.motion?.startsWith('Strafe')?.85:1.35);
           const pace = rig.speed < (rig.motion?.startsWith('Idle')?.42:.20) ? 'Idle' :
             sideways ? 'Strafe' : rig.speed > (rig.motion?.startsWith('Run')?3.4:4.05) ? 'Run' : 'Walk';
-          const motion = pace + (armed ? 'Held' : '');
+          const motion = pace + (twoHanded ? 'Held' : armed ? 'OneHand' : '');
           if (rig.motion !== motion) {
             const previous=rig.actions.get(rig.motion);
             const next=rig.actions.get(motion);
@@ -2336,13 +2402,13 @@ window.setModeMaps=function(mode,select,wanted){
           const action=rig.actions.get(motion);
           const strideSpeed=pace==='Run'?5.4:pace==='Strafe'?3.8:2.7;
           action.setEffectiveTimeScale(pace==='Idle'?1:rig.direction*THREE.MathUtils.clamp(rig.speed/strideSpeed,.45,1.55));
-          const stance=armed?(bot.peerAim?'HoldUpperBody':'WeaponReady'):'';
+          const stance=armed?(bot.peerAim?'HoldUpperBody':'WeaponReady')+(twoHanded?'':'OneHand'):'';
           if (rig.readiness!==stance) {
             rig.actions.get(rig.readiness)?.fadeOut(.13);
             if(stance)rig.actions.get(stance).reset().fadeIn(.13).play();
             rig.readiness=stance;
           }
-          for (const [side, closed] of [['R',armed],['L',twoHanded]]) {
+          for (const [side, closed] of [['L',armed],['R',twoHanded]]) {
             const key='grip'+side;
             if (rig[key]===closed)continue;
             const grip=rig.actions.get('Grip'+side);
@@ -2351,7 +2417,7 @@ window.setModeMaps=function(mode,select,wanted){
             rig[key]=closed;
           }
           rig.mixer.update(dt);
-          if (armed) placeHeldCharacterWeapon(bot,rig,twoHanded);
+          if (armed) placeHeldCharacterWeapon(bot,rig,twoHanded,knife);
         }
       }
 
@@ -5462,7 +5528,11 @@ window.setModeMaps=function(mode,select,wanted){
         launchAscentMatchImmediate,enterPostMatch,showGroundDisplay,openWaitingLobby:window.openWaitingLobby,openEntryScreen:window.openEntryScreen,
         switchWeaponSlot:window.switchWeaponSlot,getSpikeHeld:()=>!!planting()||defusing()});
       // Complete the small data/audio stage before starting any 3D model jobs.
-      window.addEventListener('load', () => { void loadCharacterAsset(); }, {once:true});
+      window.addEventListener('load', () => {
+        loadCharacterAsset().then(asset=>{
+          if(asset)viewmodel.setHands?.(...buildFirstPersonHands(asset));
+        }).catch(error=>console.warn('First-person hands unavailable',error));
+      }, {once:true});
       let startupStarted=false;
       function settleAsset(job, timeout=12000){
         return new Promise(resolve=>{
