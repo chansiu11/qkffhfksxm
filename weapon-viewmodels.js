@@ -449,34 +449,43 @@
   function script(src) {
     return new Promise((resolve, reject) => {
       const tag = document.createElement('script');
-      tag.src = src; tag.onload = resolve; tag.onerror = reject;
+      const timer=setTimeout(()=>{tag.remove();reject(new Error('Loader timeout: '+src));},12000);
+      tag.src=src;
+      tag.onload=()=>{clearTimeout(timer);resolve();};
+      tag.onerror=()=>{clearTimeout(timer);tag.remove();reject(new Error('Loader unavailable: '+src));};
       document.head.appendChild(tag);
     });
   }
   async function loadModel(id, T) {
-    dependencies ||= script('https://cdn.jsdelivr.net/npm/fflate@0.8.2/umd/index.js')
-      .then(() => script('https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/FBXLoader.js'));
+    dependencies ||= script('vendor/fflate-0.6.9.min.js')
+      .then(() => script('vendor/FBXLoader-r128.js'))
+      .then(()=>{
+        if(!window.fflate?.unzipSync||!T.FBXLoader)throw new Error('3D model loaders did not initialize');
+      });
     try { await dependencies; } catch(error){ dependencies=null; throw error; }
     const objective=id==='spikeFolded'||id==='spikeOpen';
     const objectiveArchive=objective?'refs/classic/Meshy_AI_'+(id==='spikeFolded'?'Armored_Teapot_Tank':'Frostspire_Beacon')+'_20261126_texture_fbx.zip':null;
     const archive = objectiveArchive || heldOnlyArchives[id] || 'refs/classic/Meshy_AI_' + files[id] + (id==='knife'||id==='guardian'?'_20261126':'_20261125') + '_texture_fbx' + (id === 'classic' ? ' (1)' : '') + '.zip';
-    const response = await fetch(archive);
-    if (!response.ok) throw Error(archive);
-    const bytes = new Uint8Array(await response.arrayBuffer());
-    const entries = Object.hasOwn(heldOnlyArchives,id)
-      ? fflate.unzipSync(bytes,{filter:entry=>/\.fbx$|_texture\.png$/i.test(entry.name)})
-      : fflate.unzipSync(bytes);
+    const response=await fetch(archive,{signal:AbortSignal.timeout(45000)});
+    if(!response.ok)throw new Error(`HTTP ${response.status}: ${archive}`);
+    const bytes=new Uint8Array(await response.arrayBuffer());
+    const entries=fflate.unzipSync(bytes);
     const names = Object.keys(entries);
-    const mesh = new T.FBXLoader(new T.LoadingManager()).parse(entries[names.find(n => /\.fbx$/i.test(n))].buffer, '');
+    const fbx=entries[names.find(n=>/\.fbx$/i.test(n))];
+    if(!fbx)throw new Error('FBX missing: '+archive);
+    const mesh=new T.FBXLoader(new T.LoadingManager()).parse(fbx.buffer.slice(fbx.byteOffset,fbx.byteOffset+fbx.byteLength),'');
     removeLabelBands(mesh,id,T);
     if(Object.hasOwn(heldOnlyArchives,id))removeDetachedDecorations(mesh,T,id==='stinger');
-    const textureName = names.find(n => /_texture\.png$/i.test(n));
-    const url = URL.createObjectURL(new Blob([entries[textureName]], {type:'image/png'}));
-    let texture;
-    try { texture = await new T.TextureLoader().loadAsync(url); }
-    finally { URL.revokeObjectURL(url); }
-    texture.encoding = T.sRGBEncoding;
-    const material = new T.MeshStandardMaterial({map:texture, roughness:.57, metalness:.18});
+    const textureName=names.find(n=>/_texture\.png$/i.test(n))||names.find(n=>/\.(?:png|jpe?g|webp)$/i.test(n));
+    let texture=null;
+    if(textureName){
+      const url=URL.createObjectURL(new Blob([entries[textureName]]));
+      try {texture=await new T.TextureLoader().loadAsync(url);texture.encoding=T.sRGBEncoding;}
+      catch(error){console.warn('Model texture unavailable:',id,error);}
+      finally {URL.revokeObjectURL(url);}
+    }
+    if(!textureName||!texture)console.warn('Using untextured model:',id);
+    const material=new T.MeshStandardMaterial({map:texture,color:texture?0xffffff:0x64717e,roughness:.57,metalness:.18});
     mesh.traverse(node => { if (node.isMesh) node.material = material; });
     const body = new T.Group();
     body.add(mesh);
@@ -641,7 +650,7 @@
       const asset=await getModel(id);
       return asset?.clone(true);
     };
-    api.preloadJobs=()=>[...Object.keys(files),...Object.keys(heldOnlyArchives)].map(id=>()=>getModel(id));
+    api.preloadJobs=()=>[...Object.keys(files),...Object.keys(heldOnlyArchives)].map(id=>({id,load:()=>getModel(id)}));
     // Cosmetic scene props reuse existing resources and never affect simulation.
     // Canon model lengths in world metres; newer guns use category estimates.
     const droppedLength={"classic":0.30920000000000003,"shorty":0.69,"frenzy":0.4089,"ghost":0.654,"bandit":0.37,"sheriff":0.4253,"stinger":0.8449,"spectre":0.9802,"bucky":1.23,"judge":0.9822,"bulldog":0.8951,"guardian":1.3955000000000002,"warden":1.33,"phantom":1.2111,"vandal":1.2799,"marshal":1.5405000000000002,"outlaw":1.59,"operator":1.7225,"ares":1.5528,"odin":1.7404};

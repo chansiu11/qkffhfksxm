@@ -28,7 +28,7 @@
   <script src="crosshair-profile.js"></script>
   <script src="crosshair-ui.js" defer></script>
   <script src="ads-system.js?v=armory20"></script>
-  <script src="weapon-viewmodels.js?v=grip-motion4"></script>
+  <script src="weapon-viewmodels.js?v=model-loader5"></script>
 
   <style>
     :root {
@@ -5587,12 +5587,13 @@ window.setModeMaps=function(mode,select,wanted){
           sfx.init();
           const data=sfx.ctx?[()=>loadRoundStartAudio(),...killTiers.map(tier=>()=>preloadKillAudio(tier)),...MatchSamples.preloadJobs(sfx.ctx),...['planting','planted','defuse_start_1','defuse_start_2','defused','boom'].map(name=>()=>loadSpikeClip(name)),...killTiers.map(tier=>()=>preloadKillIcon(tier))]:[];
           const models=viewmodel.preloadJobs();
-          let dataDone=0, dataFailed=0, modelDone=0, modelFailed=0, nextData=0, nextModel=0;
+          let dataDone=0, dataFailed=0, modelDone=0, nextData=0, nextModel=0;
+          const modelFailed=[];
           function showProgress(){
             if(entered)return;
             const total=data.length+models.length;
             progress.value=total?Math.round((dataDone+modelDone)*100/total):100;
-            status.textContent=(stage==='data'?'1/2 기본 데이터 및 효과음 '+dataDone+'/'+data.length:'2/2 3D 모델 '+modelDone+'/'+models.length)+(dataFailed?' · 데이터 누락 '+dataFailed:'')+(modelFailed?' · 모델 실패 '+modelFailed:'');
+            status.textContent=(stage==='data'?'1/2 기본 데이터 및 효과음 '+dataDone+'/'+data.length:'2/2 3D 모델 '+modelDone+'/'+models.length)+(dataFailed?' · 데이터 누락 '+dataFailed:'')+(modelFailed.length?' · 모델 실패 '+modelFailed.length+' ('+modelFailed.slice(-3).map(id=>id.toUpperCase()).join(', ')+')':'');
           }
           showProgress();
           async function dataWorker(){
@@ -5608,9 +5609,9 @@ window.setModeMaps=function(mode,select,wanted){
           showProgress();
           async function modelWorker(){
             while(!skipped&&nextModel<models.length){
-              const job=models[nextModel++];
-              try{if(!await job())modelFailed++;}
-              catch(error){modelFailed++;console.warn('Optional model preload',error);}
+              const {id,load}=models[nextModel++];
+              try{if(!await load())throw new Error('Empty model');}
+              catch(error){modelFailed.push(id);console.warn('Model preload failed:',id,error);}
               modelDone++;showProgress();
               if(!skipped)await new Promise(resolve=>setTimeout(resolve,0));
             }

@@ -25,6 +25,7 @@ jobs:
             host-runtime.js host-transport.js movement-physics.js match-samples.js shotgun-pellets.js shooting-spread.js melee-rules.js crosshair-profile.js crosshair-ui.js public/
           mkdir -p public/assets
           cp -r assets/weapons assets/characters public/assets/
+          cp -r refs vendor public/
           cp server/room-core.js server/hit-registry.js server/weapons.json public/server/
           cp -r audio public/audio
           touch public/.nojekyll
