@@ -186,7 +186,7 @@
     const [w,h]=sourceSize[name];return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}"><title>${styles[name]?.mark||name}</title><image class="weapon-texture" data-weapon-id="${name}" href="assets/weapons/${referenceImages[name]}.webp" width="${w}" height="${h}"/></svg>`;
   }
   function referencePlacement(id){const [w,h]=sourceSize[id]||sourceSize.classic;return {x:0,y:0,width:w,height:h};}
-  function create(THREE,catalog={}){
+  function create(THREE,catalog={},readViewport=()=>({width:window.innerWidth||1440,height:window.innerHeight||900})){
     const group=new THREE.Group(); // compatibility-only; no 3D gun meshes or limbs
     const flash={visible:false,material:{opacity:0}};
     const layer=document.getElementById('fps-weapon-sprite-layer');
@@ -232,7 +232,8 @@
       const visible=!!(player?.alive&&state?.inMatch);
       if(visible!==lastVisible){layer.classList.toggle('weapon-visible',visible);lastVisible=visible;}
       if(!visible||!photo){inspectAt=-Infinity;return;}
-      const now=performance.now(),w=window.innerWidth||1440,h=window.innerHeight||900;
+      const {width:w,height:h}=readViewport();
+      const now=performance.now();
       const moving=Math.min(1,Math.hypot(player.vel?.x||0,player.vel?.z||0)/7.6);
       const bob=Math.sin(now*.010)*2.8*moving;
       const breath=Math.sin(now*.0011)*1.3;
@@ -283,7 +284,7 @@
     function getMuzzleScreenPosition(){return muzzleScreen?{...muzzleScreen}:null;}
     function getMuzzleWorldPosition(camera){
       if(!muzzleScreen||!camera||!THREE.Vector3)return null;
-      const w=window.innerWidth||1440,h=window.innerHeight||900;
+      const {width:w,height:h}=readViewport();
       const focal=focalLength(h,camera.fov||FOV),z=muzzleScreen.depth;
       const world=new THREE.Vector3((muzzleScreen.x-w/2)*z/focal,
         (h/2-muzzleScreen.y)*z/focal,-z);
@@ -611,8 +612,8 @@
           body.userData.inspectCorners.push(body.worldToLocal(new T.Vector3(x,y,z)));
     return body;
   }
-  WeaponViewmodels.create = function(T,catalog) {
-    const api=createSprite(T,catalog), cache=new Map();
+  WeaponViewmodels.create = function(T,catalog,readViewport=()=>({width:innerWidth,height:innerHeight})) {
+    const api=createSprite(T,catalog,readViewport), cache=new Map();
     const scene=new T.Scene(), camera=new T.PerspectiveCamera(55,1,.01,5);
     const pivot=new T.Group();
     scene.add(pivot,new T.HemisphereLight(0xffffff,0x89909d,1.35));
@@ -1131,7 +1132,8 @@
       stridePhase=(stridePhase+Math.min(.05,Math.max(0,dt))*(3+move*8))%(Math.PI*2);
       const stride=Math.sin(stridePhase)*move*(1-.65*aim);
       const sway=Math.sin(stridePhase*.5)*move*(1-aim);
-      const aspect=innerWidth/Math.max(1,innerHeight);
+      const viewport=readViewport();
+      const aspect=viewport.width/Math.max(1,viewport.height);
       if(camera.aspect!==aspect){camera.aspect=aspect;camera.updateProjectionMatrix();}
       // Reference at 23.5–24.5 s: Classic grip sits below and right of the crosshair.
       const pose=poses[selected]||riflePose;
@@ -1210,7 +1212,8 @@
       }
       const depth=-tip.z;
       tip.project(camera);
-      return {x:(tip.x+1)*innerWidth/2,y:(1-tip.y)*innerHeight/2,depth};
+      const {width,height}=readViewport();
+      return {x:(tip.x+1)*width/2,y:(1-tip.y)*height/2,depth};
     }
     api.getMuzzleScreenPosition=()=>visible&&model?projectTip():spriteScreen();
     api.getMuzzleWorldPosition=worldCamera=>{
@@ -1226,7 +1229,7 @@
       const clear=renderer.autoClear;
       renderer.autoClear=false;
       if(preview){
-        const width=innerWidth,height=innerHeight;
+        const {width,height}=readViewport();
         const viewWidth=width/preview.zoom,viewHeight=height/preview.zoom;
         camera.setViewOffset(width,height,preview.x*width-viewWidth/2,preview.y*height-viewHeight/2,viewWidth,viewHeight);
       }
