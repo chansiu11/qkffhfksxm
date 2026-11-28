@@ -321,7 +321,7 @@
   const hasHeldModel=id=>Object.hasOwn(files,id)||Object.hasOwn(heldOnlyArchives,id);
   // Height/depth fractions measured on each model for the right and support hands, then hand scale.
   const gripProfiles={
-    knife:[0.712,0.198,0.522,0.786,0.735],
+    knife:[0.668,0.268,0.522,0.786,0.720],
     classic:[0.356,0.181,0.633,0.695,0.700],
     shorty:[0.289,0.090,0.544,0.629,0.710],
     frenzy:[0.422,0.143,0.611,0.652,0.690],
@@ -637,7 +637,7 @@
       // Start just inside the wrist so the cuff covers the seam on both hands.
       hand.getWorldQuaternion(rollCorrection);
       arm.position.copy(wristSocket).addScaledVector(armNormal.copy(hand.userData.palmDirection).applyQuaternion(rollCorrection),.014);
-      takeoff.set(side*(.29*camera.aspect),-.32,-.38);
+      takeoff.set(side*(.31*camera.aspect),side===1?-.37:-.33,-.37);
       const extension=T.MathUtils.clamp(takeoff.distanceTo(arm.position)/(arm.userData.length*armScale.x),1,2.3)-1;
       armDirection.copy(takeoff).sub(wristSocket).normalize();
       armNormal.copy(arm.userData.normal).applyQuaternion(rollCorrection);
@@ -652,10 +652,12 @@
       arm.quaternion.multiply(inverseFrame);
       arm.scale.copy(armScale);
       const {x,y,z}=arm.userData.axis;
+      const thickness=side===1?.78:.87;
+      const axial=1+extension-thickness;
       armStretch.set(
-        1+extension*x*x,extension*x*y,extension*x*z,0,
-        extension*x*y,1+extension*y*y,extension*y*z,0,
-        extension*x*z,extension*y*z,1+extension*z*z,0,
+        thickness+axial*x*x,axial*x*y,axial*x*z,0,
+        axial*x*y,thickness+axial*y*y,axial*y*z,0,
+        axial*x*z,axial*y*z,thickness+axial*z*z,0,
         0,0,0,1
       );
       arm.updateMatrix();
@@ -690,8 +692,8 @@
       handSide.crossVectors(fingers,normal).normalize();
       gripBasis.makeBasis(fingers,normal,handSide);
       inverseFrame.setFromRotationMatrix(gripBasis).invert();
-      targetFacing.set(.50+.12*slash,-.20,.84-.10*inspect).normalize();
-      fingerDirection.set(.49+.18*slash,.66,-.56);
+      targetFacing.set(.47+.09*slash,-.76,-.44-.05*inspect).normalize();
+      fingerDirection.set(.56+.14*slash,.71,-.44);
       fingerDirection.addScaledVector(targetFacing,-fingerDirection.dot(targetFacing)).normalize();
       handSide.crossVectors(fingerDirection,targetFacing);
       gripBasis.makeBasis(fingerDirection,targetFacing,handSide);
@@ -743,12 +745,12 @@
       leftHand.visible=knife||!pistol||offGun>.04;
       if(knife){
         if(leftHand.parent!==scene)scene.add(leftHand);
-        bladePosition.set(-.19*Math.min(camera.aspect,2.1)/1.78+.032*slash+.016*inspect,
-          -.164-.19*draw-.052*slash+.004*stride-.069*inspect,-.49+.024*inspect-.038*slash);
+        bladePosition.set(-.208*Math.min(camera.aspect,2.1)/1.78+.032*slash+.016*inspect,
+          -.145-.19*draw-.052*slash+.004*stride-.069*inspect,-.49+.024*inspect-.038*slash);
         leftHand.position.copy(bladePosition);
         faceFreeKnifeHand(leftHand,slash,inspect);
-        leftHand.scale.setScalar(.63);
-        relaxHand(leftHand,.82-.31*slash);
+        leftHand.scale.setScalar(.59);
+        relaxHand(leftHand,.97-.33*slash);
         aimForearm(rightHand,1);
         aimForearm(leftHand,-1);
         return;
@@ -987,11 +989,11 @@
       // Reference at 23.5–24.5 s: Classic grip sits below and right of the crosshair.
       const pose=poses[selected]||riflePose;
       const frame=framing[selected];
-      const baseScale=(frame?frame[2]:pose.scale)*(knife?1.11:pistol?1.16:1.05);
+      const baseScale=(frame?frame[2]:pose.scale)*(knife?.98:pistol?1.16:1.05);
       const viewportScale=THREE.MathUtils.clamp(camera.aspect/(16/9),.78,1);
       pivot.scale.setScalar(baseScale*viewportScale);
-      const restX=(pose.right+(knife?.052:0))*Math.min(camera.aspect,2.1)/1.78;
-      const restY=pose.height+(knife?.010:0);
+      const restX=(pose.right+(knife?.014:0))*Math.min(camera.aspect,2.1)/1.78;
+      const restY=pose.height-(knife?.019:0);
       const restZ=-.54+(pistol?.036:knife?.021:.018);
       let offsetX=0, offsetY=0;
       if(frame){
