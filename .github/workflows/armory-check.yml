@@ -4,6 +4,7 @@ on:
     paths:
       - 'tests/armory-online.test.js'
       - 'tests/hit-registry.test.js'
+      - 'tests/hitscan-reload-online.test.js'
       - 'server/hit-registry.js'
       - 'server/weapons.json'
       - 'server/room-core.js'
