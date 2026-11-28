@@ -28,7 +28,7 @@
   <script src="crosshair-profile.js"></script>
   <script src="crosshair-ui.js" defer></script>
   <script src="ads-system.js?v=armory20"></script>
-  <script src="weapon-viewmodels.js?v=grip-fit7"></script>
+  <script src="weapon-viewmodels.js?v=grip-review8"></script>
 
   <style>
     :root {
@@ -2217,6 +2217,8 @@ window.setModeMaps=function(mode,select,wanted){
           const palm = new THREE.Vector3(side==='L'?-.036:.036,-.064,.072);
           const hand=posed.getObjectByName('Hand'+side);
           const center=hand.localToWorld(palm);
+          const wrist=hand.getWorldPosition(new THREE.Vector3());
+          const palmDirection=center.clone().sub(wrist).normalize();
           const result=new THREE.Group();
           const isHand = bone => bone?.name.endsWith(side) && /^(Hand|Thumb|Index|Middle|Ring|Pinky)/.test(bone.name);
           const v=new THREE.Vector3();
@@ -2226,7 +2228,12 @@ window.setModeMaps=function(mode,select,wanted){
             const g=mesh.geometry, {position,skinIndex,skinWeight}=g.attributes;
             const unit=skinWeight.normalized && skinWeight.array instanceof Uint8Array ? 255 : 1;
             const belongs=new Uint8Array(position.count);
-            for(let j=0;j<position.count;j++)belongs[j]=isHand(mesh.skeleton.bones[skinIndex.getX(j)])?1:0;
+            for(let j=0;j<position.count;j++){
+              if(!isHand(mesh.skeleton.bones[skinIndex.getX(j)]))continue;
+              v.fromBufferAttribute(position,j);
+              mesh.localToWorld(v).sub(wrist);
+              belongs[j]=v.dot(palmDirection)>=-.026?1:0;
+            }
             const indices=[];
             const idx=g.index;
             for(let j=0;j<(idx?.count??position.count);j+=3){
@@ -2263,7 +2270,7 @@ window.setModeMaps=function(mode,select,wanted){
           const gripCenter=middle.clone().add(v2.clone().cross(normal).multiplyScalar(u.lengthSq())
             .add(normal.clone().cross(u).multiplyScalar(v2.lengthSq()))
             .multiplyScalar(.5/normal.lengthSq()));
-          const radial=middle.clone().sub(gripCenter);
+          const radial=hand.getWorldPosition(new THREE.Vector3()).sub(center).sub(gripCenter);
           radial.addScaledVector(axis,-radial.dot(axis)).normalize();
           const cross=axis.clone().cross(radial).normalize();
           const gripFrame=new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(radial,cross,axis));

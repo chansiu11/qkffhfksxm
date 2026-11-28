@@ -538,9 +538,34 @@
     const bullpup=id==='bulldog'||id==='phantom';
     const heavy=['judge','ares','odin'].includes(id);
     const point=(height,depth)=>body.worldToLocal(new T.Vector3(mid.x,bounds.min.y+span.y*height,bounds.max.z-span.z*depth));
+    const holdHeight=blade?.49:pistol?.36:short?.30:heavy?.34:.35;
+    const hold=point(holdHeight,blade?.21:pistol?.20:short?.21:bullpup?.36:.29);
+    if(!blade){
+      const y=bounds.min.y+span.y*holdHeight;
+      const points=[];
+      mesh.traverse(node=>{
+        if(!node.isMesh)return;
+        const a=node.geometry.attributes.position;
+        for(let i=0;i<a.count;i++){
+          p.fromBufferAttribute(a,i).applyMatrix4(node.matrixWorld);
+          if(Math.abs(p.y-y)<=span.y*.031)points.push(p.z);
+        }
+      });
+      points.sort((a,b)=>a-b);
+      const groups=[];
+      let begin=0;
+      for(let end=1;end<=points.length;end++){
+        if(end<points.length&&points[end]-points[end-1]<span.z*.019)continue;
+        if(end-begin>=Math.max(12,points.length*.035)&&points[end-1]-points[begin]>span.z*.012)
+          groups.push([points[begin],points[end-1]]);
+        begin=end;
+      }
+      const rear=groups.at(-1);
+      if(rear)hold.copy(body.worldToLocal(new T.Vector3(mid.x,y,(rear[0]+rear[1])/2)));
+    }
     body.userData.handAnchors={
-      hold:point(blade?.49:pistol?.275:short?.29:heavy?.32:.34,blade?.21:pistol?.20:short?.21:bullpup?.36:.29),
-      support:point(heavy?.48:.50,bullpup?.64:short?.64:.68),
+      hold,
+      support:point(heavy?.59:.62,bullpup?.66:short?.64:.68),
       reload:point(.28,heavy?.48:bullpup?.26:.43),
       gripSize:blade?.68:pistol?.70:short?.72:heavy?.82:.76
     };
@@ -605,8 +630,8 @@
       const inspect=Number.isFinite(age)?ease(age/.24)*(1-ease((age-2.55)/.33)):0;
       const slash=knife&&shot>=0&&shot<.38?Math.sin(Math.PI*shot/.38)**2:0;
       weaponPoint(leftContact,grip);
-      if(knife)fitGrip(rightHand,leftContact,size,0,0,-1,.64,-.76,0);
-      else fitGrip(rightHand,leftContact,size,0,1,pistol?-.23:-.12,.92,-.18,.42);
+      if(knife)fitGrip(rightHand,leftContact,size,0,0,-1,.85,-.52,0);
+      else fitGrip(rightHand,leftContact,size,0,1,pistol?-.25:-.12,.39,-.42,.84);
       rightHand.visible=true;
       relaxHand(rightHand,0);
 
@@ -616,11 +641,11 @@
         if(leftHand.parent!==scene)scene.add(leftHand);
         bladePosition.set(-.24*Math.min(camera.aspect,2.1)/1.78+.032*slash,
           -.245-.16*draw+.014*slash+.004*stride,-.54+.024*inspect-.038*slash);
-        leftBladeRotation.set(-.26-.16*slash,-.44,.12+.45*slash);
+        leftBladeRotation.set(-1.54-.14*slash,.23,.39+.33*slash);
         leftHand.position.copy(bladePosition);
         leftHand.rotation.copy(leftBladeRotation);
         leftHand.scale.setScalar(.63);
-        relaxHand(leftHand,.61-.24*slash);
+        relaxHand(leftHand,.66-.24*slash);
         return;
       }
       if(leftHand.parent!==pivot)pivot.add(leftHand);
@@ -635,7 +660,7 @@
       leftRelease.x-=(.037+.055*travel)/pivot.scale.x;
       leftRelease.y-=(.018+.095*travel)/pivot.scale.x;
       leftRelease.z+=(.012+.024*travel)/pivot.scale.x;
-      fitGrip(leftHand,leftContact,size*.97,0,0,-1,-.48,-.87,0);
+      fitGrip(leftHand,leftContact,size*.97,0,0,-1,-.63,-.77,0);
       if(pistol||offGun>.001){
         carryRotation.copy(leftHand.quaternion);
         reloadEuler.set(.81-.11*aim,Math.PI-.56,.70);
