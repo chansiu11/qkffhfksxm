@@ -1183,7 +1183,13 @@
     const spriteScreen=api.getMuzzleScreenPosition, spriteWorld=api.getMuzzleWorldPosition;
     const tip=new T.Vector3();
     function projectTip(){
-      readMuzzle();
+      const front=modelParts?.front;
+      if(front?.userData.rest){
+        // The muzzle marker is stored in the original model's local space.
+        front.localToWorld(tip.copy(model.userData.muzzle).sub(front.userData.rest));
+      }else{
+        readMuzzle();
+      }
       const depth=-tip.z;
       tip.project(camera);
       return {x:(tip.x+1)*innerWidth/2,y:(1-tip.y)*innerHeight/2,depth};

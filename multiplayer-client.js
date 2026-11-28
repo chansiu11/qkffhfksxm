@@ -339,10 +339,12 @@
               ? data.pellets.filter(xyz) : [data.to];
             // Render all shotgun pellets, but keep one WS event per trigger pull.
             const split = xyz(data.split) ? new THREE.Vector3(...data.split) : null;
-            if (split) a.spawnBulletTracer(start, split, gun?.color);
+            const tracerStart = data.shooter === this.myId
+              ? a.currentMuzzlePosition(data.weapon) || start : start;
+            if (split) a.spawnBulletTracer(tracerStart, split, gun?.color);
             for (const coords of lines) {
               const end = new THREE.Vector3(...coords);
-              a.spawnBulletTracer(split || start, end, gun?.color || 0xffd567);
+              a.spawnBulletTracer(split || tracerStart, end, gun?.color || 0xffd567);
             }
           }
           break;

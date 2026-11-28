@@ -14,7 +14,7 @@
   <script src="config.js?v=arena-gates4"></script>
   <script src="host-transport.js?v=weapon-leg-values2"></script>
   <script src="movement-physics.js?v=move25"></script>
-  <script src="multiplayer-client.js?v=hands3"></script>
+  <script src="multiplayer-client.js?v=muzzle-alignment"></script>
   <link rel="stylesheet" href="menu.css" />
   <!-- Three.js r128 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -28,7 +28,7 @@
   <script src="crosshair-profile.js"></script>
   <script src="crosshair-ui.js" defer></script>
   <script src="ads-system.js?v=armory20"></script>
-  <script src="weapon-viewmodels.js?v=shorty-pose20"></script>
+  <script src="weapon-viewmodels.js?v=muzzle-alignment"></script>
 
   <style>
     :root {
@@ -3970,10 +3970,13 @@ window.setModeMaps=function(mode,select,wanted){
         activeTracers.push({ line, age: 0, lifetime: TRACER_LIFETIME });
       }
 
-      // Ballistics remain centered on the crosshair. ONLY the VISUAL line begins
-      // at the actual 3D-projected midpoint of the flat paper gun's muzzle edge.
+      // Tracers connect the rendered muzzle to the crosshair ray's impact.
+      function currentMuzzlePosition(weaponId) {
+        if(viewmodel.current!==weaponId)return null;
+        return viewmodel.getMuzzleWorldPosition(camera);
+      }
       function localTracerVisualStart(origin, direction) {
-        const projectedMuzzle = viewmodel.getMuzzleWorldPosition(camera);
+        const projectedMuzzle = currentMuzzlePosition(getActiveWeapon().id);
         if (projectedMuzzle) return projectedMuzzle;
         const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
         const down = new THREE.Vector3(0, -1, 0).applyQuaternion(camera.quaternion);
@@ -3988,8 +3991,6 @@ window.setModeMaps=function(mode,select,wanted){
         return new THREE.Vector3(-Math.sin(yaw) * cp, Math.sin(pitch), -Math.cos(yaw) * cp).normalize();
       }
 
-      // Gameplay hit rays come from the crosshair; visible hitscan lines start
-      // at the paper's far/muzzle edge and end at the hit-ray impact point.
       function clearBotShot(bot, target, targetOffset) {
         const start = bot.group.position.clone();
         start.y += 1.45;
@@ -5760,7 +5761,7 @@ window.setModeMaps=function(mode,select,wanted){
       }
 
       window.MP.install({syncLoot,spikeRoundResult,stopSpikeClip,gameSound,afterScopedShot,syncMapObjects,selectMap,resetChat,appendChat,roomState,matchState,player,bots,scene,spikeMesh,barrierGroup,gunGroup,muzzleFlashMesh,viewmodel,gameSpikeSiteAt,sfx,
-        createTacticalBotMesh,setEnemyOutline,spawnBulletTracer,spawnHitBurst,drawLocalShot,recordCameraVisual,
+        createTacticalBotMesh,setEnemyOutline,spawnBulletTracer,spawnHitBurst,drawLocalShot,currentMuzzlePosition,recordCameraVisual,
         cloneWeaponInstance,WEAPON_CATALOG,getActiveWeapon,startNewRound,
         updateHUD,flashDamage,showHitmarker,showRoundBanner,addKillFeed,syncCheatPermissionUI,
         launchAscentMatchImmediate,enterPostMatch,showGroundDisplay,openWaitingLobby:window.openWaitingLobby,openEntryScreen:window.openEntryScreen,
