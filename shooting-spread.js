@@ -217,7 +217,7 @@
   function applyGunDamage(target,id,distance,zone){
     const ranges=damageRanges[id];
     const band=ranges.findLast(row=>distance>=row[0]);
-    const raw=band[zone==='head'?1:zone==='leg'?3:2];
+    const raw=zone==='leg' ? Math.min(band[3],band[2]*.70) : band[zone==='head'?1:2];
     const absorbed=Math.min(target.armor,raw*.66);
     const previous=target.hp;
     target.armor=Math.round((target.armor-absorbed)*10000)/10000;
