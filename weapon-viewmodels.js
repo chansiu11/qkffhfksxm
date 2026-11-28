@@ -321,7 +321,7 @@
   const hasHeldModel=id=>Object.hasOwn(files,id)||Object.hasOwn(heldOnlyArchives,id);
   // Height/depth fractions measured on each model for the right and support hands, then hand scale.
   const gripProfiles={
-    knife:[0.668,0.268,0.522,0.786,0.720],
+    knife:[0.648,0.246,0.522,0.786,0.720],
     classic:[0.356,0.181,0.633,0.695,0.700],
     shorty:[0.289,0.090,0.544,0.629,0.710],
     frenzy:[0.422,0.143,0.611,0.652,0.690],
@@ -680,7 +680,7 @@
       fitGrip(hand,contact,size,0,0,-1,.85,-.52,0);
       handFacing.copy(hand.userData.palmNormal).applyQuaternion(hand.quaternion);
       handFacing.addScaledVector(gripAxis,-handFacing.dot(gripAxis)).normalize();
-      targetFacing.set(.30,-.95,0).normalize();
+      targetFacing.set(.47,-.88,0).normalize();
       const sin=gripCross.crossVectors(handFacing,targetFacing).dot(gripAxis);
       const cos=handFacing.dot(targetFacing);
       hand.quaternion.premultiply(rollCorrection.setFromAxisAngle(gripAxis,Math.atan2(sin,cos)));
@@ -714,8 +714,13 @@
       scene.add(leftHand);
       leftHand.visible=false;
     };
-    function relaxHand(hand,amount){
-      for(const part of hand.children)if(part.morphTargetInfluences)part.morphTargetInfluences[0]=amount;
+    function relaxHand(hand,amount,knifeGrip=0){
+      for(const part of hand.children){
+        const weights=part.morphTargetInfluences;
+        if(!weights)continue;
+        weights[0]=amount;
+        if(weights.length>1)weights[1]=knifeGrip;
+      }
     }
     function weaponPoint(target,local){
       return target.copy(local).multiply(model.scale).applyQuaternion(model.quaternion).add(model.position);
@@ -738,7 +743,7 @@
       if(knife)fitKnifeHand(rightHand,leftContact,size);
       else fitGrip(rightHand,leftContact,size,0,1,pistol?-.25:-.12,.39,-.42,.84);
       rightHand.visible=true;
-      relaxHand(rightHand,0);
+      relaxHand(rightHand,0,knife?1:0);
 
       const motion=reloadMotion(selected,catalog[selected]?.slot);
       const offGun=ease((reloadT-.06)/motion.reach)*(1-ease((reloadT-motion.back)/(1-motion.back)));

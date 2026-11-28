@@ -28,7 +28,7 @@
   <script src="crosshair-profile.js"></script>
   <script src="crosshair-ui.js" defer></script>
   <script src="ads-system.js?v=armory20"></script>
-  <script src="weapon-viewmodels.js?v=knife-proportions13"></script>
+  <script src="weapon-viewmodels.js?v=knife-groove14"></script>
 
   <style>
     :root {
@@ -2286,6 +2286,15 @@ window.setModeMaps=function(mode,select,wanted){
             };
             parts.push({mesh,capture,open:capture()});
           });
+          const knifeFingers = side==='L' ? [
+            ['Index2',1.19],['Index3',1.11],
+            ['Middle2',1.08],['Middle3',1.07],
+            ['Ring2',1.05],['Pinky2',1.05],
+            ['Thumb2',.90]
+          ].map(([name,curl])=>{
+            const bone=posed.getObjectByName(name+side);
+            return {bone,curl,rest:bone.quaternion.clone()};
+          }) : [];
           action.play();
           mixer.update(.1);
           posed.updateMatrixWorld(true);
@@ -2311,15 +2320,40 @@ window.setModeMaps=function(mode,select,wanted){
           const gripFrame=new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(radial,cross,axis));
           result.userData.gripCenter=gripCenter;
           result.userData.gripFrame=gripFrame;
-          for(const {mesh,capture,open} of parts){
+          const closed=parts.map(part=>part.capture());
+          for(const finger of knifeFingers){
+            const grip=finger.bone.quaternion.clone();
+            finger.bone.quaternion.copy(finger.rest).slerp(grip,finger.curl);
+          }
+          if(knifeFingers.length){
+            function steerBase(finger,direction,amount){
+              const base=posed.getObjectByName(finger+'1'+side);
+              const hinge=knuckle(finger+'2').sub(knuckle(finger+'1')).normalize();
+              const aligned=hinge.clone().addScaledVector(direction,amount).normalize();
+              const toParent=base.parent.getWorldQuaternion(new THREE.Quaternion()).invert();
+              base.quaternion.premultiply(new THREE.Quaternion().setFromUnitVectors(
+                hinge.applyQuaternion(toParent),aligned.applyQuaternion(toParent)
+              ));
+            }
+            // Line the index finger up with the front scallop and oppose it with the thumb.
+            steerBase('Index',axis,-.29);
+            steerBase('Thumb',palmDirection,.42);
+          }
+          posed.updateMatrixWorld(true);
+          for(const [i,{mesh,capture,open}] of parts.entries()){
             const geometry=new THREE.BufferGeometry();
-            geometry.setAttribute('position',capture());
-            geometry.morphAttributes.position=[open];
+            geometry.setAttribute('position',closed[i]);
+            const poses=[open];
+            if(knifeFingers.length)poses.push(capture());
+            geometry.morphAttributes.position=poses;
             geometry.computeVertexNormals();
             const relaxed=geometry.clone();
-            relaxed.setAttribute('position',open);
-            relaxed.computeVertexNormals();
-            geometry.morphAttributes.normal=[relaxed.attributes.normal];
+            geometry.morphAttributes.normal=poses.map(position=>{
+              relaxed.setAttribute('position',position);
+              relaxed.deleteAttribute('normal');
+              relaxed.computeVertexNormals();
+              return relaxed.attributes.normal;
+            });
             relaxed.dispose();
             const material=mesh.material.clone();
             material.morphTargets=true;
