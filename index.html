@@ -28,7 +28,7 @@
   <script src="crosshair-profile.js"></script>
   <script src="crosshair-ui.js" defer></script>
   <script src="ads-system.js?v=armory20"></script>
-  <script src="weapon-viewmodels.js?v=armory-framing10"></script>
+  <script src="weapon-viewmodels.js?v=knife-grip11"></script>
 
   <style>
     :root {
@@ -2220,6 +2220,9 @@ window.setModeMaps=function(mode,select,wanted){
           const wrist=hand.getWorldPosition(new THREE.Vector3());
           const palmDirection=center.clone().sub(wrist).normalize();
           const result=new THREE.Group();
+          const baseJoint=name=>posed.getObjectByName(name+side).getWorldPosition(new THREE.Vector3());
+          const across=baseJoint('Index1').sub(baseJoint('Pinky1'));
+          const openNormal=palmDirection.clone().cross(across).normalize();
           const isHand = bone => bone?.name.endsWith(side) && /^(Hand|Thumb|Index|Middle|Ring|Pinky)/.test(bone.name);
           const v=new THREE.Vector3();
           const parts=[];
@@ -2264,6 +2267,9 @@ window.setModeMaps=function(mode,select,wanted){
           const index=knuckle('Index2'), pinky=knuckle('Pinky2');
           const axis=index.clone().sub(pinky).normalize();
           const middle=knuckle('Middle1'), hinge=knuckle('Middle2'), tip=knuckle('Middle3');
+          if(openNormal.dot(tip.clone().sub(hinge))<0)openNormal.negate();
+          result.userData.palmNormal=openNormal;
+          result.userData.palmDirection=palmDirection;
           const u=hinge.clone().sub(middle), v2=tip.clone().sub(middle);
           const normal=u.clone().cross(v2);
           // The center of the space inside the bent middle finger, in hand-mesh coordinates.

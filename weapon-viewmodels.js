@@ -321,7 +321,7 @@
   const hasHeldModel=id=>Object.hasOwn(files,id)||Object.hasOwn(heldOnlyArchives,id);
   // Height/depth fractions measured on each model for the right and support hands, then hand scale.
   const gripProfiles={
-    knife:[0.689,0.195,0.522,0.786,0.680],
+    knife:[0.712,0.198,0.522,0.786,0.735],
     classic:[0.356,0.181,0.633,0.695,0.700],
     shorty:[0.289,0.090,0.544,0.629,0.710],
     frenzy:[0.422,0.143,0.611,0.652,0.690],
@@ -621,9 +621,10 @@
     let selected, model, visible=false, equipped=0, inspected=-Infinity, fired=-Infinity;
     let rightHand,leftHand;
     const leftContact=new T.Vector3(), leftRelease=new T.Vector3(), bladePosition=new T.Vector3();
-    const leftBladeRotation=new T.Euler();
     const gripAxis=new T.Vector3(), gripRadial=new T.Vector3(), gripCross=new T.Vector3(), gripOffset=new T.Vector3();
     const gripBasis=new T.Matrix4(), inverseFrame=new T.Quaternion(), carryRotation=new T.Quaternion();
+    const handFacing=new T.Vector3(), targetFacing=new T.Vector3(), fingerDirection=new T.Vector3();
+    const handSide=new T.Vector3(), rollCorrection=new T.Quaternion();
     const reloadRotation=new T.Quaternion(), reloadEuler=new T.Euler();
     function fitGrip(hand,contact,size,ax,ay,az,rx,ry,rz) {
       gripAxis.set(ax,ay,az).normalize();
@@ -635,6 +636,29 @@
       hand.scale.setScalar(size);
       gripOffset.copy(hand.userData.gripCenter).multiplyScalar(size).applyQuaternion(hand.quaternion);
       hand.position.copy(contact).sub(gripOffset);
+    }
+    function fitKnifeHand(hand,contact,size) {
+      fitGrip(hand,contact,size,0,0,-1,.85,-.52,0);
+      handFacing.copy(hand.userData.palmNormal).applyQuaternion(hand.quaternion);
+      handFacing.addScaledVector(gripAxis,-handFacing.dot(gripAxis)).normalize();
+      targetFacing.set(.30,-.95,0).normalize();
+      const sin=gripCross.crossVectors(handFacing,targetFacing).dot(gripAxis);
+      const cos=handFacing.dot(targetFacing);
+      hand.quaternion.premultiply(rollCorrection.setFromAxisAngle(gripAxis,Math.atan2(sin,cos)));
+      gripOffset.copy(hand.userData.gripCenter).multiplyScalar(size).applyQuaternion(hand.quaternion);
+      hand.position.copy(contact).sub(gripOffset);
+    }
+    function faceFreeKnifeHand(hand,slash,inspect) {
+      const normal=hand.userData.palmNormal, fingers=hand.userData.palmDirection;
+      handSide.crossVectors(fingers,normal).normalize();
+      gripBasis.makeBasis(fingers,normal,handSide);
+      inverseFrame.setFromRotationMatrix(gripBasis).invert();
+      targetFacing.set(.50+.12*slash,-.20,.84-.10*inspect).normalize();
+      fingerDirection.set(.49+.18*slash,.66,-.56);
+      fingerDirection.addScaledVector(targetFacing,-fingerDirection.dot(targetFacing)).normalize();
+      handSide.crossVectors(fingerDirection,targetFacing);
+      gripBasis.makeBasis(fingerDirection,targetFacing,handSide);
+      hand.quaternion.setFromRotationMatrix(gripBasis).multiply(inverseFrame);
     }
     api.setHands=(right,left)=>{
       rightHand?.parent?.remove(rightHand);
@@ -665,7 +689,7 @@
       const inspect=Number.isFinite(age)?ease(age/.24)*(1-ease((age-2.55)/.33)):0;
       const slash=knife&&shot>=0&&shot<.38?Math.sin(Math.PI*shot/.38)**2:0;
       weaponPoint(leftContact,grip);
-      if(knife)fitGrip(rightHand,leftContact,size,0,0,-1,.85,-.52,0);
+      if(knife)fitKnifeHand(rightHand,leftContact,size);
       else fitGrip(rightHand,leftContact,size,0,1,pistol?-.25:-.12,.39,-.42,.84);
       rightHand.visible=true;
       relaxHand(rightHand,0);
@@ -676,10 +700,9 @@
       if(knife){
         if(leftHand.parent!==scene)scene.add(leftHand);
         bladePosition.set(-.22*Math.min(camera.aspect,2.1)/1.78+.032*slash+.016*inspect,
-          -.216-.19*draw+.014*slash+.004*stride-.069*inspect,-.48+.024*inspect-.038*slash);
-        leftBladeRotation.set(-1.54-.14*slash,.23+.14*inspect,.39+.33*slash);
+          -.196-.19*draw+.014*slash+.004*stride-.069*inspect,-.48+.024*inspect-.038*slash);
         leftHand.position.copy(bladePosition);
-        leftHand.rotation.copy(leftBladeRotation);
+        faceFreeKnifeHand(leftHand,slash,inspect);
         leftHand.scale.setScalar(.63);
         relaxHand(leftHand,.66-.24*slash);
         return;
@@ -776,7 +799,16 @@
       selected=id; equipped=performance.now(); inspected=fired=-Infinity;
       pivot.clear(); model=null; visible=false;
       if(!hasHeldModel(id))return;
-      getModel(id).then(asset=>{if(asset && selected===id){model=asset;pivot.add(asset);}}).catch(err=>console.warn('Pistol model',id,err));
+      getModel(id).then(asset=>{
+        if(!asset||selected!==id)return;
+        model=id==='knife'?asset.clone(true):asset;
+        if(id==='knife'){
+          // Object3D.clone serializes userData and would turn the Vector3 markers into plain objects.
+          model.userData=asset.userData;
+          model.rotateOnWorldAxis(screenAxis,Math.PI);
+        }
+        pivot.add(model);
+      }).catch(err=>console.warn('Weapon model',id,err));
     }
     const set=api.setWeapon, update=api.update, fire=api.fire, inspect=api.inspect, reload=api.beginReload;
     let modelLoadingEnabled=false;
@@ -933,7 +965,7 @@
       if(selected==='knife'){
         const slash=Math.sin(Math.PI*Math.min(1,shot/.33))**2;
         pivot.position.x-=.20*slash;
-        pivot.rotation.z+=1.14*slash;
+        pivot.rotation.z+=1.14*slash-.46;
       } else if(catalog[selected]?.canScope){
         const ads=smooth(aim);
         pivot.rotation.x*=1-ads;
