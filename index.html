@@ -28,7 +28,7 @@
   <script src="crosshair-profile.js"></script>
   <script src="crosshair-ui.js" defer></script>
   <script src="ads-system.js?v=armory20"></script>
-  <script src="weapon-viewmodels.js?v=knife-parts17"></script>
+  <script src="weapon-viewmodels.js?v=knife-pose18"></script>
 
   <style>
     :root {
@@ -2246,6 +2246,18 @@ window.setModeMaps=function(mode,select,wanted){
       }
 
       const knifeGripDefaults={forward:.019,inward:-.009,along:-.005,angle:.42};
+      const knifePartDefaults={
+        handL:[.016,-.028,-.005,-28,-8,-20,1],
+        Thumb1L:[-.006,-.025,.024,0,0,12,1],
+        Thumb2L:[-.007,-.001,-.006,-16,-28,-20,1],
+        Index1L:[-.004,-.010,0,9,17,0,1],
+        forearmL:[-.013,.020,.022,60,0,3,1],
+        Middle1L:[0,-.013,.007,23,-12,-31,1],
+        Ring1L:[0,0,0,0,-19,-34,1],
+        Pinky1L:[0,0,0,-3,17,-36,1],
+        forearmR:[.002,.025,.004,48,0,0,1],
+        weapon:[0,0,0,-26,0,0,1]
+      };
       function buildFirstPersonHands(asset,settings=knifeGripDefaults,sides=['L','R'],adjustments={}) {
         return sides.map(side=>{
           const posed=THREE.SkeletonUtils.clone(asset.scene);
@@ -5723,25 +5735,36 @@ window.setModeMaps=function(mode,select,wanted){
         panel.addEventListener('keydown',event=>event.stopPropagation());
         panel.addEventListener('keyup',event=>event.stopPropagation());
         panel.innerHTML=`
-          <summary>칼 그립 조정</summary>
+          <summary>무기 그립 조정</summary>
           <fieldset disabled style="margin:0;padding:0;border:0">
+            <label for="grip-weapon">무기</label>
+            <select id="grip-weapon"></select>
             <label for="grip-part">조정할 부위</label>
             <select id="grip-part"></select>
             <div data-controls></div>
             <p><button type="button" data-reset-part>선택 부위 초기화</button></p>
             <p><button type="button" data-inspect>자세히 보기</button>
+            <button type="button" data-reload hidden>장전 보기</button>
             <button type="button" data-reset>전체 초기화</button>
             <button type="button" data-copy>값 복사</button></p>
           </fieldset>
-          <p role="status">칼과 손 모델을 불러오는 중…</p>
+          <p role="status">무기와 손 모델을 불러오는 중…</p>
           <textarea readonly hidden rows="5" aria-label="복사할 조정 값"></textarea>
           <a href="./">게임으로 돌아가기</a>`;
         document.body.append(panel);
         const status=panel.querySelector('[role="status"]');
         const fields=panel.querySelector('[data-controls]');
-        const settings={...knifeGripDefaults};
-        const partSelect=panel.querySelector('select');
-        const edits={};
+        const partSelect=panel.querySelector('#grip-part');
+        const weaponSelect=panel.querySelector('#grip-weapon');
+        const reloadButton=panel.querySelector('[data-reload]');
+        const jobs=new Map(viewmodel.preloadJobs().map(job=>[job.id,job.load]));
+        const weaponIds=['knife','classic','shorty','frenzy','ghost','bandit','sheriff'].filter(id=>jobs.has(id));
+        for(const id of weaponIds)weaponSelect.append(new Option(WEAPON_CATALOG[id].name,id));
+        const drafts=new Map(weaponIds.map(id=>[id,{
+          index:{...knifeGripDefaults},parts:id==='knife'?structuredClone(knifePartDefaults):{}
+        }]));
+        let weapon='knife', {index:settings,parts:edits}=drafts.get(weapon);
+        const defaultParts=()=>weapon==='knife'?knifePartDefaults:{};
         const neutral=[0,0,0,0,0,0,1];
         const partFields=[];
         function addParts(label,entries){
@@ -5750,15 +5773,20 @@ window.setModeMaps=function(mode,select,wanted){
           for(const [key,label] of entries)group.append(new Option(label,key));
           partSelect.append(group);
         }
-        addParts('검지 빠른 조정',[['quick','오른손 검지 · 홈 맞춤']]);
         const fingers=[['Thumb','엄지'],['Index','검지'],['Middle','중지'],['Ring','약지'],['Pinky','새끼손가락']];
-        for(const [side,label] of [['L','오른쪽'],['R','왼쪽']]){
-          addParts(label+' 팔과 손',[
-            ['forearm'+side,label+' 팔뚝'],['hand'+side,label+' 손 / 손목'],
-            ...fingers.flatMap(([key,caption])=>[1,2,3].map(n=>[key+n+side,caption+' '+n+'번째 마디']))
-          ]);
+        function rebuildParts(){
+          partSelect.replaceChildren();
+          if(weapon==='knife')addParts('검지 빠른 조정',[['quick','오른손 검지 · 홈 맞춤']]);
+          for(const [side,label] of [['L','오른쪽'],['R','왼쪽']]){
+            addParts(label+' 팔과 손',[
+              ['forearm'+side,label+' 팔뚝'],['hand'+side,label+' 손 / 손목'],
+              ...fingers.flatMap(([key,caption])=>[1,2,3].map(n=>[key+n+side,caption+' '+n+'번째 마디']))
+            ]);
+          }
+          if(weapon==='knife')addParts('칼',[['weapon','칼 전체'],['blade','칼날'],['guard','가드'],['handle','손잡이']]);
+          else addParts('무기',[['weapon','무기 전체'],['front','앞부분'],['body','몸체'],['grip','손잡이']]);
+          rebuildControls();
         }
-        addParts('칼',[['weapon','칼 전체'],['blade','칼날'],['guard','가드'],['handle','손잡이']]);
         const quickControls=[
           ['forward','손잡이 뒤쪽 ↔ 칼날 쪽',-.015,.065,.001],
           ['inward','홈 안쪽 ↔ 바깥쪽',-.032,.016,.001],
@@ -5818,14 +5846,15 @@ window.setModeMaps=function(mode,select,wanted){
           }
         }
         partSelect.onchange=rebuildControls;
-        rebuildControls();
+        rebuildParts();
         panel.querySelector('[data-reset-part]').onclick=()=>{
           const selected=partSelect.value;
           if(selected==='quick'){
             Object.assign(settings,knifeGripDefaults);
             pending.add('L');
           }else{
-            delete edits[selected];
+            if(defaultParts()[selected])edits[selected]=[...defaultParts()[selected]];
+            else delete edits[selected];
             if(/[123][LR]$/.test(selected))pending.add(selected.at(-1));
           }
           partFields.forEach(sync=>sync());
@@ -5834,14 +5863,16 @@ window.setModeMaps=function(mode,select,wanted){
         panel.querySelector('[data-reset]').onclick=()=>{
           Object.assign(settings,knifeGripDefaults);
           for(const key of Object.keys(edits))delete edits[key];
+          Object.assign(edits,structuredClone(defaultParts()));
           zoom=1.8;
           partFields.forEach(sync=>sync());
           pending.add('L');pending.add('R');
           status.textContent='기본값으로 돌아왔어요.';
         };
         panel.querySelector('[data-inspect]').onclick=()=>viewmodel.inspect();
+        reloadButton.onclick=()=>viewmodel.beginReload();
         panel.querySelector('[data-copy]').onclick=async()=>{
-          const data=JSON.stringify({weapon:'knife',index:settings,parts:edits},null,2);
+          const data=JSON.stringify({weapon,...(weapon==='knife'?{index:settings}:{}),parts:edits},null,2);
           try{
             await navigator.clipboard.writeText(data);
             status.textContent='조정 값을 복사했어요.';
@@ -5855,15 +5886,38 @@ window.setModeMaps=function(mode,select,wanted){
         };
         try{
           const [character,knife]=await Promise.all([
-            loadCharacterAsset(),viewmodel.preloadJobs().find(job=>job.id==='knife').load()
+            loadCharacterAsset(),jobs.get('knife')()
           ]);
           if(!character||!knife?.userData.inspectCorners?.length)throw new Error('Missing preview model');
           asset=character;
-          [hands.L,hands.R]=buildFirstPersonHands(asset);
+          [hands.L,hands.R]=buildFirstPersonHands(asset,settings,['L','R'],edits);
           viewmodel.setHands(hands.L,hands.R);
           viewmodel.setPreviewEdits(edits);
           viewmodel.setWeapon('knife');
           viewmodel.enableModelLoading();
+          weaponSelect.onchange=async()=>{
+            const requested=weaponSelect.value;
+            status.textContent='모델을 불러오는 중…';
+            try{
+              const loaded=await jobs.get(requested)();
+              if(!loaded?.userData.inspectCorners?.length)throw new Error('Missing weapon model');
+              if(weaponSelect.value!==requested)return;
+              weapon=requested;
+              ({index:settings,parts:edits}=drafts.get(weapon));
+              pending.add('L');pending.add('R');
+              rebuildHands();
+              rebuildParts();
+              reloadButton.hidden=weapon==='knife';
+              viewmodel.setPreviewEdits(edits);
+              viewmodel.setWeapon(weapon);
+              status.textContent='방향키로 슬라이더를 한 칸씩 조정할 수 있어요.';
+            }catch(error){
+              if(weaponSelect.value!==requested)return;
+              weaponSelect.value=weapon;
+              status.textContent='선택한 무기 모델을 불러오지 못했어요.';
+              console.warn('Weapon editor model unavailable',error);
+            }
+          };
           renderer.setClearColor(0x293743);
           panel.querySelector('fieldset').disabled=false;
           status.textContent='방향키로 슬라이더를 한 칸씩 조정할 수 있어요.';
@@ -5874,9 +5928,11 @@ window.setModeMaps=function(mode,select,wanted){
               rebuildHands();
               lastUpdate=now;
             }
+            const support=partSelect.value.endsWith('R');
+            viewmodel.setPreviewEdits(edits,support);
             viewmodel.update(.016,previewPlayer,previewMatch);
             renderer.clear();
-            const focusX=/[LR]$/.test(partSelect.value)&&partSelect.value.endsWith('R')?.30:.69;
+            const focusX=support&&weapon==='knife'?.30:.69;
             viewmodel.renderModel(renderer,zoom===1?undefined:{zoom,x:focusX,y:.82});
             requestAnimationFrame(preview);
           }
@@ -5890,7 +5946,11 @@ window.setModeMaps=function(mode,select,wanted){
       window.addEventListener('load', () => {
         if(knifeEditorMode)return;
         loadCharacterAsset().then(asset=>{
-          if(asset)viewmodel.setHands?.(...buildFirstPersonHands(asset));
+          if(!asset)return;
+          const [right,left]=buildFirstPersonHands(asset);
+          const [knifeRight]=buildFirstPersonHands(asset,knifeGripDefaults,['L'],knifePartDefaults);
+          viewmodel.setHands?.(right,left);
+          viewmodel.setKnifePose?.(knifePartDefaults,knifeRight);
         }).catch(error=>console.warn('First-person hands unavailable',error));
       }, {once:true});
       let startupStarted=false;
