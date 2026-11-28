@@ -28,7 +28,7 @@
   <script src="crosshair-profile.js"></script>
   <script src="crosshair-ui.js" defer></script>
   <script src="ads-system.js?v=armory20"></script>
-  <script src="weapon-viewmodels.js?v=knife-grip15"></script>
+  <script src="weapon-viewmodels.js?v=knife-editor16"></script>
 
   <style>
     :root {
@@ -83,6 +83,41 @@
       display: block;
       z-index: 1;
     }
+
+    #knife-grip-editor {
+      position: fixed;
+      z-index: 5;
+      inset: 12px auto auto 12px;
+      width: min(320px,calc(100vw - 24px));
+      max-height: 50dvh;
+      overflow: auto;
+      padding: 14px;
+      box-sizing: border-box;
+      border: 1px solid #657787;
+      border-radius: 10px;
+      background: #15202b;
+      color: #eff5f8;
+      font: 14px/1.45 system-ui, sans-serif;
+      letter-spacing: normal;
+    }
+    #knife-grip-editor summary { cursor: pointer; font-size: 17px; font-weight: 700; }
+    #knife-grip-editor p { margin: 7px 0; }
+    #knife-grip-editor label { display: grid; grid-template-columns: 1fr auto; gap: 1px 8px; margin-top: 6px; }
+    #knife-grip-editor input[type="range"] { grid-column: 1/-1; margin: 0; width: 100%; accent-color: #65dad4; }
+    #knife-grip-editor output { font-variant-numeric: tabular-nums; color: #9be7e3; }
+    #knife-grip-editor button, #knife-grip-editor a {
+      display: inline-block;
+      border: 1px solid #78909f;
+      border-radius: 5px;
+      padding: 5px 9px;
+      background: #223749;
+      color: inherit;
+      cursor: pointer;
+      font: inherit;
+      text-decoration: none;
+    }
+    #knife-grip-editor button:disabled { opacity: .45; cursor: default; }
+    #knife-grip-editor textarea { width: 100%; box-sizing: border-box; color: #eff5f8; background: #0b1720; font: 13px monospace; }
 
     /* Transparent flat weapon photos are projected as 3D paper quads using
        matrix3d from the four virtual corners. No player hands or weapon models. */
@@ -2208,8 +2243,9 @@ window.setModeMaps=function(mode,select,wanted){
         return characterAsset || Promise.resolve(null);
       }
 
-      function buildFirstPersonHands(asset) {
-        return ['L','R'].map(side=>{
+      const knifeGripDefaults={forward:.019,inward:-.009,along:-.005,angle:.42};
+      function buildFirstPersonHands(asset,settings=knifeGripDefaults,sides=['L','R']) {
+        return sides.map(side=>{
           const posed=THREE.SkeletonUtils.clone(asset.scene);
           const mixer=new THREE.AnimationMixer(posed);
           const action=mixer.clipAction(asset.clips.get('Grip'+side));
@@ -2339,11 +2375,11 @@ window.setModeMaps=function(mode,select,wanted){
             // Line the index finger up with the front scallop and oppose it with the thumb.
             const indexBase=posed.getObjectByName('Index1'+side);
             const seated=indexBase.getWorldPosition(new THREE.Vector3())
-              .addScaledVector(axis,.019)
-              .addScaledVector(openNormal,-.009)
-              .addScaledVector(palmDirection,-.005);
+              .addScaledVector(axis,settings.forward)
+              .addScaledVector(openNormal,settings.inward)
+              .addScaledVector(palmDirection,settings.along);
             indexBase.position.copy(indexBase.parent.worldToLocal(seated));
-            steerBase('Index',palmDirection.clone().addScaledVector(axis,-1.23),.42);
+            steerBase('Index',palmDirection.clone().addScaledVector(axis,-1.23),settings.angle);
             steerBase('Thumb',palmDirection,.42);
           }
           posed.updateMatrixWorld(true);
@@ -5641,8 +5677,133 @@ window.setModeMaps=function(mode,select,wanted){
         updateHUD,flashDamage,showHitmarker,showRoundBanner,addKillFeed,syncCheatPermissionUI,
         launchAscentMatchImmediate,enterPostMatch,showGroundDisplay,openWaitingLobby:window.openWaitingLobby,openEntryScreen:window.openEntryScreen,
         switchWeaponSlot:window.switchWeaponSlot,getSpikeHeld:()=>!!planting()||defusing()});
+      const knifeEditorMode=new URLSearchParams(location.search).get('knife-editor')==='1';
+      async function openKnifeGripEditor(){
+        document.getElementById('asset-loading')?.remove();
+        window.removeEventListener('keydown',blockLoadingKeys,true);
+        window.removeEventListener('keyup',blockLoadingKeys,true);
+        for(const element of document.body.children){
+          if(element!==canvas&&element.tagName!=='SCRIPT'&&element.tagName!=='STYLE'){
+            element.style.setProperty('display','none','important');
+            element.inert=true;
+          }
+        }
+        const panel=document.createElement('details');
+        panel.id='knife-grip-editor';
+        panel.open=true;
+        panel.addEventListener('keydown',event=>event.stopPropagation());
+        panel.addEventListener('keyup',event=>event.stopPropagation());
+        panel.innerHTML=`
+          <summary>칼 그립 조정</summary>
+          <p>오른손 검지가 손잡이 홈에 맞도록 움직여 보세요.</p>
+          <fieldset disabled style="margin:0;padding:0;border:0">
+            <div data-controls></div>
+            <p><button type="button" data-inspect>자세히 보기</button>
+            <button type="button" data-reset>초기값</button>
+            <button type="button" data-copy>값 복사</button></p>
+          </fieldset>
+          <p role="status">칼과 손 모델을 불러오는 중…</p>
+          <textarea readonly hidden rows="5" aria-label="복사할 조정 값"></textarea>
+          <a href="./">게임으로 돌아가기</a>`;
+        document.body.append(panel);
+        const status=panel.querySelector('[role="status"]');
+        const fields=panel.querySelector('[data-controls]');
+        const settings={...knifeGripDefaults};
+        const refresh=[];
+        const controls=[
+          ['forward','손잡이 뒤쪽 ↔ 칼날 쪽',-.015,.065,.001],
+          ['inward','홈 안쪽 ↔ 바깥쪽',-.032,.016,.001],
+          ['along','검지 길이 방향',-.030,.030,.001],
+          ['angle','첫 마디 각도',-.25,1.15,.01],
+          ['zoom','미리보기 확대',1,3,.1]
+        ];
+        let zoom=1.8, right, left, asset, pending=false;
+        function rebuildRightHand(){
+          const previous=right;
+          [right]=buildFirstPersonHands(asset,settings,['L']);
+          viewmodel.setHands(right,left);
+          for(const mesh of previous.children){mesh.geometry.dispose();mesh.material.dispose();}
+          for(const mesh of previous.forearm.children)mesh.geometry.dispose();
+        }
+        for(const [key,name,min,max,step] of controls){
+          const label=document.createElement('label');
+          const title=document.createElement('span');
+          title.textContent=name;
+          const value=document.createElement('output');
+          const input=document.createElement('input');
+          input.type='range';
+          input.min=min;input.max=max;input.step=step;
+          input.setAttribute('aria-label',name);
+          const sync=()=>{
+            const current=key==='zoom'?zoom:settings[key];
+            input.value=current;
+            value.textContent=key==='zoom'?current.toFixed(1)+'×':current.toFixed(step===.01?2:3);
+          };
+          sync();refresh.push(sync);
+          input.addEventListener('input',()=>{
+            if(key==='zoom')zoom=Number(input.value);
+            else{settings[key]=Number(input.value);pending=true;}
+            sync();
+          });
+          label.append(title,value,input);
+          fields.append(label);
+        }
+        panel.querySelector('[data-reset]').onclick=()=>{
+          Object.assign(settings,knifeGripDefaults);
+          zoom=1.8;
+          refresh.forEach(sync=>sync());
+          pending=true;
+          status.textContent='기본값으로 돌아왔어요.';
+        };
+        panel.querySelector('[data-inspect]').onclick=()=>viewmodel.inspect();
+        panel.querySelector('[data-copy]').onclick=async()=>{
+          const data=JSON.stringify(settings,null,2);
+          try{
+            await navigator.clipboard.writeText(data);
+            status.textContent='조정 값을 복사했어요.';
+          }catch{
+            const output=panel.querySelector('textarea');
+            output.hidden=false;
+            output.value=data;
+            output.select();
+            status.textContent='선택된 값을 복사하세요.';
+          }
+        };
+        try{
+          const [character,knife]=await Promise.all([
+            loadCharacterAsset(),viewmodel.preloadJobs().find(job=>job.id==='knife').load()
+          ]);
+          if(!character||!knife?.userData.inspectCorners?.length)throw new Error('Missing preview model');
+          asset=character;
+          [right,left]=buildFirstPersonHands(asset);
+          viewmodel.setHands(right,left);
+          viewmodel.setWeapon('knife');
+          viewmodel.enableModelLoading();
+          renderer.setClearColor(0x293743);
+          panel.querySelector('fieldset').disabled=false;
+          status.textContent='방향키로 슬라이더를 한 칸씩 조정할 수 있어요.';
+          const previewPlayer={alive:true,vel:{x:0,z:0}},previewMatch={inMatch:true};
+          let lastUpdate=-Infinity;
+          function preview(now){
+            if(pending&&now-lastUpdate>=45){
+              rebuildRightHand();
+              pending=false;
+              lastUpdate=now;
+            }
+            viewmodel.update(.016,previewPlayer,previewMatch);
+            renderer.clear();
+            viewmodel.renderModel(renderer,zoom===1?undefined:{zoom,x:.69,y:.82});
+            requestAnimationFrame(preview);
+          }
+          requestAnimationFrame(preview);
+        }catch(error){
+          status.textContent='칼이나 손 모델을 불러오지 못했어요. 새로고침해서 다시 시도하세요.';
+          console.warn('Knife grip preview unavailable',error);
+        }
+      }
       // Complete the small data/audio stage before starting any 3D model jobs.
       window.addEventListener('load', () => {
+        if(knifeEditorMode)return;
         loadCharacterAsset().then(asset=>{
           if(asset)viewmodel.setHands?.(...buildFirstPersonHands(asset));
         }).catch(error=>console.warn('First-person hands unavailable',error));
@@ -5719,8 +5880,9 @@ window.setModeMaps=function(mode,select,wanted){
         }catch(error){console.warn('Optional startup media',error);}
         enter();
       }
-      if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',prepareAssets,{once:true});
-      else prepareAssets();
+      const start=knifeEditorMode?openKnifeGripEditor:prepareAssets;
+      if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});
+      else start();
     })();
   </script>
 </body>

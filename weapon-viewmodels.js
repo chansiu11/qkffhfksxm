@@ -1073,13 +1073,22 @@
       worldCamera.worldToLocal(ray);
       return worldCamera.localToWorld(ray.multiplyScalar(-depth/ray.z));
     };
-    api.renderModel=renderer=>{
+    api.renderModel=(renderer,preview)=>{
       if(!visible)return;
       const clear=renderer.autoClear;
       renderer.autoClear=false;
+      if(preview){
+        const width=innerWidth,height=innerHeight;
+        const viewWidth=width/preview.zoom,viewHeight=height/preview.zoom;
+        camera.setViewOffset(width,height,preview.x*width-viewWidth/2,preview.y*height-viewHeight/2,viewWidth,viewHeight);
+      }
       try {renderer.clearDepth();renderer.render(scene,camera);}
-      finally {renderer.autoClear=clear;}
+      finally {
+        if(preview)camera.clearViewOffset();
+        renderer.autoClear=clear;
+      }
     };
     return api;
   };
 })();
+
