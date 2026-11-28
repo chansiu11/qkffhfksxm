@@ -28,7 +28,7 @@
   <script src="crosshair-profile.js"></script>
   <script src="crosshair-ui.js" defer></script>
   <script src="ads-system.js?v=armory20"></script>
-  <script src="weapon-viewmodels.js?v=hands3"></script>
+  <script src="weapon-viewmodels.js?v=grip-motion4"></script>
 
   <style>
     :root {
@@ -2212,8 +2212,7 @@ window.setModeMaps=function(mode,select,wanted){
         return ['L','R'].map(side=>{
           const posed=THREE.SkeletonUtils.clone(asset.scene);
           const mixer=new THREE.AnimationMixer(posed);
-          mixer.clipAction(asset.clips.get('Grip'+side)).play();
-          mixer.update(.1);
+          const action=mixer.clipAction(asset.clips.get('Grip'+side));
           posed.updateMatrixWorld(true);
           const palm = new THREE.Vector3(side==='L'?-.036:.036,-.064,.072);
           const hand=posed.getObjectByName('Hand'+side);
@@ -2221,39 +2220,55 @@ window.setModeMaps=function(mode,select,wanted){
           const result=new THREE.Group();
           const isHand = bone => bone?.name.endsWith(side) && /^(Hand|Thumb|Index|Middle|Ring|Pinky)/.test(bone.name);
           const v=new THREE.Vector3();
+          const parts=[];
           posed.traverse(mesh=>{
             if(!mesh.isSkinnedMesh)return;
-            mesh.skeleton.update();
             const g=mesh.geometry, {position,skinIndex,skinWeight}=g.attributes;
-            const belongs=new Uint8Array(position.count);
-            const normalized=new Float32Array(skinWeight.count*4);
             const unit=skinWeight.normalized && skinWeight.array instanceof Uint8Array ? 255 : 1;
-            for(let j=0;j<position.count;j++){
-              for(let k=0;k<4;k++)normalized[4*j+k]=skinWeight.array[4*j+k]/unit;
-              belongs[j]=isHand(mesh.skeleton.bones[skinIndex.getX(j)])?1:0;
-            }
-            if(!belongs.some(Boolean))return;
-            mesh.geometry=g.clone();
-            mesh.geometry.setAttribute('skinWeight',new THREE.BufferAttribute(normalized,4));
-            const vertices=[];
+            const belongs=new Uint8Array(position.count);
+            for(let j=0;j<position.count;j++)belongs[j]=isHand(mesh.skeleton.bones[skinIndex.getX(j)])?1:0;
+            const indices=[];
             const idx=g.index;
             for(let j=0;j<(idx?.count??position.count);j+=3){
               const a=idx?idx.getX(j):j,b=idx?idx.getX(j+1):j+1,c=idx?idx.getX(j+2):j+2;
-              if(!belongs[a]||!belongs[b]||!belongs[c])continue;
-              for(const p of [a,b,c]){
+              if(belongs[a]&&belongs[b]&&belongs[c])indices.push(a,b,c);
+            }
+            if(!indices.length)return;
+            mesh.geometry=g.clone();
+            const normalized=Float32Array.from(skinWeight.array,value=>value/unit);
+            mesh.geometry.setAttribute('skinWeight',new THREE.BufferAttribute(normalized,4));
+            const capture=()=>{
+              mesh.skeleton.update();
+              const values=[];
+              for(const p of indices){
                 v.fromBufferAttribute(position,p);
                 mesh.boneTransform(p,v);
                 mesh.localToWorld(v).sub(center);
-                vertices.push(v.x,v.y,v.z);
+                values.push(v.x,v.y,v.z);
               }
-            }
-            mesh.geometry.dispose();
-            if(!vertices.length)return;
-            const geometry=new THREE.BufferGeometry();
-            geometry.setAttribute('position',new THREE.Float32BufferAttribute(vertices,3));
-            geometry.computeVertexNormals();
-            result.add(new THREE.Mesh(geometry,mesh.material));
+              return new THREE.Float32BufferAttribute(values,3);
+            };
+            parts.push({mesh,capture,open:capture()});
           });
+          action.play();
+          mixer.update(.1);
+          posed.updateMatrixWorld(true);
+          for(const {mesh,capture,open} of parts){
+            const geometry=new THREE.BufferGeometry();
+            geometry.setAttribute('position',capture());
+            geometry.morphAttributes.position=[open];
+            geometry.computeVertexNormals();
+            const relaxed=geometry.clone();
+            relaxed.setAttribute('position',open);
+            relaxed.computeVertexNormals();
+            geometry.morphAttributes.normal=[relaxed.attributes.normal];
+            relaxed.dispose();
+            const material=mesh.material.clone();
+            material.morphTargets=true;
+            material.morphNormals=true;
+            result.add(new THREE.Mesh(geometry,material));
+            mesh.geometry.dispose();
+          }
           return result;
         });
       }

@@ -520,6 +520,19 @@
     grip.y-=.20*(bounds.max.y-bounds.min.y);
     grip.z+=.30*(bounds.max.z-bounds.min.z);
     body.userData.inspectGrip=body.worldToLocal(grip);
+    const span=bounds.getSize(new T.Vector3());
+    const mid=bounds.getCenter(new T.Vector3());
+    const pistol=styles[id]?.kind==='pistol'||styles[id]?.kind==='revolver'||id==='frenzy';
+    const short=id==='shorty';
+    const blade=id==='knife';
+    const bullpup=id==='bulldog'||id==='phantom';
+    const heavy=['judge','ares','odin'].includes(id);
+    const point=(height,depth)=>body.worldToLocal(new T.Vector3(mid.x,bounds.min.y+span.y*height,bounds.max.z-span.z*depth));
+    body.userData.handAnchors={
+      hold:point(blade?.48:pistol?.32:short?.30:heavy?.29:.35,blade?.17:pistol?.19:short?.20:bullpup?.35:.28),
+      support:point(heavy?.55:.57,bullpup?.64:short?.64:.68),
+      reload:point(.28,heavy?.48:bullpup?.26:.43)
+    };
     body.userData.inspectCorners=[];
     for(const x of [bounds.min.x,bounds.max.x])
       for(const y of [bounds.min.y,bounds.max.y])
@@ -536,29 +549,72 @@
     light.position.set(-1,2,1); scene.add(light);
     let selected, model, visible=false, equipped=0, inspected=-Infinity, fired=-Infinity;
     let rightHand,leftHand;
+    const leftContact=new T.Vector3(), leftRelease=new T.Vector3(), bladePosition=new T.Vector3();
+    const leftBladeRotation=new T.Euler();
     api.setHands=(right,left)=>{
+      rightHand?.parent?.remove(rightHand);
+      leftHand?.parent?.remove(leftHand);
       rightHand=right;leftHand=left;
+      // The free knife hand belongs to the overlay camera, independent of blade rotation.
+      scene.add(leftHand);
+      leftHand.visible=false;
     };
-    function syncHands() {
+    function relaxHand(hand,amount){
+      for(const part of hand.children)if(part.morphTargetInfluences)part.morphTargetInfluences[0]=amount;
+    }
+    function weaponPoint(target,local){
+      return target.copy(local).multiply(model.scale).applyQuaternion(model.quaternion).add(model.position);
+    }
+    const ease=value=>{
+      const t=T.MathUtils.clamp(value,0,1);
+      return t*t*(3-2*t);
+    };
+    function syncHands({reloadT,draw,aim,age,shot,stride}){
       if(!rightHand||!leftHand||!model?.userData.inspectGrip)return;
-      if(rightHand.parent!==pivot)pivot.add(rightHand,leftHand);
-      const grip=model.userData.inspectGrip;
-      const knife=selected==='knife', pistol=catalog[selected]?.slot==='secondary';
-      const primary = !knife&&!pistol;
-      const size=.86/pivot.scale.x;
-      rightHand.position.copy(grip).multiply(model.scale).applyQuaternion(model.quaternion).add(model.position);
-      rightHand.rotation.set(knife?.9:.12,Math.PI+(.12),knife?-.38:-.08);
+      if(rightHand.parent!==pivot)pivot.add(rightHand);
+      const {inspectGrip,muzzle,handAnchors}=model.userData;
+      const grip=handAnchors?.hold||inspectGrip;
+      const knife=selected==='knife', pistol=catalog[selected]?.slot==='secondary'&&selected!=='shorty';
+      const size=(knife?.79:.76)/pivot.scale.x;
+      const inspect=Number.isFinite(age)?ease(age/.24)*(1-ease((age-2.55)/.33)):0;
+      const slash=knife&&shot>=0&&shot<.38?Math.sin(Math.PI*shot/.38)**2:0;
+      weaponPoint(rightHand.position,grip);
+      rightHand.rotation.set(knife?.63:.26,Math.PI+.10,knife?-.28:-.12);
       rightHand.scale.setScalar(size);
       rightHand.visible=true;
-      leftHand.visible=primary;
-      if(!primary)return;
-      leftHand.position.copy(grip).lerp(model.userData.muzzle,.39).multiply(model.scale)
-        .applyQuaternion(model.quaternion).add(model.position);
-      leftHand.position.y-=.024;
-      leftHand.rotation.set(.6,Math.PI-.30,.53);
-      leftHand.scale.setScalar(size);
+      relaxHand(rightHand,knife?.13*inspect:.2*inspect);
+
+      const offGun=ease((reloadT-.08)/.24)*(1-ease((reloadT-.70)/.26));
+      leftHand.visible=knife||!pistol||offGun>.04;
+      if(knife){
+        if(leftHand.parent!==scene)scene.add(leftHand);
+        bladePosition.set(-.20*Math.min(camera.aspect,2.1)/1.78+.033*slash,
+          -.188-.16*draw+.014*slash+.004*stride,-.47+.024*inspect-.038*slash);
+        leftBladeRotation.set(.72-.21*slash,-.44,.25+.56*slash);
+        leftHand.position.copy(bladePosition);
+        leftHand.rotation.copy(leftBladeRotation);
+        leftHand.scale.setScalar(.74);
+        relaxHand(leftHand,.78-.32*slash);
+        return;
+      }
+      if(leftHand.parent!==pivot)pivot.add(leftHand);
+      const support=handAnchors?.support||muzzle;
+      weaponPoint(leftContact,support);
+      if(!handAnchors)leftContact.lerp(rightHand.position,.61);
+      leftContact.y-=.027/pivot.scale.x;
+      const loading=handAnchors?.reload||grip;
+      weaponPoint(leftRelease,loading);
+      // Travel below the receiver before coming back up to the support point.
+      const travel=ease((reloadT-.13)/.13)*(1-ease((reloadT-.40)/.20));
+      leftRelease.x-=(.037+.055*travel)/pivot.scale.x;
+      leftRelease.y-=(.018+.095*travel)/pivot.scale.x;
+      leftRelease.z+=(.012+.024*travel)/pivot.scale.x;
+      leftHand.position.copy(leftContact).lerp(leftRelease,offGun);
+      leftHand.rotation.set(.53+.40*offGun-.11*aim,Math.PI-.23-.41*offGun,.40+.38*offGun);
+      leftHand.scale.setScalar(size*(pistol?.93:1));
+      relaxHand(leftHand,Math.max(.10,travel*.66,.22*inspect));
     }
-    let duration=750, reloadStarted=0, startModelDraw=false;
+    let duration=750, reloadStarted=0, startModelDraw=false, stridePhase=0;
     function getModel(id){
       if(!cache.has(id))cache.set(id,loadModel(id,T).catch(err=>{
         if(id==='knife'){
@@ -572,6 +628,7 @@
           add(new T.BoxGeometry(.036,.014,.17),0x9aa9b2,-.114);
           blade.userData.inspectGrip=new T.Vector3(0,0,.046);
           blade.userData.muzzle=new T.Vector3(0,0,-.199);
+          blade.userData.handAnchors={hold:new T.Vector3(0,0,.046)};
           blade.userData.inspectCorners=[];
           return blade;
         }
@@ -763,6 +820,9 @@
       const shortyReload=shorty?smooth(reloadT/.22)*(1-smooth((reloadT-.72)/.28)):0;
       const shot=(now-fired)/1000, kick=selected==='knife'?(shot<.25?Math.sin(Math.PI*Math.min(1,shot/.055)/2)*Math.exp(-shot*18):0):.4*api.getVisualKick(now);
       const move=Math.min(1,Math.hypot(player.vel?.x||0,player.vel?.z||0)/7.6);
+      stridePhase=(stridePhase+Math.min(.05,Math.max(0,dt))*(3+move*8))%(Math.PI*2);
+      const stride=Math.sin(stridePhase)*move*(1-.65*aim);
+      const sway=Math.sin(stridePhase*.5)*move*(1-aim);
       const aspect=innerWidth/Math.max(1,innerHeight);
       if(camera.aspect!==aspect){camera.aspect=aspect;camera.updateProjectionMatrix();}
       // Reference at 23.5–24.5 s: Classic grip sits below and right of the crosshair.
@@ -779,10 +839,10 @@
         offsetY=(.5-frame[1])*2*halfHeight-tip.y;
       }
       pivot.position.set(pose.right*Math.min(camera.aspect,2.1)/1.78-.013*lift-.087*turn-.033*shortyInspect,
-        pose.height+.048*lift-.08*turn-.26*draw-pose.reloadDrop*dip+.015*seat+.003*move*Math.sin(now*.01),
+        pose.height+.048*lift-.08*turn-.26*draw-pose.reloadDrop*dip+.015*seat,
         -.54+.05*lift+.045*kick);
-      pivot.position.x+=offsetX;
-      pivot.position.y+=offsetY;
+      pivot.position.x+=offsetX+.004*sway;
+      pivot.position.y+=offsetY+.004*stride;
       pivot.rotation.set(.12+.30*kick+.20*lift+(selected==='classic'?0:.73*liftBarrel+.48*seat),
         (pose.yaw??.30)+pose.inspectYaw*lift-.45*turn+.16*dip+.25*shortyInspect-.56*shortyTurn,-.06-.24*lift-pose.turnRoll*turn-pose.reloadRoll*dip-.22*seat-.47*shortyReload);
       if(selected==='knife'){
@@ -815,6 +875,7 @@
         pivot.position.lerp(releasePosition,remaining);
         pivot.quaternion.slerp(releaseRotation,remaining);
       }
+      syncHands({reloadT,draw,aim,age,shot,stride});
       const photo=document.querySelector('#fps-weapon-sprite-layer .fps-paper-weapon');
       if(photo)photo.style.opacity='0';
       const flash=photo?.nextElementSibling;
@@ -843,7 +904,6 @@
     };
     api.renderModel=renderer=>{
       if(!visible)return;
-      syncHands();
       const clear=renderer.autoClear;
       renderer.autoClear=false;
       try {renderer.clearDepth();renderer.render(scene,camera);}
