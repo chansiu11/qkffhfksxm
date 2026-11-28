@@ -14,7 +14,7 @@
   <script src="config.js?v=arena-gates4"></script>
   <script src="host-transport.js?v=weapon-leg-values2"></script>
   <script src="movement-physics.js?v=move25"></script>
-  <script src="multiplayer-client.js?v=muzzle-alignment"></script>
+  <script src="multiplayer-client.js?v=muzzle-frame-sync"></script>
   <link rel="stylesheet" href="menu.css" />
   <!-- Three.js r128 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -4017,7 +4017,7 @@ window.setModeMaps=function(mode,select,wanted){
       const TRACER_LIFETIME = 0.13;
       const TRACER_COLOR = 0xffe331;
       const TRACER_WIDTH_PIXEL_OFFSETS = [-1.4, -.7, 0, .7, 1.4];
-      function spawnBulletTracer(startPos, endPos, _originalColor) {
+      function spawnBulletTracer(startPos, endPos, _originalColor, muzzleWeapon) {
         const start = startPos.clone(), end = endPos.clone();
         const distance = start.distanceTo(end);
         if (!(distance > 0.05) || !Number.isFinite(distance)) return;
@@ -4045,7 +4045,28 @@ window.setModeMaps=function(mode,select,wanted){
         const line = new THREE.LineSegments(geometry, material);
         line.frustumCulled = false;
         scene.add(line);
-        activeTracers.push({ line, age: 0, lifetime: TRACER_LIFETIME });
+        activeTracers.push({ line, age: 0, lifetime: TRACER_LIFETIME, muzzleWeapon });
+      }
+
+      // Follow the rendered barrel while the local tracer fades. Its impact
+      // and the start of each post-split pellet stay fixed in world space.
+      function syncLocalTracerStarts(){
+        const weaponId=viewmodel.current;
+        const muzzle=currentMuzzlePosition(weaponId);
+        if(!muzzle)return;
+        const eye=camera.getWorldPosition(new THREE.Vector3());
+        const forward=camera.getWorldDirection(new THREE.Vector3());
+        const right=new THREE.Vector3(1,0,0).applyQuaternion(camera.quaternion);
+        const depth=Math.max(camera.near,muzzle.clone().sub(eye).dot(forward));
+        right.multiplyScalar(2*depth*Math.tan(THREE.MathUtils.degToRad(camera.fov)/2)/gameViewport.height);
+        for(const tracer of activeTracers){
+          if(tracer.muzzleWeapon!==weaponId)continue;
+          const position=tracer.line.geometry.attributes.position;
+          TRACER_WIDTH_PIXEL_OFFSETS.forEach((offset,i)=>{
+            position.setXYZ(i*2,muzzle.x+offset*right.x,muzzle.y+offset*right.y,muzzle.z+offset*right.z);
+          });
+          position.needsUpdate=true;
+        }
       }
 
       // Tracers connect the rendered muzzle to the crosshair ray's impact.
@@ -4093,7 +4114,7 @@ window.setModeMaps=function(mode,select,wanted){
           const hits = cast.intersectObjects(mapTargetMeshes, false);
           const end = hits.length ? hits[0].point : origin.clone().addScaledVector(direction, maxDist);
           const start = localTracerVisualStart(origin, direction);
-          spawnBulletTracer(start, end);
+          spawnBulletTracer(start, end, undefined, weapon.id);
         }
       }
 
@@ -4207,7 +4228,7 @@ window.setModeMaps=function(mode,select,wanted){
           else {
             travel = spreadResult.splitDistance;
             origin.addScaledVector(axis, travel);
-            spawnBulletTracer(localTracerVisualStart(player.pos, axis), origin);
+            spawnBulletTracer(localTracerVisualStart(player.pos, axis), origin, undefined, w.id);
           }
         }
         for (let p = 0; p < pelletDirections.length; p++) {
@@ -4268,7 +4289,8 @@ window.setModeMaps=function(mode,select,wanted){
           }
           if (w.slot !== 'knife') {
             // Each shotgun pellet has its own tracer; rifle shots still emit exactly one.
-            spawnBulletTracer(travel ? origin : localTracerVisualStart(player.pos, bulletDirection), endPt);
+            spawnBulletTracer(travel ? origin : localTracerVisualStart(player.pos, bulletDirection),
+              endPt, undefined, travel ? undefined : w.id);
           }
         }
 
@@ -5841,6 +5863,9 @@ window.setModeMaps=function(mode,select,wanted){
             group.position.set(item.x+Math.sin(item.yaw||0)*back,item.y+.04+(1-t)*.8+Math.sin(t*Math.PI)*.4,item.z+Math.cos(item.yaw||0)*back);
           }
           updateSpikeBadge();
+          if(player.alive&&!hideAimedWeapon&&!heldDevice.visible&&activeTracers.some(tracer=>tracer.muzzleWeapon)){
+            syncLocalTracerStarts();
+          }
           renderer.render(scene,camera);
           if(matchState.inMatch&&!hideAimedWeapon&&!heldDevice.visible)viewmodel.renderModel(renderer);
           else lastMenuRenderAt=now;
