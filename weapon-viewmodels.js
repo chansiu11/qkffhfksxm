@@ -734,7 +734,7 @@
       hand.localToWorld(wristSocket.copy(hand.userData.wrist));
       hand.getWorldScale(armScale);
       hand.getWorldQuaternion(rollCorrection);
-      // Keep the cuff at the wrist and lay the rear of the arm past the bottom edge.
+      // Keep the cuff at the wrist while the rear of the arm exits the frame.
       arm.position.copy(wristSocket).addScaledVector(armNormal.copy(hand.userData.palmDirection).applyQuaternion(rollCorrection),.010);
       const armAxis=arm.userData.axis;
       armLocalNormal.copy(arm.userData.normal)
@@ -752,11 +752,21 @@
       const depth=T.MathUtils.clamp(-wristSocket.z*.7-armShift.z,.25,.55);
       const halfHeight=depth*Math.tan(T.MathUtils.degToRad(camera.fov/2));
       const halfWidth=halfHeight*camera.aspect;
-      takeoff.set(
-        T.MathUtils.clamp(side*.70*halfWidth+armShift.x,-.90*halfWidth,.90*halfWidth),
-        -halfHeight-.10+T.MathUtils.clamp(armShift.y,-.045,.045),
-        -depth
-      );
+      const edge=values?.[7];
+      if(edge==='left'||edge==='right'){
+        const sign=edge==='left'?-1:1;
+        takeoff.set(
+          sign*(halfWidth+.10+T.MathUtils.clamp(sign*armShift.x,-.045,.045)),
+          T.MathUtils.clamp(-.45*halfHeight+armShift.y,-.85*halfHeight,.85*halfHeight),
+          -depth
+        );
+      }else{
+        takeoff.set(
+          T.MathUtils.clamp(side*.70*halfWidth+armShift.x,-.90*halfWidth,.90*halfWidth),
+          -halfHeight-.10+T.MathUtils.clamp(armShift.y,-.045,.045),
+          -depth
+        );
+      }
       armDirection.copy(takeoff).sub(arm.position);
       const reach=armDirection.length();
       armDirection.normalize();

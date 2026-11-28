@@ -28,7 +28,7 @@
   <script src="crosshair-profile.js"></script>
   <script src="crosshair-ui.js" defer></script>
   <script src="ads-system.js?v=armory20"></script>
-  <script src="weapon-viewmodels.js?v=display-ratio-16x9"></script>
+  <script src="weapon-viewmodels.js?v=arm-screen-edge"></script>
 
   <style>
     :root {
@@ -5917,6 +5917,24 @@ window.setModeMaps=function(mode,select,wanted){
           partFields.length=0;
           const selected=partSelect.value;
           const quick=selected==='quick';
+          if(/^forearm[LR]$/.test(selected)){
+            const label=document.createElement('label');
+            label.textContent='팔이 이어지는 화면 가장자리';
+            label.style.display='block';
+            const input=document.createElement('select');
+            for(const [value,name] of [['bottom','아래'],['left','왼쪽'],['right','오른쪽']]){
+              input.append(new Option(name,value));
+            }
+            const sync=()=>{input.value=edits[selected]?.[7]??'bottom';};
+            sync();partFields.push(sync);
+            input.addEventListener('change',()=>{
+              (edits[selected]??=[...neutral])[7]=input.value;
+              zoom=1;
+              partFields.forEach(update=>update());
+            });
+            label.append(input);
+            fields.append(label);
+          }
           const descriptors=quick?quickControls:[...transformControls,quickControls.at(-1)];
           for(const [key,name,min,max,step] of descriptors){
             const label=document.createElement('label');
