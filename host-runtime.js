@@ -1,7 +1,7 @@
 /* Dedicated browser worker: uses the same room engine as Render. */
 'use strict';
 self.window=self;
-importScripts('match-plans.js?v=audio22','config.js?v=arena-gates4','shotgun-pellets.js','shooting-spread.js?v=leg-damage1','melee-rules.js','server/room-core.js?v=match-modes3');
+importScripts('match-plans.js?v=audio22','config.js?v=arena-gates4','shotgun-pellets.js','shooting-spread.js?v=weapon-leg-values2','melee-rules.js','server/room-core.js?v=match-modes3');
 self.module={exports:{}};
 importScripts('server/hit-registry.js?v=kayo1');
 const registry=self.module.exports;

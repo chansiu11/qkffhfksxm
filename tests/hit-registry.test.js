@@ -55,20 +55,25 @@ test('crouched targets use lowered hit zones in rewound snapshots',()=>{
   assert.equal(rayCharacter(0,1.19,0,0,0,1,target,200).headshot,true);
 });
 
-test('a leg hit deals at most 70% of the body damage for every ranged weapon',()=>{
+test('leg hits use the weapon and distance specific damage table',()=>{
   const {applyGunDamage}=require('../shooting-spread.js');
-  const catalog=require('../server/weapons.json');
-  for(const id of Object.keys(catalog).filter(id=>id!=='knife')){
-    for(const range of [0,7,15,20,30,50]){
-      for(const armor of [0,25,50]){
-        const hit=zone=>{
-          const target={hp:1000,armor};
-          applyGunDamage(target,id,range,zone);
-          return 1000-target.hp+armor-target.armor;
-        };
-        assert(hit('leg')<=hit('body')*.70+.0002,`${id} at ${range}m with armor ${armor}`);
-        assert(hit('leg')<hit('body'));
-      }
+  for(const [id,distance,body,leg] of [
+    ['vandal',10,40,34],
+    ['operator',25,150,120],
+    ['guardian',25,65,48.75],
+    ['phantom',19,39,33.15],
+    ['phantom',20,35,29.75],
+    ['judge',16,7,5.95],
+    ['classic',30,22,18.7]
+  ]){
+    for(const armor of [0,25,50]){
+      const total=zone=>{
+        const target={hp:1000,armor};
+        applyGunDamage(target,id,distance,zone);
+        return 1000-target.hp+armor-target.armor;
+      };
+      assert.ok(Math.abs(total('leg')-leg)<.0002,`${id} leg at ${distance}m`);
+      assert.ok(Math.abs(total('body')-body)<.0002,`${id} body at ${distance}m`);
     }
   }
 });

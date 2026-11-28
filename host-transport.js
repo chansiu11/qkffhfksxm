@@ -96,7 +96,7 @@ function make(mp){
   }
   function getWorker(){
     if(worker)return;
-    try{worker=new Worker('host-runtime.js?v=leg-damage1');}catch(_){return;}
+    try{worker=new Worker('host-runtime.js?v=weapon-leg-values2');}catch(_){return;}
     worker.onmessage=e=>{
       const m=e.data;lastWorkerAt=performance.now();
       if(m.type==='ready'){workerReady=true;report();}
