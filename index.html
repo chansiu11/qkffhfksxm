@@ -28,7 +28,7 @@
   <script src="crosshair-profile.js"></script>
   <script src="crosshair-ui.js" defer></script>
   <script src="ads-system.js?v=armory20"></script>
-  <script src="weapon-viewmodels.js?v=model-scope6"></script>
+  <script src="weapon-viewmodels.js?v=grip-fit7"></script>
 
   <style>
     :root {
@@ -2253,6 +2253,22 @@ window.setModeMaps=function(mode,select,wanted){
           action.play();
           mixer.update(.1);
           posed.updateMatrixWorld(true);
+          const knuckle = name=>posed.getObjectByName(name+side).getWorldPosition(new THREE.Vector3()).sub(center);
+          const index=knuckle('Index2'), pinky=knuckle('Pinky2');
+          const axis=index.clone().sub(pinky).normalize();
+          const middle=knuckle('Middle1'), hinge=knuckle('Middle2'), tip=knuckle('Middle3');
+          const u=hinge.clone().sub(middle), v2=tip.clone().sub(middle);
+          const normal=u.clone().cross(v2);
+          // The center of the space inside the bent middle finger, in hand-mesh coordinates.
+          const gripCenter=middle.clone().add(v2.clone().cross(normal).multiplyScalar(u.lengthSq())
+            .add(normal.clone().cross(u).multiplyScalar(v2.lengthSq()))
+            .multiplyScalar(.5/normal.lengthSq()));
+          const radial=middle.clone().sub(gripCenter);
+          radial.addScaledVector(axis,-radial.dot(axis)).normalize();
+          const cross=axis.clone().cross(radial).normalize();
+          const gripFrame=new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(radial,cross,axis));
+          result.userData.gripCenter=gripCenter;
+          result.userData.gripFrame=gripFrame;
           for(const {mesh,capture,open} of parts){
             const geometry=new THREE.BufferGeometry();
             geometry.setAttribute('position',capture());

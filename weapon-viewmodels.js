@@ -494,6 +494,7 @@
     if(objective){body.scale.setScalar(1/Math.max(size.x,size.y,size.z));return body;}
     if (size.x > size.z) body.rotation.y = Math.PI / 2;
     body.scale.setScalar(.52 / Math.max(size.x,size.y,size.z));
+    body.userData.viewScale=body.scale.x;
     // Orient the grip toward the camera using the lower silhouette.
     body.updateMatrixWorld(true);
     let sum=0, count=0;
@@ -538,9 +539,10 @@
     const heavy=['judge','ares','odin'].includes(id);
     const point=(height,depth)=>body.worldToLocal(new T.Vector3(mid.x,bounds.min.y+span.y*height,bounds.max.z-span.z*depth));
     body.userData.handAnchors={
-      hold:point(blade?.48:pistol?.32:short?.30:heavy?.29:.35,blade?.17:pistol?.19:short?.20:bullpup?.35:.28),
-      support:point(heavy?.55:.57,bullpup?.64:short?.64:.68),
-      reload:point(.28,heavy?.48:bullpup?.26:.43)
+      hold:point(blade?.49:pistol?.275:short?.29:heavy?.32:.34,blade?.21:pistol?.20:short?.21:bullpup?.36:.29),
+      support:point(heavy?.48:.50,bullpup?.64:short?.64:.68),
+      reload:point(.28,heavy?.48:bullpup?.26:.43),
+      gripSize:blade?.68:pistol?.70:short?.72:heavy?.82:.76
     };
     body.userData.inspectCorners=[];
     for(const x of [bounds.min.x,bounds.max.x])
@@ -560,6 +562,20 @@
     let rightHand,leftHand;
     const leftContact=new T.Vector3(), leftRelease=new T.Vector3(), bladePosition=new T.Vector3();
     const leftBladeRotation=new T.Euler();
+    const gripAxis=new T.Vector3(), gripRadial=new T.Vector3(), gripCross=new T.Vector3(), gripOffset=new T.Vector3();
+    const gripBasis=new T.Matrix4(), inverseFrame=new T.Quaternion(), carryRotation=new T.Quaternion();
+    const reloadRotation=new T.Quaternion(), reloadEuler=new T.Euler();
+    function fitGrip(hand,contact,size,ax,ay,az,rx,ry,rz) {
+      gripAxis.set(ax,ay,az).normalize();
+      gripRadial.set(rx,ry,rz).addScaledVector(gripAxis,-(rx*gripAxis.x+ry*gripAxis.y+rz*gripAxis.z)).normalize();
+      gripCross.crossVectors(gripAxis,gripRadial).normalize();
+      gripBasis.makeBasis(gripRadial,gripCross,gripAxis);
+      inverseFrame.copy(hand.userData.gripFrame).invert();
+      hand.quaternion.setFromRotationMatrix(gripBasis).multiply(inverseFrame);
+      hand.scale.setScalar(size);
+      gripOffset.copy(hand.userData.gripCenter).multiplyScalar(size).applyQuaternion(hand.quaternion);
+      hand.position.copy(contact).sub(gripOffset);
+    }
     api.setHands=(right,left)=>{
       rightHand?.parent?.remove(rightHand);
       leftHand?.parent?.remove(leftHand);
@@ -584,33 +600,34 @@
       const {inspectGrip,muzzle,handAnchors}=model.userData;
       const grip=handAnchors?.hold||inspectGrip;
       const knife=selected==='knife', pistol=catalog[selected]?.slot==='secondary'&&selected!=='shorty';
-      const size=(knife?.79:.76)/pivot.scale.x;
+      const modelScale=model.scale.x/(model.userData.viewScale||model.scale.x);
+      const size=(handAnchors?.gripSize??.74)*modelScale;
       const inspect=Number.isFinite(age)?ease(age/.24)*(1-ease((age-2.55)/.33)):0;
       const slash=knife&&shot>=0&&shot<.38?Math.sin(Math.PI*shot/.38)**2:0;
-      weaponPoint(rightHand.position,grip);
-      rightHand.rotation.set(knife?.63:.26,Math.PI+.10,knife?-.28:-.12);
-      rightHand.scale.setScalar(size);
+      weaponPoint(leftContact,grip);
+      if(knife)fitGrip(rightHand,leftContact,size,0,0,-1,.64,-.76,0);
+      else fitGrip(rightHand,leftContact,size,0,1,pistol?-.23:-.12,.92,-.18,.42);
       rightHand.visible=true;
-      relaxHand(rightHand,knife?.13*inspect:.2*inspect);
+      relaxHand(rightHand,0);
 
       const offGun=ease((reloadT-.08)/.24)*(1-ease((reloadT-.70)/.26));
       leftHand.visible=knife||!pistol||offGun>.04;
       if(knife){
         if(leftHand.parent!==scene)scene.add(leftHand);
-        bladePosition.set(-.20*Math.min(camera.aspect,2.1)/1.78+.033*slash,
-          -.188-.16*draw+.014*slash+.004*stride,-.47+.024*inspect-.038*slash);
-        leftBladeRotation.set(.72-.21*slash,-.44,.25+.56*slash);
+        bladePosition.set(-.24*Math.min(camera.aspect,2.1)/1.78+.032*slash,
+          -.245-.16*draw+.014*slash+.004*stride,-.54+.024*inspect-.038*slash);
+        leftBladeRotation.set(-.26-.16*slash,-.44,.12+.45*slash);
         leftHand.position.copy(bladePosition);
         leftHand.rotation.copy(leftBladeRotation);
-        leftHand.scale.setScalar(.74);
-        relaxHand(leftHand,.78-.32*slash);
+        leftHand.scale.setScalar(.63);
+        relaxHand(leftHand,.61-.24*slash);
         return;
       }
       if(leftHand.parent!==pivot)pivot.add(leftHand);
       const support=handAnchors?.support||muzzle;
       weaponPoint(leftContact,support);
       if(!handAnchors)leftContact.lerp(rightHand.position,.61);
-      leftContact.y-=.027/pivot.scale.x;
+      leftContact.y-=.016*modelScale;
       const loading=handAnchors?.reload||grip;
       weaponPoint(leftRelease,loading);
       // Travel below the receiver before coming back up to the support point.
@@ -618,10 +635,16 @@
       leftRelease.x-=(.037+.055*travel)/pivot.scale.x;
       leftRelease.y-=(.018+.095*travel)/pivot.scale.x;
       leftRelease.z+=(.012+.024*travel)/pivot.scale.x;
-      leftHand.position.copy(leftContact).lerp(leftRelease,offGun);
-      leftHand.rotation.set(.53+.40*offGun-.11*aim,Math.PI-.23-.41*offGun,.40+.38*offGun);
-      leftHand.scale.setScalar(size*(pistol?.93:1));
-      relaxHand(leftHand,Math.max(.10,travel*.66,.22*inspect));
+      fitGrip(leftHand,leftContact,size*.97,0,0,-1,-.48,-.87,0);
+      if(pistol||offGun>.001){
+        carryRotation.copy(leftHand.quaternion);
+        reloadEuler.set(.81-.11*aim,Math.PI-.56,.70);
+        reloadRotation.setFromEuler(reloadEuler);
+        const release=pistol?1:offGun;
+        leftHand.position.lerp(leftRelease,release);
+        leftHand.quaternion.copy(carryRotation).slerp(reloadRotation,release);
+      }
+      relaxHand(leftHand,Math.max(travel*.66,.18*inspect*offGun));
     }
     let duration=750, reloadStarted=0, startModelDraw=false, stridePhase=0;
     function getModel(id){
@@ -637,7 +660,8 @@
           add(new T.BoxGeometry(.036,.014,.17),0x9aa9b2,-.114);
           blade.userData.inspectGrip=new T.Vector3(0,0,.046);
           blade.userData.muzzle=new T.Vector3(0,0,-.199);
-          blade.userData.handAnchors={hold:new T.Vector3(0,0,.046)};
+          blade.userData.handAnchors={hold:new T.Vector3(0,0,.046),gripSize:.68};
+          blade.userData.viewScale=1;
           blade.userData.inspectCorners=[];
           return blade;
         }
