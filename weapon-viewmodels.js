@@ -661,7 +661,7 @@
       const grip=handAnchors?.hold||inspectGrip;
       const knife=selected==='knife', pistol=catalog[selected]?.slot==='secondary'&&selected!=='shorty';
       const modelScale=model.scale.x/(model.userData.viewScale||model.scale.x);
-      const size=(handAnchors?.gripSize??.74)*modelScale;
+      const size=(handAnchors?.gripSize??.74)*modelScale*(pistol?1.09:1);
       const inspect=Number.isFinite(age)?ease(age/.24)*(1-ease((age-2.55)/.33)):0;
       const slash=knife&&shot>=0&&shot<.38?Math.sin(Math.PI*shot/.38)**2:0;
       weaponPoint(leftContact,grip);
@@ -675,8 +675,8 @@
       leftHand.visible=knife||!pistol||offGun>.04;
       if(knife){
         if(leftHand.parent!==scene)scene.add(leftHand);
-        bladePosition.set(-.24*Math.min(camera.aspect,2.1)/1.78+.032*slash+.016*inspect,
-          -.245-.16*draw+.014*slash+.004*stride-.062*inspect,-.54+.024*inspect-.038*slash);
+        bladePosition.set(-.22*Math.min(camera.aspect,2.1)/1.78+.032*slash+.016*inspect,
+          -.216-.19*draw+.014*slash+.004*stride-.069*inspect,-.48+.024*inspect-.038*slash);
         leftBladeRotation.set(-1.54-.14*slash,.23+.14*inspect,.39+.33*slash);
         leftHand.position.copy(bladePosition);
         leftHand.rotation.copy(leftBladeRotation);
@@ -786,7 +786,7 @@
     const releasePosition=new T.Vector3(),releaseRotation=new T.Quaternion();
     let releaseTime=-Infinity,releaseModel=null;
     function interruptInspect(){
-      if(Number.isFinite(inspected) && model && performance.now()-inspected<=(framing[selected]?gunInspectDuration:(inspectTracks[selected]?.at(-1)?.[0]??3))*1000){
+      if(Number.isFinite(inspected) && model && performance.now()-inspected<=gunInspectDuration*1000){
         releasePosition.copy(pivot.position);
         releaseRotation.copy(pivot.quaternion);
         releaseTime=performance.now();
@@ -822,8 +822,6 @@
       ares: [0.555, 0.602, 1.1],
       odin: [0.547, 0.598, 1.17]
     };
-    const inspectTracks={knife:[[0,96,70,145,91],[1,145,43,143,84],[2,92,66,139,75],[3,96,65,143,91]]};
-    const forward=new T.Vector3(0,0,-1), direction=new T.Vector3(), correction=new T.Quaternion();
     function readMuzzle(){
       model.updateWorldMatrix(true,false);
       return model.localToWorld(tip.copy(model.userData.muzzle));
@@ -838,25 +836,29 @@
     }
     function applySideInspect(time){
       if(time<0 || time>=gunInspectDuration)return;
-      const first=easeInspect(time/.48);
+      const blade=selected==='knife';
+      const small=catalog[selected]?.slot==='secondary';
+      const first=easeInspect(time/(blade?.55:.48));
       const turn=easeInspect((time-1.00)/.62);
       const finish=easeInspect((time-2.48)/.52);
       const baseYaw=pivot.rotation.y;
-      const side=Math.PI*.36;
-      const opposite=side*.86;
-      const yaw=baseYaw+(side-baseYaw)*first-(side+opposite)*turn+(baseYaw+opposite)*finish;
+      const side=Math.PI*(blade?.26:.36);
+      const nextYaw=blade?.66:-side*.86;
+      const yaw=baseYaw+(side-baseYaw)*first+(nextYaw-side)*turn+(baseYaw-nextYaw)*finish;
       model.updateWorldMatrix(true,false);
       const hold=model.userData.handAnchors?.hold||model.userData.inspectGrip;
       model.localToWorld(gripBefore.copy(hold));
       pivot.rotation.y=yaw;
       // Roll in camera space so the muzzle rises on both opposite-facing poses.
-      const tilt=(-16*first+39*turn-23*finish)*Math.PI/180;
+      const tilt=(blade?(-38*first+57*turn-19*finish):(-16*first+39*turn-23*finish))*Math.PI/180;
       pivot.quaternion.premultiply(tiltRotation.setFromAxisAngle(screenAxis,tilt));
+      const presentation=first-finish;
+      pivot.scale.multiplyScalar(1+(blade?.17:small?.22:.07)*presentation);
       model.updateWorldMatrix(true,false);
       model.localToWorld(gripAfter.copy(hold));
       pivot.position.add(gripBefore.sub(gripAfter));
-      pivot.position.x-=.060*(first-finish);
-      pivot.position.y+=.074*(first-finish);
+      pivot.position.x-=(blade?.009:small?.042:.073)*presentation;
+      pivot.position.y+=(blade?.087:small?.071:.082)*presentation;
       model.updateWorldMatrix(true,false);
       const h=.90*Math.tan(camera.fov*Math.PI/360), w=h*camera.aspect;
       let left=-Infinity,right=Infinity,bottom=-Infinity,top=Infinity;
@@ -873,25 +875,6 @@
       pivot.position.y+=weight*Math.max(bottom-back*h,Math.min(0,top+back*h));
       pivot.position.z-=weight*back;
     }
-    function applyRecordedInspect(track,time){
-      const end=track.findIndex(row=>row[0]>=time);
-      if(end<=0)return;
-      const a=track[end-1], b=track[end], mix=(time-a[0])/(b[0]-a[0]);
-      const sample=k=>a[k]+(b[k]-a[k])*mix;
-      const dx=sample(1)-sample(3), dy=sample(4)-sample(2);
-      const first=track[0], baseAngle=Math.atan2(first[4]-first[2],first[1]-first[3]);
-      direction.copy(forward).applyQuaternion(pivot.quaternion);
-      const azimuth=Math.atan2(direction.y,direction.x)+Math.atan2(dy,dx)-baseAngle;
-      const side=Math.min(1,Math.hypot(direction.x,direction.y)*Math.hypot(dx,dy)/Math.hypot(first[1]-first[3],first[4]-first[2]));
-      readMuzzle();
-      const px=tip.x/-tip.z, py=tip.y/-tip.z;
-      const target=new T.Vector3(side*Math.cos(azimuth),side*Math.sin(azimuth),-Math.sqrt(1-side*side));
-      pivot.quaternion.premultiply(correction.setFromUnitVectors(direction,target));
-      readMuzzle();
-      const units=2*Math.tan(camera.fov*Math.PI/360)/104;
-      pivot.position.x+=(-tip.z)*(px+(sample(1)-first[1])*units)-tip.x;
-      pivot.position.y+=(-tip.z)*(py-(sample(2)-first[2])*units)-tip.y;
-    }
     api.update=(dt,player,state)=>{
       update(dt,player,state);
       visible=!!(model&&player?.alive&&state?.inMatch);
@@ -901,11 +884,10 @@
       const smooth=x=>{x=Math.max(0,Math.min(1,x));return x*x*(3-2*x);};
       const aim=Math.max(0,Math.min(1,player.adsProgress||0));
       if(aim>0 || player.adsRequested) interruptInspect();
-      const track=inspectTracks[selected];
-      const lift=((track||framing[selected])?0:1-aim)*smooth(age/.34)*(1-smooth((age-2.54)/.38));
-      const turn=((track||framing[selected])?0:1-aim)*smooth((age-1.12)/.42)*(1-smooth((age-2.48)/.40));
       const equip=Math.min(1,(now-equipped)/duration);
-      const draw=1-smooth(equip);
+      const knife=selected==='knife', pistol=catalog[selected]?.slot==='secondary'&&selected!=='shorty';
+      const draw=(1-smooth(equip/(knife?.68:pistol?.77:.84)))**1.45;
+      const settle=Math.sin(Math.PI*smooth((equip-.49)/.51))*smooth((equip-.47)/.20)*(1-draw);
       const reloadT=api.isReloading?Math.min(1,(now-reloadStarted)/(1000*(catalog[selected]?.reloadTime||1.1))):1;
       const liftProgress = reloadT;
       const liftBarrel = Math.sin(Math.PI * liftProgress) * (1 - liftProgress);
@@ -913,8 +895,6 @@
       const seat=smooth((reloadT-.34)/.29)*(1-smooth((reloadT-.73)/.27));
       const shorty=selected==='shorty';
       // Hold the broad side in view, then turn back upright for the second pose.
-      const shortyInspect=shorty?lift:0;
-      const shortyTurn=shorty?turn:0;
       const shortyReload=shorty?smooth(reloadT/.22)*(1-smooth((reloadT-.72)/.28)):0;
       const loading=reloadMotion(selected,catalog[selected]?.slot);
       const shot=(now-fired)/1000, kick=selected==='knife'?(shot<.25?Math.sin(Math.PI*Math.min(1,shot/.055)/2)*Math.exp(-shot*18):0):.4*api.getVisualKick(now);
@@ -927,34 +907,34 @@
       // Reference at 23.5–24.5 s: Classic grip sits below and right of the crosshair.
       const pose=poses[selected]||riflePose;
       const frame=framing[selected];
-      pivot.scale.setScalar(frame ? frame[2] : pose.scale);
+      const baseScale=(frame?frame[2]:pose.scale)*(knife?1.11:pistol?1.16:1.05);
+      const viewportScale=THREE.MathUtils.clamp(camera.aspect/(16/9),.78,1);
+      pivot.scale.setScalar(baseScale*viewportScale);
+      const restX=pose.right*Math.min(camera.aspect,2.1)/1.78;
+      const restY=pose.height+(knife?.026:0);
+      const restZ=-.54+(pistol?.036:knife?.021:.018);
       let offsetX=0, offsetY=0;
       if(frame){
         pivot.rotation.set(.12,pose.yaw??.30,-.06);
-        pivot.position.set(pose.right*Math.min(camera.aspect,2.1)/1.78,pose.height,-.54);
+        pivot.position.set(restX,restY,restZ);
         readMuzzle();
         const halfHeight=-tip.z*Math.tan(camera.fov*Math.PI/360);
-        offsetX=(frame[0]-.5)*2*(16/9)*halfHeight-tip.x;
+        offsetX=(frame[0]-.5)*2*camera.aspect*halfHeight-tip.x;
         offsetY=(.5-frame[1])*2*halfHeight-tip.y;
       }
-      pivot.position.set(pose.right*Math.min(camera.aspect,2.1)/1.78-.013*lift-.087*turn-.033*shortyInspect,
-        pose.height+.048*lift-.08*turn-.26*draw-loading.drop*dip+.019*seat,
-        -.54+.05*lift+.045*kick);
+      pivot.position.set(restX+(knife?.09:pistol?.061:.079)*draw-.009*settle,
+        restY-(knife?.23:pistol?.21:.26)*draw+.013*settle-loading.drop*dip+.019*seat,
+        restZ+.040*draw+.045*kick);
       pivot.position.x+=offsetX+.004*sway;
       pivot.position.y+=offsetY+.004*stride;
-      pivot.rotation.set(.12+.30*kick+.20*lift+loading.pitch*liftBarrel+.18*seat,
-        (pose.yaw??.30)+pose.inspectYaw*lift-.45*turn+.13*dip+.25*shortyInspect-.56*shortyTurn,
-        -.06-.24*lift-pose.turnRoll*turn-loading.roll*dip-.12*seat-.19*shortyReload);
+      pivot.rotation.set(.12+.30*kick+loading.pitch*liftBarrel+.18*seat-(knife?.64:pistol?.39:.46)*draw+.045*settle,
+        (pose.yaw??.30)+.13*dip+(knife?.26:.22)*draw,
+        -.06-loading.roll*dip-.12*seat-.19*shortyReload+(knife?.69:pistol?.39:.22)*draw-.038*settle);
       if(selected==='knife'){
         const slash=Math.sin(Math.PI*Math.min(1,shot/.33))**2;
-        pivot.position.x-=.20*slash+.045*lift;
-        pivot.rotation.y+=.37*turn;
-        pivot.rotation.x-=.25*turn;
+        pivot.position.x-=.20*slash;
         pivot.rotation.z+=1.14*slash;
       } else if(catalog[selected]?.canScope){
-        pivot.rotation.y+=.32*turn;
-        pivot.position.z+=.045*lift;
-        pivot.rotation.z-=.22*lift;
         const ads=smooth(aim);
         pivot.rotation.x*=1-ads;
         pivot.rotation.y*=1-ads;
@@ -966,10 +946,7 @@
         const sightDrop=-tip.z*Math.tan(camera.fov*Math.PI/360)*.055;
         pivot.position.y-=(tip.y+sightDrop)*ads;
       }
-      if(Number.isFinite(inspected) && aim===0){
-        if(frame)applySideInspect(age);
-        else if(track)applyRecordedInspect(track,age);
-      }
+      if(Number.isFinite(inspected) && aim===0)applySideInspect(age);
       if(model===releaseModel && now-releaseTime<150){
         const remaining=1-smooth((now-releaseTime)/150);
         pivot.position.lerp(releasePosition,remaining);
