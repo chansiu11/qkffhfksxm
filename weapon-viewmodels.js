@@ -299,7 +299,7 @@
     viewEndpoints,paperProjection,quadToMatrix,muzzleEdgeY,equipPose};
 })();
 (function () {
-  const {create:createSprite,referenceImages,sourceSize}=window.WeaponViewmodels;
+  const {create:createSprite,referenceImages,sourceSize,styles}=window.WeaponViewmodels;
   const files = {
     phantom:'Phantom_Rifle', vandal:'Tactical_Rifle_Menu', bulldog:'Bulldog_Rifle', guardian:'Guardian', warden:'Valorant_New_Gun_Warden', knife:'Tactical_Shadow_Blade',
     classic: 'Black_Semi_Automatic_Pistol', shorty: 'Shadowbreaker',
