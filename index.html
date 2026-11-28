@@ -28,7 +28,7 @@
   <script src="crosshair-profile.js"></script>
   <script src="crosshair-ui.js" defer></script>
   <script src="ads-system.js?v=armory20"></script>
-  <script src="weapon-viewmodels.js?v=knife-grip11"></script>
+  <script src="weapon-viewmodels.js?v=knife-forearms12"></script>
 
   <style>
     :root {
@@ -2220,28 +2220,54 @@ window.setModeMaps=function(mode,select,wanted){
           const wrist=hand.getWorldPosition(new THREE.Vector3());
           const palmDirection=center.clone().sub(wrist).normalize();
           const result=new THREE.Group();
+          const forearm=new THREE.Group();
           const baseJoint=name=>posed.getObjectByName(name+side).getWorldPosition(new THREE.Vector3());
           const across=baseJoint('Index1').sub(baseJoint('Pinky1'));
           const openNormal=palmDirection.clone().cross(across).normalize();
           const isHand = bone => bone?.name.endsWith(side) && /^(Hand|Thumb|Index|Middle|Ring|Pinky)/.test(bone.name);
           const v=new THREE.Vector3();
           const parts=[];
+          const forearmName='Forearm'+side;
+          const wristToElbow=baseJoint('Forearm').sub(wrist);
+          forearm.userData.length=wristToElbow.length();
+          forearm.userData.axis=wristToElbow.normalize();
+          forearm.matrixAutoUpdate=false;
           posed.traverse(mesh=>{
             if(!mesh.isSkinnedMesh)return;
             const g=mesh.geometry, {position,skinIndex,skinWeight}=g.attributes;
             const unit=skinWeight.normalized && skinWeight.array instanceof Uint8Array ? 255 : 1;
             const belongs=new Uint8Array(position.count);
+            const armVertices=new Uint8Array(position.count);
             for(let j=0;j<position.count;j++){
-              if(!isHand(mesh.skeleton.bones[skinIndex.getX(j)]))continue;
+              const bone=mesh.skeleton.bones[skinIndex.getX(j)];
+              const onArm=bone?.name===forearmName, onHand=isHand(bone);
+              if(!onArm&&!onHand)continue;
               v.fromBufferAttribute(position,j);
               mesh.localToWorld(v).sub(wrist);
-              belongs[j]=v.dot(palmDirection)>=-.026?1:0;
+              if(onArm){
+                const length=v.dot(forearm.userData.axis);
+                armVertices[j]=length>=-.047&&length<=forearm.userData.length*1.09&&v.lengthSq()-length*length<.115**2;
+              }else belongs[j]=v.dot(palmDirection)>=-.026?1:0;
             }
             const indices=[];
+            const armPositions=[];
             const idx=g.index;
             for(let j=0;j<(idx?.count??position.count);j+=3){
               const a=idx?idx.getX(j):j,b=idx?idx.getX(j+1):j+1,c=idx?idx.getX(j+2):j+2;
               if(belongs[a]&&belongs[b]&&belongs[c])indices.push(a,b,c);
+              if(armVertices[a]&&armVertices[b]&&armVertices[c]){
+                for(const index of [a,b,c]){
+                  v.fromBufferAttribute(position,index);
+                  mesh.localToWorld(v).sub(wrist);
+                  armPositions.push(v.x,v.y,v.z);
+                }
+              }
+            }
+            if(armPositions.length){
+              const geometry=new THREE.BufferGeometry();
+              geometry.setAttribute('position',new THREE.Float32BufferAttribute(armPositions,3));
+              geometry.computeVertexNormals();
+              forearm.add(new THREE.Mesh(geometry,mesh.material));
             }
             if(!indices.length)return;
             mesh.geometry=g.clone();
@@ -2270,6 +2296,9 @@ window.setModeMaps=function(mode,select,wanted){
           if(openNormal.dot(tip.clone().sub(hinge))<0)openNormal.negate();
           result.userData.palmNormal=openNormal;
           result.userData.palmDirection=palmDirection;
+          result.userData.wrist=wrist.clone().sub(center);
+          forearm.userData.normal=openNormal.clone();
+          result.forearm=forearm;
           const u=hinge.clone().sub(middle), v2=tip.clone().sub(middle);
           const normal=u.clone().cross(v2);
           // The center of the space inside the bent middle finger, in hand-mesh coordinates.

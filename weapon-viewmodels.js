@@ -625,6 +625,43 @@
     const gripBasis=new T.Matrix4(), inverseFrame=new T.Quaternion(), carryRotation=new T.Quaternion();
     const handFacing=new T.Vector3(), targetFacing=new T.Vector3(), fingerDirection=new T.Vector3();
     const handSide=new T.Vector3(), rollCorrection=new T.Quaternion();
+    const wristSocket=new T.Vector3(), armDirection=new T.Vector3(), armNormal=new T.Vector3();
+    const armCross=new T.Vector3(), armScale=new T.Vector3(), takeoff=new T.Vector3();
+    const armStretch=new T.Matrix4();
+    function aimForearm(hand,side){
+      const arm=hand.forearm;
+      if(!arm)return;
+      hand.updateWorldMatrix(true,false);
+      hand.localToWorld(wristSocket.copy(hand.userData.wrist));
+      hand.getWorldScale(armScale);
+      // Start just inside the wrist so the cuff covers the seam on both hands.
+      hand.getWorldQuaternion(rollCorrection);
+      arm.position.copy(wristSocket).addScaledVector(armNormal.copy(hand.userData.palmDirection).applyQuaternion(rollCorrection),.014);
+      takeoff.set(side*(.29*camera.aspect),-.32,-.38);
+      const extension=T.MathUtils.clamp(takeoff.distanceTo(arm.position)/(arm.userData.length*armScale.x),1,2.3)-1;
+      armDirection.copy(takeoff).sub(wristSocket).normalize();
+      armNormal.copy(arm.userData.normal).applyQuaternion(rollCorrection);
+      armNormal.addScaledVector(armDirection,-armNormal.dot(armDirection)).normalize();
+      armCross.crossVectors(armDirection,armNormal);
+      gripBasis.makeBasis(armDirection,armNormal,armCross);
+      arm.quaternion.setFromRotationMatrix(gripBasis);
+      armDirection.copy(arm.userData.axis);
+      armNormal.copy(arm.userData.normal).addScaledVector(armDirection,-arm.userData.normal.dot(armDirection)).normalize();
+      armCross.crossVectors(armDirection,armNormal);
+      inverseFrame.setFromRotationMatrix(gripBasis.makeBasis(armDirection,armNormal,armCross)).invert();
+      arm.quaternion.multiply(inverseFrame);
+      arm.scale.copy(armScale);
+      const {x,y,z}=arm.userData.axis;
+      armStretch.set(
+        1+extension*x*x,extension*x*y,extension*x*z,0,
+        extension*x*y,1+extension*y*y,extension*y*z,0,
+        extension*x*z,extension*y*z,1+extension*z*z,0,
+        0,0,0,1
+      );
+      arm.updateMatrix();
+      arm.matrix.multiply(armStretch);
+      arm.visible=true;
+    }
     const reloadRotation=new T.Quaternion(), reloadEuler=new T.Euler();
     function fitGrip(hand,contact,size,ax,ay,az,rx,ry,rz) {
       gripAxis.set(ax,ay,az).normalize();
@@ -663,7 +700,14 @@
     api.setHands=(right,left)=>{
       rightHand?.parent?.remove(rightHand);
       leftHand?.parent?.remove(leftHand);
+      rightHand?.forearm?.parent?.remove(rightHand.forearm);
+      leftHand?.forearm?.parent?.remove(leftHand.forearm);
       rightHand=right;leftHand=left;
+      for(const hand of [rightHand,leftHand]){
+        if(!hand.forearm)continue;
+        hand.forearm.visible=false;
+        scene.add(hand.forearm);
+      }
       // The free knife hand belongs to the overlay camera, independent of blade rotation.
       scene.add(leftHand);
       leftHand.visible=false;
@@ -699,14 +743,18 @@
       leftHand.visible=knife||!pistol||offGun>.04;
       if(knife){
         if(leftHand.parent!==scene)scene.add(leftHand);
-        bladePosition.set(-.22*Math.min(camera.aspect,2.1)/1.78+.032*slash+.016*inspect,
-          -.196-.19*draw+.014*slash+.004*stride-.069*inspect,-.48+.024*inspect-.038*slash);
+        bladePosition.set(-.19*Math.min(camera.aspect,2.1)/1.78+.032*slash+.016*inspect,
+          -.164-.19*draw-.052*slash+.004*stride-.069*inspect,-.49+.024*inspect-.038*slash);
         leftHand.position.copy(bladePosition);
         faceFreeKnifeHand(leftHand,slash,inspect);
         leftHand.scale.setScalar(.63);
-        relaxHand(leftHand,.66-.24*slash);
+        relaxHand(leftHand,.82-.31*slash);
+        aimForearm(rightHand,1);
+        aimForearm(leftHand,-1);
         return;
       }
+      if(rightHand.forearm)rightHand.forearm.visible=false;
+      if(leftHand.forearm)leftHand.forearm.visible=false;
       if(leftHand.parent!==pivot)pivot.add(leftHand);
       const support=handAnchors?.support||muzzle;
       weaponPoint(leftContact,support);
@@ -942,8 +990,8 @@
       const baseScale=(frame?frame[2]:pose.scale)*(knife?1.11:pistol?1.16:1.05);
       const viewportScale=THREE.MathUtils.clamp(camera.aspect/(16/9),.78,1);
       pivot.scale.setScalar(baseScale*viewportScale);
-      const restX=pose.right*Math.min(camera.aspect,2.1)/1.78;
-      const restY=pose.height+(knife?.026:0);
+      const restX=(pose.right+(knife?.052:0))*Math.min(camera.aspect,2.1)/1.78;
+      const restY=pose.height+(knife?.010:0);
       const restZ=-.54+(pistol?.036:knife?.021:.018);
       let offsetX=0, offsetY=0;
       if(frame){
